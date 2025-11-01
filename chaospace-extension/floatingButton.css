@@ -64,8 +64,8 @@
   transform: none;
   z-index: 9999;
   width: min(640px, calc(100vw - 32px));
-  min-width: 420px;
-  max-width: calc(100vw - 32px);
+  min-width: 360px;
+  max-width: min(960px, calc(100vw - 32px));
   min-height: 380px;
   max-height: calc(100vh - 48px);
   background: var(--cp-panel-bg);
@@ -79,7 +79,7 @@
   transition: transform 0.25s ease, opacity 0.25s ease, top 0.25s ease, left 0.25s ease;
   opacity: 0;
   animation: chaospace-panel-in 0.35s ease forwards;
-  resize: both;
+  resize: none;
 }
 
 @keyframes chaospace-panel-in {
@@ -129,6 +129,8 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .chaospace-theme-toggle,
@@ -141,6 +143,7 @@
   font-size: 12px;
   cursor: pointer;
   transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  white-space: nowrap;
 }
 
 .chaospace-theme-toggle:hover,
@@ -157,7 +160,7 @@
 }
 
 .chaospace-float-body {
-  padding: 20px 26px 26px;
+  padding: 20px 26px 34px;
   display: flex;
   flex: 1;
 }
@@ -202,6 +205,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
   padding: 10px 14px;
   border-radius: 14px;
   background: var(--cp-overlay);
@@ -212,6 +216,8 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+  row-gap: 8px;
 }
 
 .chaospace-sort-label {
@@ -258,6 +264,7 @@
   font-size: 12px;
   cursor: pointer;
   transition: background 0.2s ease, transform 0.2s ease;
+  white-space: nowrap;
 }
 
 .chaospace-order-btn:hover {
@@ -274,6 +281,8 @@
 .chaospace-select-group {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .chaospace-select-group button {
@@ -285,6 +294,8 @@
   font-size: 12px;
   cursor: pointer;
   transition: background 0.2s ease, border-color 0.2s ease;
+  flex: 0 1 auto;
+  white-space: nowrap;
 }
 
 .chaospace-select-group button:hover {
@@ -508,6 +519,7 @@
   font-size: 12px;
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  white-space: nowrap;
 }
 
 .chaospace-input-row button:hover {
@@ -742,6 +754,47 @@
   display: none;
 }
 
+.chaospace-resize-handle {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(148, 163, 184, 0.18);
+  cursor: nwse-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  touch-action: none;
+  transition: background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+
+.chaospace-resize-handle::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid rgba(148, 163, 184, 0.6);
+  border-bottom: 2px solid rgba(148, 163, 184, 0.6);
+  transform: translate(1px, 1px);
+}
+
+.chaospace-resize-handle:hover {
+  background: rgba(99, 102, 241, 0.24);
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+.chaospace-float-panel.is-resizing .chaospace-resize-handle {
+  background: rgba(99, 102, 241, 0.28);
+  border-color: rgba(99, 102, 241, 0.6);
+}
+
+.chaospace-float-panel.minimized .chaospace-resize-handle {
+  display: none;
+}
+
 .chaospace-float-mini {
   display: none;
   align-items: center;
@@ -856,6 +909,66 @@
 
 .chaospace-float-panel.minimized .chaospace-float-mini {
   display: flex;
+}
+
+.chaospace-float-panel.is-narrow .chaospace-float-columns {
+  grid-template-columns: 1fr;
+}
+
+.chaospace-float-panel.is-narrow .chaospace-section-heading {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.chaospace-float-panel.is-narrow .chaospace-toolbar {
+  justify-content: flex-start;
+}
+
+.chaospace-float-panel.is-narrow .chaospace-select-group {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.chaospace-float-panel.is-narrow .chaospace-float-body {
+  padding: 18px 22px 28px;
+}
+
+.chaospace-float-panel.is-compact .chaospace-sort-group {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.chaospace-float-panel.is-compact .chaospace-sort-label {
+  flex: 1 1 180px;
+}
+
+.chaospace-float-panel.is-compact .chaospace-sort-label select {
+  width: 100%;
+}
+
+.chaospace-float-panel.is-compact .chaospace-select-group {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.chaospace-float-panel.is-compact .chaospace-select-group button {
+  flex: 1 1 140px;
+}
+
+.chaospace-float-panel.is-compact .chaospace-input-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.chaospace-float-panel.is-compact .chaospace-input-row button {
+  width: 100%;
+}
+
+.chaospace-float-panel.is-compact .chaospace-float-controls {
+  width: 100%;
+  justify-content: flex-end;
 }
 
 .chaospace-chip-button,

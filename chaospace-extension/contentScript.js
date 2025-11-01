@@ -1,6 +1,7 @@
 (() => {
   const STORAGE_KEY = 'chaospace-transfer-settings';
   const POSITION_KEY = 'chaospace-panel-position';
+  const SIZE_KEY = 'chaospace-panel-size';
   const DEFAULT_PRESETS = ['/视频/番剧', '/视频/影视', '/视频/电影'];
   const MAX_LOG_ENTRIES = 80;
   const LOG_COLLAPSED_COUNT = 4;
@@ -29,6 +30,8 @@
   let floatingPanel = null;
   let currentToast = null;
   let isMinimized = false;
+  let lastKnownSize = null;
+  let detachWindowResize = null;
 
   // 智能提取剧集标题
   function extractCleanTitle(rawTitle) {
@@ -765,6 +768,12 @@
       return;
     }
 
+    if (detachWindowResize) {
+      detachWindowResize();
+      detachWindowResize = null;
+    }
+    lastKnownSize = null;
+
     try {
       await loadSettings();
       applyPanelTheme();
@@ -863,6 +872,12 @@
             </section>
           </div>
         </div>
+        <div
+          class="chaospace-resize-handle"
+          data-role="resize-handle"
+          title="拖动调整面板大小"
+          aria-hidden="true"
+        ></div>
         <div class="chaospace-float-mini">
           <button
             type="button"
@@ -884,6 +899,38 @@
       };
 
       const PANEL_MARGIN = 16;
+      const PANEL_MIN_WIDTH = 360;
+      const PANEL_MIN_HEIGHT = 380;
+      const PANEL_MAX_WIDTH = 960;
+      const PANEL_MAX_HEIGHT = 840;
+
+      const getPanelBounds = () => {
+        const maxWidth = Math.max(PANEL_MIN_WIDTH, Math.min(PANEL_MAX_WIDTH, window.innerWidth - PANEL_MARGIN * 2));
+        const maxHeight = Math.max(PANEL_MIN_HEIGHT, Math.min(PANEL_MAX_HEIGHT, window.innerHeight - PANEL_MARGIN * 2));
+        return {
+          minWidth: PANEL_MIN_WIDTH,
+          minHeight: PANEL_MIN_HEIGHT,
+          maxWidth,
+          maxHeight
+        };
+      };
+
+      const syncPanelLayout = () => {
+        const width = panel.offsetWidth;
+        panel.classList.toggle('is-narrow', width < 620);
+        panel.classList.toggle('is-compact', width < 520);
+      };
+
+      const applyPanelSize = (width, height) => {
+        const bounds = getPanelBounds();
+        const nextWidth = clamp(width, bounds.minWidth, bounds.maxWidth);
+        const nextHeight = clamp(height, bounds.minHeight, bounds.maxHeight);
+        panel.style.width = `${nextWidth}px`;
+        panel.style.height = `${nextHeight}px`;
+        lastKnownSize = { width: nextWidth, height: nextHeight };
+        syncPanelLayout();
+        return lastKnownSize;
+      };
 
       const applyPanelPosition = (left, top) => {
         const panelWidth = panel.offsetWidth;
@@ -903,7 +950,24 @@
         return { left: safeLeft, top: safeTop };
       };
 
-      let lastKnownPosition = applyPanelPosition();
+      let lastKnownPosition = { left: PANEL_MARGIN, top: PANEL_MARGIN };
+
+      const savedState = await chrome.storage.local.get([POSITION_KEY, SIZE_KEY]);
+      const savedSize = savedState[SIZE_KEY];
+      if (savedSize && Number.isFinite(savedSize.width) && Number.isFinite(savedSize.height)) {
+        applyPanelSize(savedSize.width, savedSize.height);
+      } else {
+        const bounds = getPanelBounds();
+        const fallbackWidth = Math.min(640, bounds.maxWidth);
+        const fallbackHeight = Math.min(520, bounds.maxHeight);
+        applyPanelSize(fallbackWidth, fallbackHeight);
+      }
+
+      const savedPosition = savedState[POSITION_KEY];
+      lastKnownPosition = applyPanelPosition(
+        savedPosition && Number.isFinite(savedPosition.left) ? savedPosition.left : undefined,
+        savedPosition && Number.isFinite(savedPosition.top) ? savedPosition.top : undefined
+      );
 
       panelDom.baseDirInput = panel.querySelector('[data-role="base-dir"]');
       panelDom.useTitleCheckbox = panel.querySelector('[data-role="use-title"]');
@@ -925,6 +989,7 @@
       panelDom.transferLabel = panel.querySelector('[data-role="transfer-label"]');
       panelDom.transferSpinner = panel.querySelector('[data-role="transfer-spinner"]');
       panelDom.statusText = panel.querySelector('[data-role="status"]');
+      panelDom.resizeHandle = panel.querySelector('[data-role="resize-handle"]');
 
       applyPanelTheme();
       updateMinimizeButton();
@@ -1114,14 +1179,21 @@
       const miniBar = panel.querySelector('.chaospace-float-mini');
       const miniExpandBtn = panel.querySelector('[data-role="mini-expand"]');
       let isDragging = false;
+      let isResizing = false;
       let currentX = 0;
       let currentY = 0;
       let initialX = 0;
       let initialY = 0;
+      let resizeStartX = 0;
+      let resizeStartY = 0;
+      let resizeStartWidth = 0;
+      let resizeStartHeight = 0;
 
       // 拖拽功能 - 适用于标题栏和迷你栏
       const startDrag = (e) => {
-        // 如果点击的是按钮或输入框,不触发拖拽
+        if (e.button !== 0) {
+          return;
+        }
         if (e.target.closest('button') ||
             e.target.closest('input') ||
             e.target.closest('.chaospace-theme-toggle')) {
@@ -1132,7 +1204,30 @@
         initialX = e.clientX - rect.left;
         initialY = e.clientY - rect.top;
         panel.style.transition = 'none';
+        document.body.style.userSelect = 'none';
         e.currentTarget.style.cursor = 'grabbing';
+      };
+
+      const startResize = (event) => {
+        if (event.button !== 0 || !panelDom.resizeHandle) {
+          return;
+        }
+        if (panel.classList.contains('minimized')) {
+          return;
+        }
+        if (!panelDom.resizeHandle.contains(event.target)) {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        isResizing = true;
+        resizeStartWidth = panel.offsetWidth;
+        resizeStartHeight = panel.offsetHeight;
+        resizeStartX = event.clientX;
+        resizeStartY = event.clientY;
+        panel.classList.add('is-resizing');
+        panel.style.transition = 'none';
+        document.body.style.userSelect = 'none';
       };
 
       if (header) {
@@ -1144,7 +1239,20 @@
         miniBar.addEventListener('mousedown', startDrag);
       }
 
+      if (panelDom.resizeHandle) {
+        panelDom.resizeHandle.addEventListener('mousedown', startResize);
+      }
+
       document.addEventListener('mousemove', (e) => {
+        if (isResizing) {
+          e.preventDefault();
+          const deltaX = e.clientX - resizeStartX;
+          const deltaY = e.clientY - resizeStartY;
+          applyPanelSize(resizeStartWidth + deltaX, resizeStartHeight + deltaY);
+          const clampedPosition = applyPanelPosition(lastKnownPosition.left, lastKnownPosition.top);
+          lastKnownPosition = clampedPosition;
+          return;
+        }
         if (!isDragging) return;
         e.preventDefault();
         currentX = e.clientX - initialX;
@@ -1162,6 +1270,7 @@
       });
 
       document.addEventListener('mouseup', () => {
+        let shouldRestoreSelection = false;
         if (isDragging) {
           isDragging = false;
           panel.style.transition = '';
@@ -1170,8 +1279,52 @@
           chrome.storage.local.set({
             [POSITION_KEY]: lastKnownPosition
           });
+          shouldRestoreSelection = true;
+        }
+        if (isResizing) {
+          isResizing = false;
+          panel.classList.remove('is-resizing');
+          panel.style.transition = '';
+          const clampedPosition = applyPanelPosition(lastKnownPosition.left, lastKnownPosition.top);
+          lastKnownPosition = clampedPosition;
+          chrome.storage.local.set({
+            [SIZE_KEY]: lastKnownSize,
+            [POSITION_KEY]: lastKnownPosition
+          });
+          shouldRestoreSelection = true;
+        }
+        if (shouldRestoreSelection) {
+          document.body.style.userSelect = '';
         }
       });
+
+      const handleWindowResize = () => {
+        if (!floatingPanel) {
+          return;
+        }
+        if (panel.classList.contains('minimized')) {
+          const clampedPosition = applyPanelPosition(lastKnownPosition.left, lastKnownPosition.top);
+          lastKnownPosition = clampedPosition;
+          chrome.storage.local.set({
+            [POSITION_KEY]: lastKnownPosition
+          });
+          return;
+        }
+        const sourceWidth = lastKnownSize?.width ?? panel.offsetWidth;
+        const sourceHeight = lastKnownSize?.height ?? panel.offsetHeight;
+        applyPanelSize(sourceWidth, sourceHeight);
+        const clampedPosition = applyPanelPosition(lastKnownPosition.left, lastKnownPosition.top);
+        lastKnownPosition = clampedPosition;
+        chrome.storage.local.set({
+          [SIZE_KEY]: lastKnownSize,
+          [POSITION_KEY]: lastKnownPosition
+        });
+      };
+
+      window.addEventListener('resize', handleWindowResize);
+      detachWindowResize = () => {
+        window.removeEventListener('resize', handleWindowResize);
+      };
 
       if (miniExpandBtn) {
         miniExpandBtn.addEventListener('click', () => {
@@ -1180,6 +1333,15 @@
           }
           isMinimized = false;
           panel.classList.remove('minimized');
+          const restoreWidth = lastKnownSize?.width ?? panel.offsetWidth;
+          const restoreHeight = lastKnownSize?.height ?? panel.offsetHeight;
+          applyPanelSize(restoreWidth, restoreHeight);
+          const clampedPosition = applyPanelPosition(lastKnownPosition.left, lastKnownPosition.top);
+          lastKnownPosition = clampedPosition;
+          chrome.storage.local.set({
+            [SIZE_KEY]: lastKnownSize,
+            [POSITION_KEY]: lastKnownPosition
+          });
           updateMinimizeButton();
           if (panelDom.baseDirInput) {
             panelDom.baseDirInput.focus();
@@ -1194,15 +1356,24 @@
       if (panelDom.minimizeBtn) {
         panelDom.minimizeBtn.addEventListener('click', () => {
           isMinimized = !isMinimized;
-          panel.classList.toggle('minimized', isMinimized);
+          if (isMinimized) {
+            panel.classList.add('minimized');
+            panel.style.removeProperty('width');
+            panel.style.removeProperty('height');
+          } else {
+            panel.classList.remove('minimized');
+            const restoreWidth = lastKnownSize?.width ?? panel.offsetWidth;
+            const restoreHeight = lastKnownSize?.height ?? panel.offsetHeight;
+            applyPanelSize(restoreWidth, restoreHeight);
+            const clampedPosition = applyPanelPosition(lastKnownPosition.left, lastKnownPosition.top);
+            lastKnownPosition = clampedPosition;
+            chrome.storage.local.set({
+              [SIZE_KEY]: lastKnownSize,
+              [POSITION_KEY]: lastKnownPosition
+            });
+          }
           updateMinimizeButton();
         });
-      }
-
-      const savedPosition = await chrome.storage.local.get(POSITION_KEY);
-      if (savedPosition[POSITION_KEY]) {
-        const pos = savedPosition[POSITION_KEY];
-        lastKnownPosition = applyPanelPosition(pos.left, pos.top);
       }
 
       renderPresets();
@@ -1219,8 +1390,15 @@
 
   function toggleFloatingPanel() {
     if (floatingPanel) {
+      if (detachWindowResize) {
+        detachWindowResize();
+        detachWindowResize = null;
+      }
       floatingPanel.remove();
       floatingPanel = null;
+      document.body.style.userSelect = '';
+      isMinimized = false;
+      lastKnownSize = null;
       Object.keys(panelDom).forEach(key => {
         panelDom[key] = null;
       });
