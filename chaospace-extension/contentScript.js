@@ -14,6 +14,7 @@
     sortOrder: 'asc', // asc | desc
     selectedIds: new Set(),
     pageTitle: '',
+    poster: null,
     origin: '',
     jobId: null,
     logs: [],
@@ -107,6 +108,119 @@
     };
   }
 
+  function resolveAbsoluteUrl(value) {
+    if (!value || typeof value !== 'string') {
+      return '';
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return '';
+    }
+    try {
+      return new URL(trimmed, window.location.href).href;
+    } catch (_error) {
+      return '';
+    }
+  }
+
+  function parseSrcset(value) {
+    if (!value || typeof value !== 'string') {
+      return [];
+    }
+    return value
+      .split(',')
+      .map(entry => entry.trim())
+      .map(entry => {
+        const parts = entry.split(/\s+/);
+        const urlPart = parts[0];
+        const descriptor = parts[1] || '';
+        const widthMatch = descriptor.match(/(\d+(?:\.\d+)?)(w|x)?/i);
+        let score = 0;
+        if (widthMatch) {
+          const size = parseFloat(widthMatch[1]);
+          if (Number.isFinite(size)) {
+            score = widthMatch[2] && widthMatch[2].toLowerCase() === 'x' ? size * 1000 : size;
+          }
+        }
+        return {
+          url: resolveAbsoluteUrl(urlPart),
+          score
+        };
+      })
+      .filter(item => Boolean(item.url));
+  }
+
+  function pickImageSource(img) {
+    if (!img) {
+      return '';
+    }
+
+    const fromCurrent = resolveAbsoluteUrl(img.currentSrc || img.src || '');
+    const srcsetCandidates = [
+      ...parseSrcset(img.getAttribute('data-srcset')),
+      ...parseSrcset(img.getAttribute('srcset'))
+    ];
+
+    if (srcsetCandidates.length > 0) {
+      srcsetCandidates.sort((a, b) => (b.score || 0) - (a.score || 0));
+      const best = srcsetCandidates.find(Boolean);
+      if (best?.url) {
+        return best.url;
+      }
+    }
+
+    const attributeCandidates = [
+      img.getAttribute('data-original'),
+      img.getAttribute('data-src'),
+      img.getAttribute('data-lazy-src'),
+      img.getAttribute('data-medium-file'),
+      img.getAttribute('data-large-file'),
+      img.getAttribute('src')
+    ];
+
+    for (const candidate of attributeCandidates) {
+      const absolute = resolveAbsoluteUrl(candidate || '');
+      if (absolute) {
+        return absolute;
+      }
+    }
+
+    return fromCurrent;
+  }
+
+  function extractPosterDetails() {
+    const img =
+      document.querySelector('.poster img') ||
+      document.querySelector('.post-thumbnail img') ||
+      document.querySelector('article img');
+    if (!img) {
+      return null;
+    }
+
+    const src = pickImageSource(img);
+    if (!src) {
+      return null;
+    }
+
+    const altRaw = (img.getAttribute('alt') || '').trim();
+    const alt = altRaw ? extractCleanTitle(altRaw) : getPageCleanTitle();
+    const anchor = img.closest('a');
+    const href = anchor ? resolveAbsoluteUrl(anchor.getAttribute('href') || anchor.href || '') : '';
+
+    const widthAttr = parseInt(img.getAttribute('width') || '', 10);
+    const heightAttr = parseInt(img.getAttribute('height') || '', 10);
+    const width = Number.isFinite(img.naturalWidth) && img.naturalWidth > 0 ? img.naturalWidth : (Number.isFinite(widthAttr) ? widthAttr : null);
+    const height = Number.isFinite(img.naturalHeight) && img.naturalHeight > 0 ? img.naturalHeight : (Number.isFinite(heightAttr) ? heightAttr : null);
+    const aspectRatio = width && height ? Number((width / height).toFixed(3)) : null;
+
+    return {
+      src,
+      alt,
+      href,
+      aspectRatio
+    };
+  }
+
   function collectLinks() {
     try {
       const rows = locateBaiduPanRows();
@@ -124,7 +238,8 @@
         items,
         url: window.location.href,
         origin: window.location.origin,
-        title: getPageCleanTitle()
+        title: getPageCleanTitle(),
+        poster: extractPosterDetails()
       };
     } catch (error) {
       console.error('[Chaospace] Failed to collect links:', error);
@@ -132,8 +247,62 @@
         items: [],
         url: window.location.href || '',
         origin: window.location.origin || '',
-        title: ''
+        title: '',
+        poster: null
       };
+    }
+  }
+
+  function formatOriginLabel(origin) {
+    if (!origin) {
+      return '';
+    }
+    try {
+      const url = new URL(origin, window.location.href);
+      return url.hostname.replace(/^www\./, '');
+    } catch (_error) {
+      return origin;
+    }
+  }
+
+  function sanitizeCssUrl(url) {
+    if (!url) {
+      return '';
+    }
+    return url.replace(/["\n\r]/g, '').trim();
+  }
+
+  function updatePanelHeader() {
+    const hasPoster = Boolean(state.poster && state.poster.src);
+    if (panelDom.showTitle) {
+      const title = state.pageTitle || (state.poster && state.poster.alt) || '等待选择剧集';
+      panelDom.showTitle.textContent = title;
+    }
+    if (panelDom.showSubtitle) {
+      const label = formatOriginLabel(state.origin);
+      const hasItemsArray = Array.isArray(state.items);
+      const itemCount = hasItemsArray ? state.items.length : 0;
+      const infoParts = [];
+      if (label) {
+        infoParts.push(`来源 ${label}`);
+      }
+      if (hasItemsArray) {
+        infoParts.push(`解析到 ${itemCount} 项资源`);
+      }
+      panelDom.showSubtitle.textContent = infoParts.length ? infoParts.join(' · ') : '未检测到页面来源';
+    }
+    if (panelDom.header) {
+      panelDom.header.classList.toggle('has-poster', hasPoster);
+    }
+    if (panelDom.headerArt) {
+      if (hasPoster) {
+        const safeUrl = sanitizeCssUrl(state.poster.src);
+        panelDom.headerArt.style.backgroundImage = `url("${safeUrl}")`;
+        panelDom.headerArt.classList.remove('is-empty');
+      } else {
+        panelDom.headerArt.style.backgroundImage = '';
+        panelDom.headerArt.classList.add('is-empty');
+      }
     }
   }
 
@@ -563,6 +732,7 @@
       container.appendChild(empty);
       renderResourceSummary();
       updateTransferButton();
+      updatePanelHeader();
       return;
     }
 
@@ -591,6 +761,7 @@
 
     renderResourceSummary();
     updateTransferButton();
+    updatePanelHeader();
   }
 
   function updateTransferButton() {
@@ -810,6 +981,7 @@
       }
 
       state.pageTitle = data.title || '';
+      state.poster = data.poster || null;
       state.origin = data.origin || window.location.origin;
       state.items = data.items.map((item, index) => ({
         ...item,
@@ -823,15 +995,20 @@
 
       const panel = document.createElement('div');
       panel.className = `chaospace-float-panel chaospace-theme${state.theme === 'light' ? ' theme-light' : ''}`;
+      const originLabel = formatOriginLabel(state.origin);
       panel.innerHTML = `
         <div class="chaospace-float-header">
-          <div class="chaospace-header-text">
-            <h2 class="chaospace-float-title">🚀 CHAOSPACE 转存助手</h2>
-            <p class="chaospace-float-subtitle">${state.pageTitle ? `🎬 ${state.pageTitle}` : '等待选择剧集'}</p>
-          </div>
-          <div class="chaospace-float-controls">
-            <button type="button" class="chaospace-theme-toggle" data-role="theme-toggle">切换浅色 ☀️</button>
-            <button type="button" class="chaospace-float-minimize" data-role="minimize" title="折叠">折叠</button>
+          <div class="chaospace-header-art is-empty" data-role="header-art"></div>
+          <div class="chaospace-header-content">
+            <div class="chaospace-header-topline">
+              <span class="chaospace-assistant-badge">🚀 CHAOSPACE 转存助手</span>
+              <div class="chaospace-float-controls">
+                <button type="button" class="chaospace-theme-toggle" data-role="theme-toggle">切换浅色 ☀️</button>
+                <button type="button" class="chaospace-float-minimize" data-role="minimize" title="折叠">折叠</button>
+              </div>
+            </div>
+            <h2 class="chaospace-show-title" data-role="show-title">${state.pageTitle || '等待选择剧集'}</h2>
+            <p class="chaospace-show-subtitle" data-role="show-subtitle">${originLabel ? `来源 ${originLabel}` : '未检测到页面来源'}</p>
           </div>
         </div>
         <div class="chaospace-float-body">
@@ -991,6 +1168,10 @@
         savedPosition && Number.isFinite(savedPosition.top) ? savedPosition.top : undefined
       );
 
+      panelDom.header = panel.querySelector('.chaospace-float-header');
+      panelDom.headerArt = panel.querySelector('[data-role="header-art"]');
+      panelDom.showTitle = panel.querySelector('[data-role="show-title"]');
+      panelDom.showSubtitle = panel.querySelector('[data-role="show-subtitle"]');
       panelDom.baseDirInput = panel.querySelector('[data-role="base-dir"]');
       panelDom.useTitleCheckbox = panel.querySelector('[data-role="use-title"]');
       panelDom.pathPreview = panel.querySelector('[data-role="path-preview"]');
@@ -1012,6 +1193,7 @@
       panelDom.statusText = panel.querySelector('[data-role="status"]');
       panelDom.resizeHandle = panel.querySelector('[data-role="resize-handle"]');
 
+      updatePanelHeader();
       applyPanelTheme();
       updateMinimizeButton();
 
@@ -1512,7 +1694,7 @@
         sendResponse(collectLinks());
       } catch (error) {
         console.error('[Chaospace] Message handler error:', error);
-        sendResponse({ items: [], url: '', origin: '', title: '' });
+        sendResponse({ items: [], url: '', origin: '', title: '', poster: null });
       }
       return false;
     }

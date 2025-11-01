@@ -4,6 +4,9 @@ const MAX_LOG_ENTRIES = 80;
 const LOG_COLLAPSED_COUNT = 4;
 
 const dom = {
+  header: document.getElementById('popup-header'),
+  headerArt: document.getElementById('popup-header-art'),
+  pageTitle: document.getElementById('page-title'),
   pageInfo: document.getElementById('page-info'),
   itemsTitle: document.getElementById('items-title'),
   selectionSummary: document.getElementById('selection-summary'),
@@ -34,6 +37,7 @@ const state = {
   tabId: null,
   origin: '',
   pageTitle: '',
+  poster: null,
   items: [],
   baseDir: '/',
   useTitleSubdir: true,
@@ -80,6 +84,42 @@ function sanitizePreset(value) {
     sanitized = sanitized.slice(0, -1);
   }
   return sanitized;
+}
+
+function formatOriginLabel(origin) {
+  if (!origin) {
+    return '';
+  }
+  try {
+    const url = new URL(origin);
+    return url.hostname.replace(/^www\./, '');
+  } catch (_error) {
+    return origin;
+  }
+}
+
+function sanitizeCssUrl(url) {
+  if (!url) {
+    return '';
+  }
+  return url.replace(/["\n\r]/g, '').trim();
+}
+
+function updateHeaderArtwork() {
+  const hasPoster = Boolean(state.poster && state.poster.src);
+  if (dom.header) {
+    dom.header.classList.toggle('has-poster', hasPoster);
+  }
+  if (dom.headerArt) {
+    if (hasPoster) {
+      const safeUrl = sanitizeCssUrl(state.poster.src);
+      dom.headerArt.style.backgroundImage = `url("${safeUrl}")`;
+      dom.headerArt.classList.remove('is-empty');
+    } else {
+      dom.headerArt.style.backgroundImage = '';
+      dom.headerArt.classList.add('is-empty');
+    }
+  }
 }
 
 async function loadSettings() {
@@ -226,15 +266,28 @@ function showMessage(text, type = 'error') {
 }
 
 function renderPageInfo() {
-  if (!dom.pageInfo) {
-    return;
+  const fallbackTitle = (state.pageTitle && state.pageTitle.trim()) || (state.poster && state.poster.alt) || '';
+  if (dom.pageTitle) {
+    dom.pageTitle.textContent = fallbackTitle || '等待选择剧集';
   }
-  if (!state.origin) {
-    dom.pageInfo.textContent = '未检测到 CHAOSPACE 页面';
-    return;
+  if (dom.pageInfo) {
+    if (!state.origin) {
+      dom.pageInfo.textContent = '未检测到 CHAOSPACE 页面';
+    } else {
+      const host = formatOriginLabel(state.origin);
+      const hasItemsArray = Array.isArray(state.items);
+      const itemCount = hasItemsArray ? state.items.length : 0;
+      const infoParts = [];
+      if (host) {
+        infoParts.push(`来源 ${host}`);
+      }
+      if (hasItemsArray) {
+        infoParts.push(`解析到 ${itemCount} 项资源`);
+      }
+      dom.pageInfo.textContent = infoParts.length ? infoParts.join(' · ') : state.origin;
+    }
   }
-  const title = state.pageTitle || '当前页面';
-  dom.pageInfo.textContent = `${title} · ${state.origin}`;
+  updateHeaderArtwork();
 }
 
 function renderPresets() {
@@ -332,6 +385,7 @@ function renderItems() {
     dom.itemsContainer.appendChild(empty);
     renderSelectionSummary();
     updateTransferButton();
+    renderPageInfo();
     return;
   }
 
@@ -360,6 +414,7 @@ function renderItems() {
 
   renderSelectionSummary();
   updateTransferButton();
+  renderPageInfo();
 }
 
 function setSelectionAll(selected) {
@@ -617,6 +672,7 @@ async function refreshItems() {
       state.selectedIds = new Set();
       state.origin = response?.origin || new URL(tab.url || '').origin;
       state.pageTitle = response?.title || tab.title || '';
+      state.poster = response?.poster || null;
       renderPageInfo();
       renderItems();
       showMessage('未从页面中解析到资源链接。', 'info');
@@ -625,6 +681,7 @@ async function refreshItems() {
 
     state.origin = response.origin || new URL(tab.url || '').origin;
     state.pageTitle = response.title || tab.title || '';
+    state.poster = response.poster || null;
     state.items = response.items.map((item, index) => ({
       ...item,
       order: typeof item.order === 'number' ? item.order : index
@@ -638,6 +695,8 @@ async function refreshItems() {
     console.error('[Chaospace Transfer] refresh error', error);
     state.items = [];
     state.selectedIds = new Set();
+    state.poster = null;
+    renderPageInfo();
     renderItems();
     showMessage(`无法获取页面资源：${error.message}`);
   } finally {
