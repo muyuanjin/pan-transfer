@@ -663,8 +663,11 @@
 
 .chaospace-log-item {
   display: grid;
-  grid-template-columns: 60px 1fr;
-  gap: 10px;
+  grid-template-columns: 72px minmax(96px, 140px) 1fr;
+  grid-template-areas:
+    "time stage message"
+    "time stage detail";
+  gap: 8px;
   font-size: 11px;
   color: var(--cp-text-secondary);
   opacity: 0;
@@ -678,13 +681,50 @@
 }
 
 .chaospace-log-time {
+  grid-area: time;
   font-family: 'SFMono-Regular', 'Cascadia Code', monospace;
   color: var(--cp-text-muted);
+  white-space: nowrap;
+}
+
+.chaospace-log-stage {
+  grid-area: stage;
+  align-self: center;
+  justify-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--cp-accent-softer);
+  color: var(--cp-accent);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.chaospace-log-success .chaospace-log-stage {
+  background: rgba(52, 211, 153, 0.18);
+  color: var(--cp-success);
+}
+
+.chaospace-log-warning .chaospace-log-stage {
+  background: rgba(251, 191, 36, 0.18);
+  color: var(--cp-warning);
+}
+
+.chaospace-log-error .chaospace-log-stage {
+  background: rgba(248, 113, 113, 0.18);
+  color: var(--cp-error);
+}
+
+.chaospace-log-message {
+  grid-area: message;
+  align-self: center;
 }
 
 .chaospace-log-detail {
-  margin-left: 4px;
+  grid-area: detail;
   color: var(--cp-text-muted);
+  font-size: 10px;
 }
 
 .chaospace-log-success {

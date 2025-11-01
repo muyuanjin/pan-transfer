@@ -30,20 +30,80 @@ const MAX_TRANSFER_ATTEMPTS = 3;
 const TRANSFER_RETRYABLE_ERRNOS = new Set([4]);
 const DIRECTORY_LIST_PAGE_SIZE = 200;
 const directoryFileCache = new Map();
+const jobContexts = new Map();
+
+function isIgnorableMessageError(error) {
+  if (!error) {
+    return true;
+  }
+  const message = typeof error === 'string' ? error : error.message;
+  if (!message) {
+    return false;
+  }
+  return message.includes('Receiving end does not exist') ||
+    message.includes('The message port closed before a response was received.');
+}
 
 function emitProgress(jobId, data = {}) {
   if (!jobId) {
     return;
   }
-  try {
-    chrome.runtime.sendMessage({
-      type: 'chaospace:transfer-progress',
-      jobId,
-      ...data
+  const message = {
+    type: 'chaospace:transfer-progress',
+    jobId,
+    ...data
+  };
+  const context = jobContexts.get(jobId);
+
+  if (context && typeof context.tabId === 'number') {
+    const args = [context.tabId, message];
+    if (typeof context.frameId === 'number') {
+      args.push({ frameId: context.frameId });
+    }
+    args.push(() => {
+      const error = chrome.runtime.lastError;
+      if (error && !isIgnorableMessageError(error)) {
+        console.warn('[Chaospace Transfer] Failed to post progress to tab', {
+          jobId,
+          tabId: context.tabId,
+          message: error.message
+        });
+      }
+      if (error && error.message && error.message.includes('No tab with id')) {
+        jobContexts.delete(jobId);
+      }
     });
-  } catch (error) {
-    console.warn('[Chaospace Transfer] emitProgress failed', error);
+    try {
+      chrome.tabs.sendMessage(...args);
+    } catch (error) {
+      console.warn('[Chaospace Transfer] tabs.sendMessage threw', {
+        jobId,
+        tabId: context.tabId,
+        message: error.message
+      });
+    }
   }
+
+  chrome.runtime.sendMessage(message, () => {
+    const error = chrome.runtime.lastError;
+    if (error && !isIgnorableMessageError(error)) {
+      console.warn('[Chaospace Transfer] Failed to post progress via runtime message', {
+        jobId,
+        message: error.message
+      });
+    }
+  });
+}
+
+function logStage(jobId, stage, message, extra = {}) {
+  if (!jobId) {
+    return;
+  }
+  emitProgress(jobId, {
+    stage,
+    message,
+    ...extra
+  });
 }
 
 // 初始化时设置请求头修改规则
@@ -170,12 +230,16 @@ function extractPassCodeFromText(text) {
   return match ? match[1] : '';
 }
 
-async function verifySharePassword(linkUrl, passCode, bdstoken) {
+async function verifySharePassword(linkUrl, passCode, bdstoken, options = {}) {
+  const { jobId, context = '' } = options;
+  const titleLabel = context ? `《${context}》` : '资源';
   if (!passCode) {
+    logStage(jobId, 'verify', `${titleLabel}无需提取码验证`);
     return { errno: 0 };
   }
   const surl = buildSurl(linkUrl);
   if (!surl) {
+    logStage(jobId, 'verify', `${titleLabel}无法解析分享标识，跳过验证`, { level: 'error' });
     return { errno: -1 };
   }
 
@@ -196,6 +260,7 @@ async function verifySharePassword(linkUrl, passCode, bdstoken) {
   // Python 版本使用固定的 Referer: https://pan.baidu.com
   const referer = 'https://pan.baidu.com';
 
+  logStage(jobId, 'verify', `${titleLabel}验证提取码：${passCode}`);
   console.log('[Chaospace Transfer] verify request', {
     url,
     referer,
@@ -214,6 +279,10 @@ async function verifySharePassword(linkUrl, passCode, bdstoken) {
   const data = await response.json();
   if (typeof data.errno === 'number' && data.errno !== 0) {
     const message = data.show_msg || data.msg || data.tip || '';
+    logStage(jobId, 'verify', `${titleLabel}提取码验证失败（errno ${data.errno}）${message ? `：${message}` : ''}`, {
+      level: 'error',
+      detail: message
+    });
     console.warn('[Chaospace Transfer] verify share failed', {
       linkUrl,
       surl,
@@ -245,19 +314,26 @@ async function verifySharePassword(linkUrl, passCode, bdstoken) {
       );
     });
   }
+  logStage(jobId, 'verify', `${titleLabel}提取码验证通过`, { level: 'success' });
   return { errno: 0 };
 }
 
-async function fetchShareMetadata(linkUrl, passCode, bdstoken) {
+async function fetchShareMetadata(linkUrl, passCode, bdstoken, options = {}) {
+  const { jobId, context = '' } = options;
+  const titleLabel = context ? `《${context}》` : '资源';
   // 如果有提取码,必须先验证并等待 Cookie 设置完成
   if (passCode) {
-    const verifyResult = await verifySharePassword(linkUrl, passCode, bdstoken);
+    const verifyResult = await verifySharePassword(linkUrl, passCode, bdstoken, { jobId, context });
     if (verifyResult.errno && verifyResult.errno !== 0) {
       console.warn('[Chaospace Transfer] verify password failed', linkUrl, verifyResult.errno);
+      logStage(jobId, 'verify', `${titleLabel}提取码验证失败（errno ${verifyResult.errno}）`, { level: 'error' });
       return { error: verifyResult.errno };
     }
     // 确保 Cookie 已设置完成,添加短暂延迟
+    logStage(jobId, 'verify', `${titleLabel}等待验证结果生效`);
     await new Promise(resolve => setTimeout(resolve, 100));
+  } else {
+    logStage(jobId, 'verify', `${titleLabel}未提供提取码，跳过验证`);
   }
 
   let linkToFetch = linkUrl;
@@ -271,6 +347,7 @@ async function fetchShareMetadata(linkUrl, passCode, bdstoken) {
     linkToFetch = linkUrl;
   }
 
+  logStage(jobId, 'list', `${titleLabel}请求分享页面`);
   const response = await fetch(linkToFetch, {
     credentials: 'include',
     headers: withPanHeaders({}, linkToFetch)
@@ -278,12 +355,15 @@ async function fetchShareMetadata(linkUrl, passCode, bdstoken) {
   if (!response.ok) {
     const message = `访问分享链接失败：${response.status}`;
     console.warn('[Chaospace Transfer] fetch share page failed', linkUrl, message);
+    logStage(jobId, 'list', `${titleLabel}访问分享页失败（${response.status}）`, { level: 'error', detail: message });
     return { error: message };
   }
+  logStage(jobId, 'list', `${titleLabel}获取分享页面成功，开始解析`);
   const html = await response.text();
   const match = html.match(/locals\.mset\((\{[\s\S]*?\})\);/);
   if (!match) {
     console.warn('[Chaospace Transfer] locals.mset missing', linkUrl);
+    logStage(jobId, 'list', `${titleLabel}未解析到分享元数据`, { level: 'error' });
     return { error: '未解析到分享元数据' };
   }
 
@@ -292,6 +372,7 @@ async function fetchShareMetadata(linkUrl, passCode, bdstoken) {
     meta = JSON.parse(match[1]);
   } catch (error) {
     console.error('[Chaospace Transfer] share metadata json parse failed', linkUrl, error);
+    logStage(jobId, 'list', `${titleLabel}解析分享元数据失败：${error.message}`, { level: 'error' });
     return { error: `解析分享元数据失败：${error.message}` };
   }
 
@@ -299,6 +380,7 @@ async function fetchShareMetadata(linkUrl, passCode, bdstoken) {
   const userId = meta.share_uk;
   const fileList = Array.isArray(meta.file_list) ? meta.file_list : [];
 
+  logStage(jobId, 'list', `${titleLabel}解析文件列表，共 ${fileList.length} 项`);
   const fsIds = [];
   const fileNames = [];
   for (const entry of fileList) {
@@ -315,15 +397,19 @@ async function fetchShareMetadata(linkUrl, passCode, bdstoken) {
   }
 
   if (!shareId) {
+    logStage(jobId, 'list', `${titleLabel}缺少 shareId`, { level: 'error' });
     return { error: -1 };
   }
   if (!userId) {
+    logStage(jobId, 'list', `${titleLabel}缺少 userId`, { level: 'error' });
     return { error: -2 };
   }
   if (!fsIds.length) {
+    logStage(jobId, 'list', `${titleLabel}未找到有效文件`, { level: 'error' });
     return { error: -3 };
   }
 
+  logStage(jobId, 'list', `${titleLabel}元数据准备完成`);
   return {
     shareId: String(shareId),
     userId: String(userId),
@@ -332,9 +418,11 @@ async function fetchShareMetadata(linkUrl, passCode, bdstoken) {
   };
 }
 
-async function checkDirectoryExists(path, bdstoken) {
+async function checkDirectoryExists(path, bdstoken, options = {}) {
+  const { jobId, context = '' } = options;
   const normalized = normalizePath(path);
   if (normalized === '/') {
+    logStage(jobId, 'list', '根目录已存在');
     return true;
   }
 
@@ -353,8 +441,11 @@ async function checkDirectoryExists(path, bdstoken) {
   });
 
   const url = `https://pan.baidu.com/api/list?${params.toString()}`;
+  const contextLabel = context ? `（${context}）` : '';
+  logStage(jobId, 'list', `请求目录列表：${normalized}${contextLabel}`);
   const data = await fetchJson(url, {}, 'https://pan.baidu.com/disk/home');
   if (data.errno === 0) {
+    logStage(jobId, 'list', `目录已就绪：${normalized}${contextLabel}`);
     return true;
   }
 
@@ -363,6 +454,7 @@ async function checkDirectoryExists(path, bdstoken) {
       path: normalized,
       errno: data.errno
     });
+    logStage(jobId, 'list', `目录缺失：${normalized}${contextLabel}（errno ${data.errno}），准备创建`, { level: 'warning' });
     return false;
   }
 
@@ -371,22 +463,27 @@ async function checkDirectoryExists(path, bdstoken) {
     errno: data.errno,
     raw: data
   });
+  logStage(jobId, 'list', `查询目录失败：${normalized}${contextLabel}（errno ${data.errno}）`, { level: 'error' });
   throw new Error(`查询目录失败(${normalized})：${data.errno}`);
 }
 
-async function fetchDirectoryFileNames(path, bdstoken) {
+async function fetchDirectoryFileNames(path, bdstoken, options = {}) {
+  const { jobId, context = '' } = options;
   const normalized = normalizePath(path);
   if (normalized === '/') {
+    logStage(jobId, 'list', '根目录不缓存文件清单');
     return new Set();
   }
 
   const cached = directoryFileCache.get(normalized);
   if (cached) {
+    logStage(jobId, 'list', `使用目录缓存：${normalized}（${cached.size} 项）`);
     return cached;
   }
 
   const collected = new Set();
   let start = 0;
+  const contextLabel = context ? `（${context}）` : '';
   while (true) {
     const params = new URLSearchParams({
       dir: normalized,
@@ -403,12 +500,15 @@ async function fetchDirectoryFileNames(path, bdstoken) {
     });
 
     const url = `https://pan.baidu.com/api/list?${params.toString()}`;
+    logStage(jobId, 'list', `拉取目录条目：${normalized}${contextLabel} · 起始 ${start}`);
     const data = await fetchJson(url, {}, 'https://pan.baidu.com/disk/home');
     if (data.errno !== 0) {
+      logStage(jobId, 'list', `目录枚举失败：${normalized}${contextLabel}（errno ${data.errno}）`, { level: 'error' });
       throw new Error(`查询目录内容失败(${normalized})：${data.errno}`);
     }
 
     const entries = Array.isArray(data.list) ? data.list : [];
+    logStage(jobId, 'list', `目录返回 ${entries.length} 项：${normalized}${contextLabel}（has_more=${data.has_more}）`);
     for (const entry of entries) {
       if (!entry || typeof entry.server_filename !== 'string') {
         continue;
@@ -424,27 +524,33 @@ async function fetchDirectoryFileNames(path, bdstoken) {
   }
 
   directoryFileCache.set(normalized, collected);
+  logStage(jobId, 'list', `目录缓存完成：${normalized}${contextLabel}（共 ${collected.size} 项）`);
   return collected;
 }
 
-async function ensureDirectoryExists(path, bdstoken) {
+async function ensureDirectoryExists(path, bdstoken, options = {}) {
+  const { jobId, context = '' } = options;
   const normalized = normalizePath(path);
   if (normalized === '/') {
+    logStage(jobId, 'list', '根目录无需创建');
     return normalized;
   }
 
   if (ensuredDirectories.has(normalized)) {
+    logStage(jobId, 'list', `目录已缓存：${normalized}`);
     return normalized;
   }
 
   const segments = normalized.split('/').filter(Boolean);
   let current = '';
+  const contextLabel = context ? `（${context}）` : '';
+  logStage(jobId, 'list', `确认目录链：${normalized}${contextLabel}`);
   for (const segment of segments) {
     current += `/${segment}`;
     if (ensuredDirectories.has(current)) {
       continue;
     }
-    const exists = await checkDirectoryExists(current, bdstoken);
+    const exists = await checkDirectoryExists(current, bdstoken, { jobId, context });
     if (exists) {
       ensuredDirectories.add(current);
       continue;
@@ -466,23 +572,32 @@ async function ensureDirectoryExists(path, bdstoken) {
       body: body.toString()
     });
 
+    logStage(jobId, 'list', `创建目录：${current}${contextLabel}`);
     const data = await response.json();
     if (data.errno !== 0 && data.errno !== -8 && data.errno !== 31039) {
+      logStage(jobId, 'list', `创建目录失败：${current}${contextLabel}（errno ${data.errno}）`, { level: 'error' });
       throw new Error(`创建目录失败(${current})：${data.errno}`);
     }
+    logStage(jobId, 'list', `目录创建完成：${current}${contextLabel}${data.errno === -8 || data.errno === 31039 ? '（已存在）' : ''}`, {
+      level: data.errno === 0 ? 'success' : 'warning'
+    });
     ensuredDirectories.add(current);
   }
+  logStage(jobId, 'list', `目录准备就绪：${normalized}${contextLabel}`, { level: 'success' });
   return normalized;
 }
 
-async function filterAlreadyTransferred(meta, targetPath, bdstoken) {
+async function filterAlreadyTransferred(meta, targetPath, bdstoken, options = {}) {
+  const { jobId, context = '' } = options;
   if (!Array.isArray(meta.fsIds) || !meta.fsIds.length) {
     return { fsIds: [], fileNames: [], skippedFiles: [] };
   }
 
   try {
-    const existingNames = await fetchDirectoryFileNames(targetPath, bdstoken);
+    logStage(jobId, 'list', `过滤已存在文件：${targetPath}${context ? `（${context}）` : ''}`);
+    const existingNames = await fetchDirectoryFileNames(targetPath, bdstoken, { jobId, context });
     if (!existingNames.size) {
+      logStage(jobId, 'list', `目录为空：${targetPath}${context ? `（${context}）` : ''}`);
       return {
         fsIds: meta.fsIds.slice(),
         fileNames: Array.isArray(meta.fileNames) ? meta.fileNames.slice() : [],
@@ -495,10 +610,12 @@ async function filterAlreadyTransferred(meta, targetPath, bdstoken) {
     const skippedFiles = [];
 
     const names = Array.isArray(meta.fileNames) ? meta.fileNames : [];
+    let skippedCount = 0;
     meta.fsIds.forEach((fsId, index) => {
       const name = names[index];
       if (typeof name === 'string' && existingNames.has(name)) {
         skippedFiles.push(name);
+        skippedCount += 1;
         return;
       }
       filteredFsIds.push(fsId);
@@ -507,11 +624,21 @@ async function filterAlreadyTransferred(meta, targetPath, bdstoken) {
       }
     });
 
+    if (skippedCount) {
+      logStage(jobId, 'list', `检测到已转存文件：跳过 ${skippedCount} 项`, { level: 'warning' });
+    } else {
+      logStage(jobId, 'list', '未发现已存在的文件');
+    }
+
     return { fsIds: filteredFsIds, fileNames: filteredFileNames, skippedFiles };
   } catch (error) {
     console.warn('[Chaospace Transfer] directory listing failed, proceeding without skip filter', {
       path: targetPath,
       error: error.message
+    });
+    logStage(jobId, 'list', `目录检查失败，跳过去重：${targetPath}${context ? `（${context}）` : ''}`, {
+      level: 'warning',
+      detail: error.message
     });
     return {
       fsIds: meta.fsIds.slice(),
@@ -541,16 +668,31 @@ async function transferShare(meta, targetPath, bdstoken, referer) {
   return typeof data.errno === 'number' ? data.errno : -999;
 }
 
-async function transferWithRetry(meta, targetPath, bdstoken, referer, maxAttempts = MAX_TRANSFER_ATTEMPTS) {
+async function transferWithRetry(meta, targetPath, bdstoken, referer, maxAttempts = MAX_TRANSFER_ATTEMPTS, options = {}) {
+  const { jobId, context = '' } = options;
+  const titleLabel = context ? `《${context}》` : '资源';
+  const detail = `目标：${targetPath}`;
   let attempt = 0;
   let errno = -999;
 
   while (attempt < maxAttempts) {
     attempt += 1;
+    logStage(jobId, 'transfer', `${titleLabel}第 ${attempt} 次发送转存请求`, {
+      detail
+    });
     errno = await transferShare(meta, targetPath, bdstoken, referer);
     if (errno === 0 || errno === 666) {
+      logStage(jobId, 'transfer', `${titleLabel}转存成功（第 ${attempt} 次尝试${errno === 666 ? ' · 存在重复文件' : ''}）`, {
+        level: 'success',
+        detail
+      });
       return { errno, attempts: attempt };
     }
+    const shouldRetry = TRANSFER_RETRYABLE_ERRNOS.has(errno) && attempt < maxAttempts;
+    logStage(jobId, 'transfer', `${titleLabel}转存失败（第 ${attempt} 次，errno ${errno}）${shouldRetry ? '，准备重试' : ''}`, {
+      level: shouldRetry ? 'warning' : 'error',
+      detail
+    });
     if (!TRANSFER_RETRYABLE_ERRNOS.has(errno)) {
       break;
     }
@@ -562,6 +704,10 @@ async function transferWithRetry(meta, targetPath, bdstoken, referer, maxAttempt
     await delay(500 * attempt);
   }
 
+  logStage(jobId, 'transfer', `${titleLabel}转存最终失败（errno ${errno}）`, {
+    level: 'error',
+    detail
+  });
   return { errno, attempts: attempt };
 }
 
@@ -628,17 +774,23 @@ function parseLinkPage(html) {
   };
 }
 
-async function fetchLinkDetail(origin, id) {
+async function fetchLinkDetail(origin, id, options = {}) {
+  const { jobId, context = '' } = options;
+  const titleLabel = context ? `《${context}》` : `资源 ${id}`;
   const url = `${origin.replace(/\/$/, '')}/links/${id}.html`;
+  logStage(jobId, 'list', `${titleLabel}请求详情页`);
   const response = await fetch(url, { credentials: 'include' });
   if (!response.ok) {
+    logStage(jobId, 'list', `${titleLabel}详情页请求失败（${response.status}）`, { level: 'error' });
     return { error: `获取资源链接失败：${response.status}` };
   }
   const html = await response.text();
   const parsed = parseLinkPage(html);
   if (!parsed) {
+    logStage(jobId, 'list', `${titleLabel}页面未发现百度网盘链接`, { level: 'error' });
     return { error: '页面中未找到百度网盘链接' };
   }
+  logStage(jobId, 'list', `${titleLabel}解析详情页成功`);
   return parsed;
 }
 
@@ -663,7 +815,15 @@ async function handleTransfer(payload) {
       statusMessage: '正在获取授权信息...'
     });
 
-    const bdstoken = await ensureBdstoken();
+    logStage(jobId, 'bstToken', '准备请求 bdstoken');
+    let bdstoken;
+    try {
+      bdstoken = await ensureBdstoken();
+      logStage(jobId, 'bstToken', 'bdstoken 获取成功', { level: 'success' });
+    } catch (error) {
+      logStage(jobId, 'bstToken', `bdstoken 获取失败：${error.message || '未知错误'}`, { level: 'error' });
+      throw error;
+    }
     const normalizedBaseDir = normalizePath(targetDirectory || '/');
 
     emitProgress(jobId, {
@@ -672,7 +832,10 @@ async function handleTransfer(payload) {
       statusMessage: `准备目录 ${normalizedBaseDir}`
     });
 
-    await ensureDirectoryExists(normalizedBaseDir, bdstoken);
+    await ensureDirectoryExists(normalizedBaseDir, bdstoken, {
+      jobId,
+      context: '全局目标目录'
+    });
 
     const results = [];
     let index = 0;
@@ -687,7 +850,7 @@ async function handleTransfer(payload) {
         total
       });
 
-      const detail = await fetchLinkDetail(origin, item.id);
+      const detail = await fetchLinkDetail(origin, item.id, { jobId, context: item.title });
       if (detail.error) {
         const message = detail.error || '获取链接失败';
         emitProgress(jobId, {
@@ -714,7 +877,7 @@ async function handleTransfer(payload) {
           total
         });
 
-        const meta = await fetchShareMetadata(detail.linkUrl, detail.passCode, bdstoken);
+        const meta = await fetchShareMetadata(detail.linkUrl, detail.passCode, bdstoken, { jobId, context: item.title });
         if (meta.error) {
           const errno = typeof meta.error === 'number' ? meta.error : -9999;
           const message = mapErrorMessage(errno, typeof meta.error === 'string' ? meta.error : '');
@@ -742,9 +905,15 @@ async function handleTransfer(payload) {
           current: index,
           total
         });
-        await ensureDirectoryExists(targetPath, bdstoken);
+        await ensureDirectoryExists(targetPath, bdstoken, {
+          jobId,
+          context: item.title
+        });
 
-        const filtered = await filterAlreadyTransferred(meta, targetPath, bdstoken);
+        const filtered = await filterAlreadyTransferred(meta, targetPath, bdstoken, {
+          jobId,
+          context: item.title
+        });
         if (!filtered.fsIds.length) {
           const message = filtered.skippedFiles.length
             ? `已跳过：文件已存在（${filtered.skippedFiles.length} 项）`
@@ -784,7 +953,10 @@ async function handleTransfer(payload) {
         };
 
         const referer = detail.linkUrl ? detail.linkUrl : 'https://pan.baidu.com/disk/home';
-        const { errno, attempts } = await transferWithRetry(transferMeta, targetPath, bdstoken, referer);
+        const { errno, attempts } = await transferWithRetry(transferMeta, targetPath, bdstoken, referer, undefined, {
+          jobId,
+          context: item.title
+        });
 
         if (errno === 0 || errno === 666) {
           let message = mapErrorMessage(errno, '操作成功');
@@ -891,11 +1063,27 @@ async function handleTransfer(payload) {
   }
 }
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === 'chaospace:transfer') {
-    handleTransfer(message.payload || {})
-      .then(result => sendResponse({ ok: true, ...result }))
-      .catch(error => sendResponse({ ok: false, error: error.message }));
+    const payload = message.payload || {};
+    if (payload.jobId) {
+      jobContexts.set(payload.jobId, {
+        tabId: sender?.tab?.id,
+        frameId: typeof sender?.frameId === 'number' ? sender.frameId : undefined
+      });
+    }
+    handleTransfer(payload)
+      .then(result => {
+        sendResponse({ ok: true, ...result });
+      })
+      .catch(error => {
+        sendResponse({ ok: false, error: error.message });
+      })
+      .finally(() => {
+        if (payload.jobId) {
+          jobContexts.delete(payload.jobId);
+        }
+      });
     return true;
   }
   return false;

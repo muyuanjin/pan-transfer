@@ -164,6 +164,30 @@ function formatTime(date) {
   }
 }
 
+function formatStageLabel(stage) {
+  if (!stage) {
+    return '—';
+  }
+  const stageKey = String(stage);
+  const base = stageKey.split(':')[0] || stageKey;
+  const labels = {
+    bstToken: '🔐 bdstoken',
+    list: '📂 列表',
+    verify: '✅ 验证',
+    transfer: '🚚 转存',
+    item: '🎯 项目',
+    bootstrap: '⚙️ 启动',
+    prepare: '🧭 准备',
+    dispatch: '📤 派发',
+    summary: '🧮 汇总',
+    complete: '✅ 完成',
+    fatal: '💥 故障',
+    init: '🚦 初始化',
+    error: '⛔ 错误'
+  };
+  return labels[stageKey] || labels[base] || stageKey;
+}
+
 function clearMessages() {
   if (dom.messages) {
     dom.messages.innerHTML = '';
@@ -385,9 +409,12 @@ function renderLogs() {
     const li = document.createElement('li');
     li.className = `popup-log-item popup-log-${entry.level}`;
     li.dataset.logId = entry.id;
+    li.dataset.stage = entry.stage || '';
     li.innerHTML = `
       <span class="popup-log-time">${formatTime(entry.time)}</span>
-      <span>${entry.message}${entry.detail ? `<span class="popup-log-detail">${entry.detail}</span>` : ''}</span>
+      <span class="popup-log-stage">${formatStageLabel(entry.stage)}</span>
+      <span class="popup-log-message">${entry.message}</span>
+      ${entry.detail ? `<span class="popup-log-detail">${entry.detail}</span>` : ''}
     `;
     dom.logList.appendChild(li);
     requestAnimationFrame(() => {

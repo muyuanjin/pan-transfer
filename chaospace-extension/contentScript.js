@@ -363,6 +363,30 @@
     }
   }
 
+  function formatStageLabel(stage) {
+    if (!stage) {
+      return '—';
+    }
+    const stageKey = String(stage);
+    const base = stageKey.split(':')[0] || stageKey;
+    const labels = {
+      bstToken: '🔐 bdstoken',
+      list: '📂 列表',
+      verify: '✅ 验证',
+      transfer: '🚚 转存',
+      item: '🎯 项目',
+      bootstrap: '⚙️ 启动',
+      prepare: '🧭 准备',
+      dispatch: '📤 派发',
+      summary: '🧮 汇总',
+      complete: '✅ 完成',
+      fatal: '💥 故障',
+      init: '🚦 初始化',
+      error: '⛔ 错误'
+    };
+    return labels[stageKey] || labels[base] || stageKey;
+  }
+
   function resetLogs() {
     state.logs = [];
     renderLogs();
@@ -402,8 +426,10 @@
       const li = document.createElement('li');
       li.className = `chaospace-log-item chaospace-log-${entry.level}`;
       li.dataset.logId = entry.id;
+      li.dataset.stage = entry.stage || '';
       li.innerHTML = `
         <span class="chaospace-log-time">${formatTime(entry.time)}</span>
+        <span class="chaospace-log-stage">${formatStageLabel(entry.stage)}</span>
         <span class="chaospace-log-message">${entry.message}</span>
         ${entry.detail ? `<span class="chaospace-log-detail">${entry.detail}</span>` : ''}
       `;

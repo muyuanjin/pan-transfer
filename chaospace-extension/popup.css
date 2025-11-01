@@ -596,8 +596,11 @@ body.popup-theme.theme-light .popup-sort-label select option {
 
 .popup-log-item {
   display: grid;
-  grid-template-columns: 64px 1fr;
-  gap: 10px;
+  grid-template-columns: 72px minmax(100px, 150px) 1fr;
+  grid-template-areas:
+    "time stage message"
+    "time stage detail";
+  gap: 8px;
   font-size: 11px;
   color: var(--pp-text-secondary);
   opacity: 0;
@@ -611,13 +614,51 @@ body.popup-theme.theme-light .popup-sort-label select option {
 }
 
 .popup-log-time {
+  grid-area: time;
   font-family: 'SFMono-Regular', 'Cascadia Code', monospace;
   color: var(--pp-text-muted);
+  white-space: nowrap;
+}
+
+.popup-log-stage {
+  grid-area: stage;
+  align-self: center;
+  justify-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.14);
+  color: var(--pp-accent);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.popup-log-success .popup-log-stage {
+  background: rgba(52, 211, 153, 0.18);
+  color: var(--pp-success);
+}
+
+.popup-log-warning .popup-log-stage {
+  background: rgba(251, 191, 36, 0.18);
+  color: var(--pp-warning);
+}
+
+.popup-log-error .popup-log-stage {
+  background: rgba(248, 113, 113, 0.2);
+  color: var(--pp-error);
+}
+
+.popup-log-message {
+  grid-area: message;
+  align-self: center;
 }
 
 .popup-log-detail {
-  margin-left: 6px;
+  grid-area: detail;
   color: var(--pp-text-muted);
+  font-size: 10px;
 }
 
 .popup-log-success {
