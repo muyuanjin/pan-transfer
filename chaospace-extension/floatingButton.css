@@ -231,6 +231,7 @@
 
 .chaospace-sort-label select {
   height: 32px;
+  min-width: 130px;
   border-radius: 10px;
   border: 1px solid var(--cp-border);
   background: var(--cp-surface);
@@ -239,7 +240,19 @@
   font-size: 12px;
   cursor: pointer;
   appearance: none;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 6px 18px rgba(8, 13, 24, 0.3);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.chaospace-sort-label select:hover {
+  border-color: var(--cp-accent);
+  box-shadow: 0 8px 22px rgba(8, 13, 24, 0.36);
+}
+
+.chaospace-sort-label select:focus {
+  outline: none;
+  border-color: var(--cp-accent);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.32), 0 12px 26px rgba(8, 13, 24, 0.4);
 }
 
 .chaospace-sort-label::after {
@@ -252,6 +265,38 @@
   border-bottom: 1.5px solid var(--cp-text-secondary);
   transform: rotate(45deg);
   pointer-events: none;
+  transition: transform 0.2s ease;
+}
+
+.chaospace-sort-label:focus-within::after {
+  transform: rotate(45deg) translateY(2px);
+}
+
+.chaospace-sort-label select option {
+  color: #0f172a;
+  background: #e2e8f0;
+}
+
+.chaospace-theme.theme-light .chaospace-sort-label select {
+  background: var(--cp-surface);
+  color: var(--cp-text-secondary);
+  border-color: var(--cp-border);
+  box-shadow: 0 2px 8px rgba(148, 163, 184, 0.28);
+}
+
+.chaospace-theme.theme-light .chaospace-sort-label select:hover {
+  border-color: var(--cp-accent);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.22);
+}
+
+.chaospace-theme.theme-light .chaospace-sort-label select:focus {
+  border-color: var(--cp-accent);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.3), 0 10px 20px rgba(99, 102, 241, 0.18);
+}
+
+.chaospace-theme.theme-light .chaospace-sort-label select option {
+  color: #0f172a;
+  background: #f8fafc;
 }
 
 .chaospace-order-btn {

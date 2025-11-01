@@ -182,6 +182,7 @@ body.popup-theme.theme-light {
 
 .popup-sort-label select {
   height: 32px;
+  min-width: 130px;
   border-radius: 10px;
   border: 1px solid var(--pp-border);
   background: var(--pp-surface);
@@ -191,6 +192,18 @@ body.popup-theme.theme-light {
   cursor: pointer;
   appearance: none;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.popup-sort-label select:hover {
+  border-color: var(--pp-accent);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.18);
+}
+
+.popup-sort-label select:focus {
+  outline: none;
+  border-color: var(--pp-accent);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.3), 0 10px 24px rgba(15, 23, 42, 0.22);
 }
 
 .popup-sort-label::after {
@@ -203,6 +216,38 @@ body.popup-theme.theme-light {
   border-bottom: 1.5px solid var(--pp-text-secondary);
   transform: rotate(45deg);
   pointer-events: none;
+  transition: transform 0.2s ease;
+}
+
+.popup-sort-label:focus-within::after {
+  transform: rotate(45deg) translateY(2px);
+}
+
+.popup-sort-label select option {
+  color: #0f172a;
+  background: #e2e8f0;
+}
+
+body.popup-theme.theme-light .popup-sort-label select {
+  background: var(--pp-surface);
+  color: var(--pp-text-primary);
+  border-color: var(--pp-border);
+  box-shadow: 0 2px 8px rgba(148, 163, 184, 0.24);
+}
+
+body.popup-theme.theme-light .popup-sort-label select:hover {
+  border-color: var(--pp-accent);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.18);
+}
+
+body.popup-theme.theme-light .popup-sort-label select:focus {
+  border-color: var(--pp-accent);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.28), 0 8px 18px rgba(99, 102, 241, 0.16);
+}
+
+body.popup-theme.theme-light .popup-sort-label select option {
+  color: #0f172a;
+  background: #f8fafc;
 }
 
 .popup-order-btn {
