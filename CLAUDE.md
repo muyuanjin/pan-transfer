@@ -89,33 +89,74 @@ python 潮片链接提取.py
 
 **关键日志标记**: 所有日志以 `[Chaospace Transfer]` 为前缀
 
+## 关键代码位置
+
+### Chrome 扩展核心函数
+- **background.js**:
+  - `ensureBdstoken()` (background.js:95) - bdstoken 获取和缓存
+  - `verifySharePassword()` (background.js:149) - 提取码验证
+  - `fetchShareMetadata()` (background.js:227) - 解析分享元数据
+  - `ensureDirectoryExists()` (background.js:311) - 递归目录创建
+  - `transferShare()` (background.js:354) - 转存 API 调用
+  - `handleTransfer()` (background.js:451) - 主转存流程编排
+
+- **contentScript.js**:
+  - `locateResourceRows()` (contentScript.js:2) - 定位资源行
+  - `extractLinkInfo()` (contentScript.js:11) - 提取链接信息
+  - `collectLinks()` (contentScript.js:53) - 收集所有链接
+
+- **popup.js**:
+  - `sanitizeSubdir()` (popup.js:28) - 清理子目录名称
+  - `normalizeDir()` (popup.js:47) - 规范化路径
+  - `refreshItems()` (popup.js:276) - 刷新资源列表
+  - `handleTransfer()` (popup.js:335) - 触发转存
+
+### 消息传递机制
+- `chaospace:collect-links` - popup → contentScript,获取页面资源列表
+- `chaospace:transfer` - popup → background,执行批量转存
+
 ## 重要注意事项
 
 ### 安全性
 - Cookie 和 access_token 属于敏感凭证,切勿提交到代码库
 - 扩展需要 `cookies` 权限来读写百度网盘 Cookie
+- 使用 `declarativeNetRequest` API 在运行时修改请求头 (Referer/Origin)
 
 ### API 限制
 - 单次转存链接数不超过 1000 条 (BaiduPanBatchTransfer 限制)
-- bdstoken 有时效性,扩展中缓存 10 分钟
+- bdstoken 有时效性,扩展中缓存 10 分钟 (TOKEN_TTL 常量)
 - 频繁验证错误提取码会触发限流 (errno: -62)
 
 ### 错误处理
-- 所有错误码映射在 `ERROR_CODES` 对象中
+- 所有错误码映射在 `ERROR_MESSAGES` 对象 (background.js:1-22)
 - 关键错误:
   - `-1/-2/-3`: 链接元数据提取失败
   - `-9`: 提取码错误或已过期
   - `-8/4/31039`: 文件名冲突
   - `-10/20`: 容量不足
   - `666`: 文件已存在 (跳过)
+- `mapErrorMessage()` 函数负责错误码到消息的转换
 
 ### 链接格式支持
 - **Python 脚本**: 支持 `/s/` 链接和多种秒传格式 (bdlink/bdpan/BaiduPCS-Go)
 - **Chrome 扩展**: 仅支持 `/s/` 格式分享链接
+- `buildSurl()` 函数处理 surl 提取: `/s/1XXX` → `XXX` (去掉开头的 `1`)
 
 ## 文件和目录处理
 
 - 所有路径会被规范化: 反斜杠转正斜杠,多斜杠合并,确保以 `/` 开头
-- 子目录名称会移除非法字符: `\/:*?"<>|`
-- 目录创建是递归的,会自动创建多级父目录
+- 子目录名称会移除非法字符: `\/:*?"<>|` (popup.js `sanitizeSubdir()`)
+- 目录创建是递归的,会自动创建多级父目录 (`ensureDirectoryExists()`)
 - 扩展中目录创建状态会缓存在 `ensuredDirectories` Set 中,避免重复请求
+
+## 常见开发任务
+
+### 修改扩展后重新加载
+1. 在 `chrome://extensions/` 页面点击扩展的「重新加载」按钮
+2. 如果修改了 `manifest.json` 的 `declarativeNetRequest` 规则,需要完全移除并重新加载扩展
+
+### 添加新的错误码支持
+在 `background.js` 的 `ERROR_MESSAGES` 对象中添加对应的错误码和消息
+
+### 调整 bdstoken 缓存时间
+修改 `background.js` 中的 `TOKEN_TTL` 常量 (当前为 10 分钟)
