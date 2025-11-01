@@ -25,6 +25,7 @@ const TOKEN_TTL = 10 * 60 * 1000;
 let cachedBdstoken = null;
 let cachedBdstokenAt = 0;
 const ensuredDirectories = new Set();
+ensuredDirectories.add('/');
 
 // 初始化时设置请求头修改规则
 chrome.runtime.onInstalled.addListener(() => {
@@ -308,6 +309,48 @@ async function fetchShareMetadata(linkUrl, passCode, bdstoken) {
   };
 }
 
+async function checkDirectoryExists(path, bdstoken) {
+  const normalized = normalizePath(path);
+  if (normalized === '/') {
+    return true;
+  }
+
+  const params = new URLSearchParams({
+    dir: normalized,
+    bdstoken,
+    order: 'name',
+    desc: '0',
+    limit: '1',
+    start: '0',
+    web: '1',
+    folder: '0',
+    showempty: '0',
+    clienttype: '0',
+    channel: 'web'
+  });
+
+  const url = `https://pan.baidu.com/api/list?${params.toString()}`;
+  const data = await fetchJson(url, {}, 'https://pan.baidu.com/disk/home');
+  if (data.errno === 0) {
+    return true;
+  }
+
+  if (data.errno === -9 || data.errno === 2 || data.errno === 12 || data.errno === 31066) {
+    console.log('[Chaospace Transfer] directory missing, preparing to create', {
+      path: normalized,
+      errno: data.errno
+    });
+    return false;
+  }
+
+  console.warn('[Chaospace Transfer] directory existence check failed', {
+    path: normalized,
+    errno: data.errno,
+    raw: data
+  });
+  throw new Error(`查询目录失败(${normalized})：${data.errno}`);
+}
+
 async function ensureDirectoryExists(path, bdstoken) {
   const normalized = normalizePath(path);
   if (normalized === '/') {
@@ -323,6 +366,11 @@ async function ensureDirectoryExists(path, bdstoken) {
   for (const segment of segments) {
     current += `/${segment}`;
     if (ensuredDirectories.has(current)) {
+      continue;
+    }
+    const exists = await checkDirectoryExists(current, bdstoken);
+    if (exists) {
+      ensuredDirectories.add(current);
       continue;
     }
     const url = `https://pan.baidu.com/api/create?a=commit&bdstoken=${encodeURIComponent(bdstoken)}`;
