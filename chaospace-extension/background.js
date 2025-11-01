@@ -31,6 +31,21 @@ const TRANSFER_RETRYABLE_ERRNOS = new Set([4]);
 const DIRECTORY_LIST_PAGE_SIZE = 200;
 const directoryFileCache = new Map();
 
+function emitProgress(jobId, data = {}) {
+  if (!jobId) {
+    return;
+  }
+  try {
+    chrome.runtime.sendMessage({
+      type: 'chaospace:transfer-progress',
+      jobId,
+      ...data
+    });
+  } catch (error) {
+    console.warn('[Chaospace Transfer] emitProgress failed', error);
+  }
+}
+
 // 初始化时设置请求头修改规则
 chrome.runtime.onInstalled.addListener(() => {
   chrome.declarativeNetRequest.updateDynamicRules({
@@ -627,151 +642,258 @@ async function fetchLinkDetail(origin, id) {
   return parsed;
 }
 
-async function handleTransfer(request) {
-  const { origin, items, targetDirectory } = request.payload;
+async function handleTransfer(payload) {
+  const { origin, items, targetDirectory, jobId } = payload;
   if (!Array.isArray(items) || !items.length) {
-    return { results: [], summary: '没有可处理的条目' };
+    emitProgress(jobId, {
+      stage: 'idle',
+      message: '没有可处理的条目',
+      level: 'warning',
+      statusMessage: '等待任务'
+    });
+    return { jobId, results: [], summary: '没有可处理的条目' };
   }
 
-  const bdstoken = await ensureBdstoken();
-  const normalizedBaseDir = normalizePath(targetDirectory || '/');
-  await ensureDirectoryExists(normalizedBaseDir, bdstoken);
+  const total = items.length;
 
-  const results = [];
+  try {
+    emitProgress(jobId, {
+      stage: 'bootstrap',
+      message: '正在获取授权信息...',
+      statusMessage: '正在获取授权信息...'
+    });
 
-  for (const item of items) {
-    const detail = await fetchLinkDetail(origin, item.id);
-    if (detail.error) {
-      console.log('[Chaospace Transfer] link detail failed', item.id, detail.error);
-      results.push({
-        id: item.id,
-        title: item.title,
-        status: 'failed',
-        message: detail.error
+    const bdstoken = await ensureBdstoken();
+    const normalizedBaseDir = normalizePath(targetDirectory || '/');
+
+    emitProgress(jobId, {
+      stage: 'prepare',
+      message: `检查目标目录 ${normalizedBaseDir}`,
+      statusMessage: `准备目录 ${normalizedBaseDir}`
+    });
+
+    await ensureDirectoryExists(normalizedBaseDir, bdstoken);
+
+    const results = [];
+    let index = 0;
+
+    for (const item of items) {
+      index += 1;
+
+      emitProgress(jobId, {
+        stage: 'item:start',
+        message: `检索资源《${item.title}》`,
+        current: index,
+        total
       });
-      continue;
-    }
 
-    try {
-      const meta = await fetchShareMetadata(detail.linkUrl, detail.passCode, bdstoken);
-      if (meta.error) {
-        const errno = typeof meta.error === 'number' ? meta.error : -9999;
-        const message = mapErrorMessage(errno, typeof meta.error === 'string' ? meta.error : '');
-        console.log('[Chaospace Transfer] metadata error', item.id, errno, message);
+      const detail = await fetchLinkDetail(origin, item.id);
+      if (detail.error) {
+        const message = detail.error || '获取链接失败';
+        emitProgress(jobId, {
+          stage: 'item:error',
+          message: `《${item.title}》链接解析失败：${message}`,
+          current: index,
+          total,
+          level: 'error'
+        });
         results.push({
           id: item.id,
           title: item.title,
           status: 'failed',
-          message,
-          errno
+          message
         });
         continue;
       }
 
-      const targetPath = normalizePath(item.targetPath || normalizedBaseDir);
-      await ensureDirectoryExists(targetPath, bdstoken);
-
-      const filtered = await filterAlreadyTransferred(meta, targetPath, bdstoken);
-      if (!filtered.fsIds.length) {
-        const message = filtered.skippedFiles.length
-          ? `已跳过：文件已存在（${filtered.skippedFiles.length} 项）`
-          : mapErrorMessage(666);
-        console.log('[Chaospace Transfer] transfer skipped, all files already exist', {
-          id: item.id,
-          targetPath,
-          skippedCount: filtered.skippedFiles.length
+      try {
+        emitProgress(jobId, {
+          stage: 'item:meta',
+          message: `解析分享信息《${item.title}》`,
+          current: index,
+          total
         });
-        results.push({
-          id: item.id,
-          title: item.title,
-          status: 'skipped',
-          message,
-          files: [],
-          skippedFiles: filtered.skippedFiles,
-          linkUrl: detail.linkUrl,
-          passCode: detail.passCode
+
+        const meta = await fetchShareMetadata(detail.linkUrl, detail.passCode, bdstoken);
+        if (meta.error) {
+          const errno = typeof meta.error === 'number' ? meta.error : -9999;
+          const message = mapErrorMessage(errno, typeof meta.error === 'string' ? meta.error : '');
+          emitProgress(jobId, {
+            stage: 'item:error',
+            message: `《${item.title}》元数据异常：${message}`,
+            current: index,
+            total,
+            level: 'error'
+          });
+          results.push({
+            id: item.id,
+            title: item.title,
+            status: 'failed',
+            message,
+            errno
+          });
+          continue;
+        }
+
+        const targetPath = normalizePath(item.targetPath || normalizedBaseDir);
+        emitProgress(jobId, {
+          stage: 'item:directory',
+          message: `确认目录 ${targetPath}`,
+          current: index,
+          total
         });
-        continue;
-      }
+        await ensureDirectoryExists(targetPath, bdstoken);
 
-      const transferMeta = {
-        shareId: meta.shareId,
-        userId: meta.userId,
-        fsIds: filtered.fsIds
-      };
+        const filtered = await filterAlreadyTransferred(meta, targetPath, bdstoken);
+        if (!filtered.fsIds.length) {
+          const message = filtered.skippedFiles.length
+            ? `已跳过：文件已存在（${filtered.skippedFiles.length} 项）`
+            : mapErrorMessage(666);
+          emitProgress(jobId, {
+            stage: 'item:skip',
+            message: `《${item.title}》${message}`,
+            current: index,
+            total,
+            level: 'warning'
+          });
+          results.push({
+            id: item.id,
+            title: item.title,
+            status: 'skipped',
+            message,
+            files: [],
+            skippedFiles: filtered.skippedFiles,
+            linkUrl: detail.linkUrl,
+            passCode: detail.passCode
+          });
+          continue;
+        }
 
-      const referer = detail.linkUrl ? detail.linkUrl : 'https://pan.baidu.com/disk/home';
-      const { errno, attempts } = await transferWithRetry(transferMeta, targetPath, bdstoken, referer);
-      if (errno === 0 || errno === 666) {
-        let message = mapErrorMessage(errno, '操作成功');
-        if (errno === 0 && attempts > 1) {
-          message = `${message}（第 ${attempts} 次尝试成功）`;
-        }
-        if (filtered.skippedFiles.length) {
-          message = `${message}，已有 ${filtered.skippedFiles.length} 项跳过`;
-        }
-        if (filtered.fileNames.length) {
-          const normalizedTarget = normalizePath(targetPath);
-          let cachedFiles = directoryFileCache.get(normalizedTarget);
-          if (!cachedFiles) {
-            cachedFiles = new Set();
-            directoryFileCache.set(normalizedTarget, cachedFiles);
+        emitProgress(jobId, {
+          stage: 'item:transfer',
+          message: `正在转存《${item.title}》`,
+          current: index,
+          total,
+          statusMessage: `转存进度 ${index}/${total}`
+        });
+
+        const transferMeta = {
+          shareId: meta.shareId,
+          userId: meta.userId,
+          fsIds: filtered.fsIds
+        };
+
+        const referer = detail.linkUrl ? detail.linkUrl : 'https://pan.baidu.com/disk/home';
+        const { errno, attempts } = await transferWithRetry(transferMeta, targetPath, bdstoken, referer);
+
+        if (errno === 0 || errno === 666) {
+          let message = mapErrorMessage(errno, '操作成功');
+          if (errno === 0 && attempts > 1) {
+            message = `${message}（第 ${attempts} 次尝试成功）`;
           }
-          filtered.fileNames.forEach(name => {
-            if (typeof name === 'string') {
-              cachedFiles.add(name);
+          if (filtered.skippedFiles.length) {
+            message = `${message}，已有 ${filtered.skippedFiles.length} 项跳过`;
+          }
+          if (filtered.fileNames.length) {
+            const normalizedTarget = normalizePath(targetPath);
+            let cachedFiles = directoryFileCache.get(normalizedTarget);
+            if (!cachedFiles) {
+              cachedFiles = new Set();
+              directoryFileCache.set(normalizedTarget, cachedFiles);
             }
+            filtered.fileNames.forEach(name => {
+              if (typeof name === 'string') {
+                cachedFiles.add(name);
+              }
+            });
+          }
+
+          emitProgress(jobId, {
+            stage: 'item:done',
+            message: `《${item.title}》${message}`,
+            current: index,
+            total,
+            level: errno === 0 ? 'success' : 'warning'
+          });
+
+          results.push({
+            id: item.id,
+            title: item.title,
+            status: errno === 0 ? 'success' : 'skipped',
+            message,
+            files: filtered.fileNames,
+            skippedFiles: filtered.skippedFiles,
+            linkUrl: detail.linkUrl,
+            passCode: detail.passCode
+          });
+        } else {
+          let message = mapErrorMessage(errno);
+          if (TRANSFER_RETRYABLE_ERRNOS.has(errno) && attempts > 1) {
+            message = `${message}（已重试 ${attempts - 1} 次）`;
+          }
+          emitProgress(jobId, {
+            stage: 'item:failed',
+            message: `《${item.title}》转存失败：${message}`,
+            current: index,
+            total,
+            level: 'error'
+          });
+          results.push({
+            id: item.id,
+            title: item.title,
+            status: 'failed',
+            message,
+            errno,
+            attempts,
+            skippedFiles: filtered.skippedFiles
           });
         }
-        results.push({
-          id: item.id,
-          title: item.title,
-          status: errno === 0 ? 'success' : 'skipped',
-          message,
-          files: filtered.fileNames,
-          skippedFiles: filtered.skippedFiles,
-          linkUrl: detail.linkUrl,
-          passCode: detail.passCode
+      } catch (error) {
+        console.error('[Chaospace Transfer] unexpected error', item.id, error);
+        emitProgress(jobId, {
+          stage: 'item:error',
+          message: `《${item.title}》出现异常：${error.message || '未知错误'}`,
+          current: index,
+          total,
+          level: 'error'
         });
-      } else {
-        let message = mapErrorMessage(errno);
-        if (TRANSFER_RETRYABLE_ERRNOS.has(errno) && attempts > 1) {
-          message = `${message}（已重试 ${attempts - 1} 次）`;
-        }
-        console.log('[Chaospace Transfer] transfer failed', item.id, errno, message);
         results.push({
           id: item.id,
           title: item.title,
           status: 'failed',
-          message,
-          errno,
-          attempts,
-          skippedFiles: filtered.skippedFiles
+          message: error.message || '未知错误'
         });
       }
-    } catch (error) {
-      console.error('[Chaospace Transfer] unexpected error', item.id, error);
-      results.push({
-        id: item.id,
-        title: item.title,
-        status: 'failed',
-        message: error.message || '未知错误'
-      });
     }
+
+    const successCount = results.filter(r => r.status === 'success').length;
+    const skippedCount = results.filter(r => r.status === 'skipped').length;
+    const failedCount = results.length - successCount - skippedCount;
+
+    const summary = `成功 ${successCount} 项，跳过 ${skippedCount} 项，失败 ${failedCount} 项`;
+
+    emitProgress(jobId, {
+      stage: 'summary',
+      message: summary,
+      statusMessage: failedCount ? '部分转存完成' : '转存完成',
+      level: failedCount ? 'warning' : 'success'
+    });
+
+    return { jobId, results, summary };
+  } catch (error) {
+    emitProgress(jobId, {
+      stage: 'fatal',
+      message: error.message || '转存过程失败',
+      level: 'error',
+      statusMessage: '转存失败'
+    });
+    throw error;
   }
-
-  const successCount = results.filter(r => r.status === 'success').length;
-  const skippedCount = results.filter(r => r.status === 'skipped').length;
-  const failedCount = results.length - successCount - skippedCount;
-
-  const summary = `成功 ${successCount} 项，跳过 ${skippedCount} 项，失败 ${failedCount} 项`;
-
-  return { results, summary };
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === 'chaospace:transfer') {
-    handleTransfer(message)
+    handleTransfer(message.payload || {})
       .then(result => sendResponse({ ok: true, ...result }))
       .catch(error => sendResponse({ ok: false, error: error.message }));
     return true;

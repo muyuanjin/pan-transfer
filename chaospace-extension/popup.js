@@ -1,18 +1,32 @@
 const STORAGE_KEY = 'chaospace-transfer-settings';
+const DEFAULT_PRESETS = ['/视频/番剧', '/视频/影视', '/视频/电影'];
+const MAX_LOG_ENTRIES = 80;
+const LOG_COLLAPSED_COUNT = 4;
 
 const dom = {
-  baseDir: document.getElementById('base-dir'),
-  useTitleSubdir: document.getElementById('use-title-subdir'),
+  pageInfo: document.getElementById('page-info'),
+  itemsTitle: document.getElementById('items-title'),
+  selectionSummary: document.getElementById('selection-summary'),
   itemsContainer: document.getElementById('items-container'),
-  refreshButton: document.getElementById('refresh-btn'),
+  sortKey: document.getElementById('sort-key'),
+  sortOrder: document.getElementById('sort-order'),
   selectAll: document.getElementById('select-all'),
   selectNone: document.getElementById('select-none'),
-  transferButton: document.getElementById('transfer-btn'),
-  pageInfo: document.getElementById('page-info'),
-  resultSection: document.getElementById('result'),
+  presetList: document.getElementById('preset-list'),
+  baseDir: document.getElementById('base-dir'),
+  addPreset: document.getElementById('add-preset'),
+  useTitleSubdir: document.getElementById('use-title-subdir'),
+  pathPreview: document.getElementById('path-preview'),
+  statusLine: document.getElementById('status-line'),
+  toggleLog: document.getElementById('toggle-log'),
+  logContainer: document.getElementById('log-container'),
+  logList: document.getElementById('log-list'),
   resultSummary: document.getElementById('result-summary'),
-  resultList: document.getElementById('result-list'),
-  messages: document.getElementById('messages')
+  transferButton: document.getElementById('transfer-btn'),
+  transferLabel: document.getElementById('transfer-label'),
+  transferSpinner: document.getElementById('transfer-spinner'),
+  messages: document.getElementById('messages'),
+  refreshButton: document.getElementById('refresh-btn')
 };
 
 const state = {
@@ -22,27 +36,17 @@ const state = {
   items: [],
   baseDir: '/',
   useTitleSubdir: true,
-  loading: false
+  presets: [...DEFAULT_PRESETS],
+  selectedIds: new Set(),
+  sortKey: 'page',
+  sortOrder: 'asc',
+  logs: [],
+  logExpanded: false,
+  transferStatus: 'idle',
+  statusMessage: '准备就绪 ✨',
+  jobId: null,
+  lastResult: null
 };
-
-function sanitizeSubdir(value) {
-  if (!value) {
-    return '';
-  }
-  return value
-    .replace(/[\\/:*?"<>|]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function ensureSubdir(value, fallback) {
-  const sanitized = sanitizeSubdir(value);
-  if (sanitized) {
-    return sanitized;
-  }
-  const fallbackValue = sanitizeSubdir(fallback);
-  return fallbackValue || '未命名资源';
-}
 
 function normalizeDir(value) {
   const input = (value || '').trim();
@@ -60,70 +64,102 @@ function normalizeDir(value) {
   return normalized;
 }
 
-function joinPath(base, subdir) {
-  const normalizedBase = normalizeDir(base);
-  if (!subdir) {
-    return normalizedBase;
+function sanitizePreset(value) {
+  if (!value) {
+    return '';
   }
-  const sanitizedSubdir = sanitizeSubdir(subdir);
-  if (!sanitizedSubdir) {
-    return normalizedBase;
+  let sanitized = value.trim();
+  sanitized = sanitized.replace(/\s+/g, ' ');
+  if (!sanitized.startsWith('/')) {
+    sanitized = `/${sanitized}`;
   }
-  if (normalizedBase === '/') {
-    return `/${sanitizedSubdir}`;
+  sanitized = sanitized.replace(/\/+/g, '/');
+  if (sanitized.length > 1 && sanitized.endsWith('/')) {
+    sanitized = sanitized.slice(0, -1);
   }
-  return `${normalizedBase}/${sanitizedSubdir}`;
+  return sanitized;
 }
 
 async function loadSettings() {
-  const stored = await chrome.storage.local.get(STORAGE_KEY);
-  const settings = stored[STORAGE_KEY] || {};
-  if (typeof settings.baseDir === 'string') {
-    state.baseDir = normalizeDir(settings.baseDir);
-  }
-  if (typeof settings.useTitleSubdir === 'boolean') {
-    state.useTitleSubdir = settings.useTitleSubdir;
+  try {
+    const stored = await chrome.storage.local.get(STORAGE_KEY);
+    const settings = stored[STORAGE_KEY] || {};
+    if (typeof settings.baseDir === 'string') {
+      state.baseDir = normalizeDir(settings.baseDir);
+    }
+    if (typeof settings.useTitleSubdir === 'boolean') {
+      state.useTitleSubdir = settings.useTitleSubdir;
+    }
+    if (Array.isArray(settings.presets)) {
+      const merged = [...settings.presets, ...DEFAULT_PRESETS]
+        .map(sanitizePreset)
+        .filter(Boolean);
+      state.presets = Array.from(new Set(merged));
+    }
+  } catch (error) {
+    console.error('[Chaospace Transfer] Failed to load settings', error);
   }
 }
 
 async function saveSettings() {
-  const payload = {
-    baseDir: state.baseDir,
-    useTitleSubdir: state.useTitleSubdir
-  };
-  await chrome.storage.local.set({
-    [STORAGE_KEY]: payload
-  });
+  try {
+    await chrome.storage.local.set({
+      [STORAGE_KEY]: {
+        baseDir: state.baseDir,
+        useTitleSubdir: state.useTitleSubdir,
+        presets: state.presets
+      }
+    });
+  } catch (error) {
+    console.error('[Chaospace Transfer] Failed to persist settings', error);
+  }
 }
 
-function setLoading(isLoading) {
-  state.loading = isLoading;
-  dom.refreshButton.disabled = isLoading;
-  dom.transferButton.disabled = isLoading;
-  dom.selectAll.disabled = isLoading;
-  dom.selectNone.disabled = isLoading;
-  dom.baseDir.disabled = isLoading;
-  dom.useTitleSubdir.disabled = isLoading;
-  if (isLoading) {
-    dom.transferButton.textContent = '处理中...';
-  } else {
-    dom.transferButton.textContent = '转存选中资源';
+function ensurePreset(value) {
+  const preset = sanitizePreset(value);
+  if (!preset) {
+    return null;
+  }
+  if (!state.presets.includes(preset)) {
+    state.presets = [...state.presets, preset];
+    saveSettings();
+  }
+  return preset;
+}
+
+function formatTime(date) {
+  try {
+    return new Intl.DateTimeFormat('zh-CN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    }).format(date);
+  } catch (_error) {
+    return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`;
   }
 }
 
 function clearMessages() {
-  dom.messages.innerHTML = '';
+  if (dom.messages) {
+    dom.messages.innerHTML = '';
+  }
 }
 
 function showMessage(text, type = 'error') {
+  if (!dom.messages) {
+    return;
+  }
   dom.messages.innerHTML = '';
   const div = document.createElement('div');
-  div.className = `message ${type}`;
+  div.className = `popup-message ${type}`;
   div.textContent = text;
   dom.messages.appendChild(div);
 }
 
 function renderPageInfo() {
+  if (!dom.pageInfo) {
+    return;
+  }
   if (!state.origin) {
     dom.pageInfo.textContent = '未检测到 CHAOSPACE 页面';
     return;
@@ -132,114 +168,239 @@ function renderPageInfo() {
   dom.pageInfo.textContent = `${title} · ${state.origin}`;
 }
 
+function renderPresets() {
+  if (!dom.presetList) {
+    return;
+  }
+  dom.presetList.innerHTML = '';
+  const presets = Array.from(new Set(['/', ...state.presets]));
+  presets.forEach(preset => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `popup-chip${preset === state.baseDir ? ' is-active' : ''}`;
+    button.textContent = preset;
+    button.dataset.value = preset;
+    dom.presetList.appendChild(button);
+  });
+}
+
+function getTargetPath(baseDir, useTitleSubdir, pageTitle) {
+  const normalizedBase = normalizeDir(baseDir);
+  if (!useTitleSubdir) {
+    return normalizedBase;
+  }
+  const title = (pageTitle || '').trim();
+  if (!title) {
+    return normalizedBase;
+  }
+  return normalizedBase === '/' ? `/${title}` : `${normalizedBase}/${title}`;
+}
+
+function renderPathPreview() {
+  if (!dom.pathPreview) {
+    return;
+  }
+  const path = getTargetPath(state.baseDir, state.useTitleSubdir, state.pageTitle);
+  dom.pathPreview.textContent = `📂 将保存到：${path}`;
+}
+
+function renderSelectionSummary() {
+  if (!dom.selectionSummary) {
+    return;
+  }
+  const total = state.items.length;
+  const selected = state.selectedIds.size;
+  dom.selectionSummary.textContent = `🧾 已选 ${selected} / ${total}`;
+  if (dom.itemsTitle) {
+    dom.itemsTitle.textContent = `🔍 找到 ${total} 个百度网盘资源`;
+  }
+}
+
+function sortItems(items) {
+  const sorted = [...items];
+  if (state.sortKey === 'title') {
+    sorted.sort((a, b) => {
+      const compare = a.title.localeCompare(b.title, 'zh-CN');
+      return state.sortOrder === 'asc' ? compare : -compare;
+    });
+  } else {
+    sorted.sort((a, b) => {
+      const compare = (a.order ?? 0) - (b.order ?? 0);
+      return state.sortOrder === 'asc' ? compare : -compare;
+    });
+  }
+  return sorted;
+}
+
 function renderItems() {
-  const container = dom.itemsContainer;
-  container.innerHTML = '';
+  if (!dom.itemsContainer) {
+    return;
+  }
+  dom.itemsContainer.innerHTML = '';
 
   if (!state.items.length) {
     const empty = document.createElement('div');
-    empty.className = 'message info';
-    empty.textContent = '未找到可用的资源链接。请确认页面是 CHAOSPACE 的剧集页面。';
-    container.appendChild(empty);
+    empty.className = 'popup-items-empty';
+    empty.textContent = '😅 当前页面没有解析到百度网盘资源';
+    dom.itemsContainer.appendChild(empty);
+    renderSelectionSummary();
+    updateTransferButton();
     return;
   }
 
-  const fragment = document.createDocumentFragment();
-  state.items.forEach((item, index) => {
-    const card = document.createElement('div');
-    card.className = `item-card${item.selected ? '' : ' disabled'}`;
-
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = item.selected;
-    checkbox.addEventListener('change', () => {
-      item.selected = checkbox.checked;
-      card.classList.toggle('disabled', !item.selected);
+  const sortedItems = sortItems(state.items);
+  sortedItems.forEach(item => {
+    const isSelected = state.selectedIds.has(item.id);
+    const row = document.createElement('label');
+    row.className = 'popup-item';
+    row.dataset.id = item.id;
+    row.innerHTML = `
+      <input type="checkbox" ${isSelected ? 'checked' : ''} />
+      <div class="popup-item-body">
+        <div class="popup-item-title">🔗 ${item.title}</div>
+        <div class="popup-item-meta">
+          ${item.quality ? `<span class="popup-badge">画质：${item.quality}</span>` : ''}
+          ${item.subtitle ? `<span class="popup-badge">字幕：${item.subtitle}</span>` : ''}
+        </div>
+      </div>
+    `;
+    dom.itemsContainer.appendChild(row);
+    requestAnimationFrame(() => {
+      row.classList.add('is-visible');
+      row.classList.toggle('is-muted', !isSelected);
     });
-
-    const checkboxWrapper = document.createElement('div');
-    checkboxWrapper.className = 'selector';
-    checkboxWrapper.appendChild(checkbox);
-    card.appendChild(checkboxWrapper);
-
-    const titleEl = document.createElement('div');
-    titleEl.className = 'title';
-    titleEl.textContent = item.title;
-    card.appendChild(titleEl);
-
-    const meta = document.createElement('div');
-    meta.className = 'meta';
-    const quality = item.quality ? `质量：${item.quality}` : '';
-    const subtitle = item.subtitle ? `字幕：${item.subtitle}` : '';
-    const date = item.date ? `更新：${item.date}` : '';
-    [quality, subtitle, date].filter(Boolean).forEach(text => {
-      const span = document.createElement('span');
-      span.textContent = text;
-      meta.appendChild(span);
-    });
-    card.appendChild(meta);
-
-    const pathPreview = document.createElement('div');
-    pathPreview.className = 'meta path-preview';
-    const pathLabel = document.createElement('span');
-    pathPreview.appendChild(pathLabel);
-
-    if (state.useTitleSubdir) {
-      const subdirLabel = document.createElement('label');
-      subdirLabel.className = 'subdir';
-      subdirLabel.innerHTML = '<span>子目录名称</span>';
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.value = item.subdir;
-      input.addEventListener('input', () => {
-        item.subdir = input.value;
-        pathLabel.textContent = `目标目录：${computeTargetPath(item)}`;
-      });
-      subdirLabel.appendChild(input);
-      card.appendChild(subdirLabel);
-    }
-
-    pathLabel.textContent = `目标目录：${computeTargetPath(item)}`;
-    card.appendChild(pathPreview);
-
-    fragment.appendChild(card);
   });
 
-  container.appendChild(fragment);
+  renderSelectionSummary();
+  updateTransferButton();
 }
 
-function computeTargetPath(item) {
-  if (!state.useTitleSubdir) {
-    return normalizeDir(state.baseDir);
-  }
-  const subdir = ensureSubdir(item.subdir, item.title);
-  return joinPath(state.baseDir, subdir);
-}
-
-function setResult(result) {
-  if (!result) {
-    dom.resultSection.classList.add('hidden');
-    return;
-  }
-  dom.resultSection.classList.remove('hidden');
-  dom.resultSummary.textContent = result.summary || '';
-  dom.resultList.innerHTML = '';
-
-  result.results.forEach(item => {
-    const li = document.createElement('li');
-    li.className = item.status || '';
-    const message = item.message && String(item.message).trim() ? item.message : '无详细错误信息';
-    const detail = item.errno !== undefined ? `（代码：${item.errno}）` : '';
-    li.innerHTML = `<span>${item.title}</span><span>${message}${detail}</span>`;
-    dom.resultList.appendChild(li);
-  });
-}
-
-function selectAll(selected) {
-  state.items.forEach(item => {
-    item.selected = selected;
-  });
+function toggleSelectionAll(selected) {
+  state.selectedIds = selected ? new Set(state.items.map(item => item.id)) : new Set();
   renderItems();
+}
+
+function pushLog(message, { level = 'info', detail = '', stage = '' } = {}) {
+  const entry = {
+    id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    time: new Date(),
+    message,
+    detail,
+    level,
+    stage
+  };
+  state.logs = [...state.logs.slice(-(MAX_LOG_ENTRIES - 1)), entry];
+  renderLogs();
+}
+
+function renderLogs() {
+  if (!dom.logList) {
+    return;
+  }
+  dom.logList.innerHTML = '';
+  const entries = state.logExpanded ? state.logs : state.logs.slice(-LOG_COLLAPSED_COUNT);
+  if (!entries.length) {
+    dom.logContainer?.classList.add('is-empty');
+    if (dom.toggleLog) {
+      dom.toggleLog.textContent = state.logExpanded ? '折叠日志' : '展开日志';
+    }
+    return;
+  }
+  dom.logContainer?.classList.remove('is-empty');
+  entries.forEach(entry => {
+    const li = document.createElement('li');
+    li.className = `popup-log-item popup-log-${entry.level}`;
+    li.dataset.logId = entry.id;
+    li.innerHTML = `
+      <span class="popup-log-time">${formatTime(entry.time)}</span>
+      <span>${entry.message}${entry.detail ? `<span class="popup-log-detail">${entry.detail}</span>` : ''}</span>
+    `;
+    dom.logList.appendChild(li);
+    requestAnimationFrame(() => {
+      li.classList.add('is-visible');
+    });
+  });
+  if (dom.toggleLog) {
+    dom.toggleLog.textContent = state.logExpanded ? '折叠日志' : '展开日志';
+  }
+}
+
+function setStatus(status, message) {
+  state.transferStatus = status;
+  if (message) {
+    state.statusMessage = message;
+  }
+  renderStatus();
+}
+
+function renderStatus() {
+  if (!dom.statusLine) {
+    return;
+  }
+  const emojiMap = {
+    idle: '🌙',
+    running: '⚙️',
+    success: '🎉',
+    error: '⚠️'
+  };
+  const emoji = emojiMap[state.transferStatus] || 'ℹ️';
+  dom.statusLine.innerHTML = `<span>${emoji}</span>${state.statusMessage}`;
+
+  if (dom.resultSummary) {
+    if (!state.lastResult) {
+      dom.resultSummary.classList.add('is-empty');
+      dom.resultSummary.innerHTML = '';
+    } else {
+      dom.resultSummary.classList.remove('is-empty');
+      dom.resultSummary.innerHTML = `
+        <div class="popup-result-heading">${state.lastResult.title}</div>
+        <div class="popup-result-detail">${state.lastResult.detail}</div>
+      `;
+    }
+  }
+}
+
+function updateTransferButton() {
+  if (!dom.transferButton || !dom.transferLabel) {
+    return;
+  }
+  const count = state.selectedIds.size;
+  const isRunning = state.transferStatus === 'running';
+  dom.transferButton.disabled = isRunning || count === 0;
+  dom.transferButton.classList.toggle('is-loading', isRunning);
+  if (dom.transferSpinner) {
+    dom.transferSpinner.classList.toggle('is-visible', isRunning);
+  }
+  dom.transferLabel.textContent = isRunning ? '正在转存...' : (count > 0 ? `转存选中 ${count} 项` : '请选择资源');
+}
+
+function setBaseDir(value, { fromPreset = false } = {}) {
+  const normalized = normalizeDir(value);
+  state.baseDir = normalized;
+  if (dom.baseDir && dom.baseDir.value !== normalized) {
+    dom.baseDir.value = normalized;
+  }
+  if (fromPreset) {
+    ensurePreset(normalized);
+  }
+  saveSettings();
+  renderPresets();
+  renderPathPreview();
+}
+
+function setControlsDisabled(disabled) {
+  if (dom.baseDir) dom.baseDir.disabled = disabled;
+  if (dom.addPreset) dom.addPreset.disabled = disabled;
+  if (dom.useTitleSubdir) dom.useTitleSubdir.disabled = disabled;
+  if (dom.sortKey) dom.sortKey.disabled = disabled;
+  if (dom.sortOrder) dom.sortOrder.disabled = disabled;
+  if (dom.selectAll) dom.selectAll.disabled = disabled;
+  if (dom.selectNone) dom.selectNone.disabled = disabled;
+  if (dom.presetList) dom.presetList.classList.toggle('is-disabled', disabled);
+}
+
+function computeTargetDirectory() {
+  return getTargetPath(state.baseDir, state.useTitleSubdir, state.pageTitle);
 }
 
 async function getActiveTab() {
@@ -273,134 +434,366 @@ function sendRuntimeMessage(payload) {
   });
 }
 
+function clearLogs() {
+  state.logs = [];
+  renderLogs();
+}
+
+function showToast(type, title, message, stats = null) {
+  try {
+    document.querySelectorAll('.chaospace-toast').forEach(node => node.remove());
+    const toast = document.createElement('div');
+    toast.className = `chaospace-toast ${type}`;
+
+    const titleEl = document.createElement('div');
+    titleEl.className = 'chaospace-toast-title';
+    titleEl.textContent = title;
+    toast.appendChild(titleEl);
+
+    if (message) {
+      const messageEl = document.createElement('div');
+      messageEl.className = 'chaospace-toast-message';
+      messageEl.textContent = message;
+      toast.appendChild(messageEl);
+    }
+
+    if (stats) {
+      const statsEl = document.createElement('div');
+      statsEl.className = 'chaospace-toast-stats';
+
+      if (stats.success > 0) {
+        const successStat = document.createElement('div');
+        successStat.className = 'chaospace-toast-stat success';
+        successStat.textContent = `✅ 成功 · ${stats.success}`;
+        statsEl.appendChild(successStat);
+      }
+
+      if (stats.failed > 0) {
+        const failedStat = document.createElement('div');
+        failedStat.className = 'chaospace-toast-stat failed';
+        failedStat.textContent = `❌ 失败 · ${stats.failed}`;
+        statsEl.appendChild(failedStat);
+      }
+
+      if (stats.skipped > 0) {
+        const skippedStat = document.createElement('div');
+        skippedStat.className = 'chaospace-toast-stat skipped';
+        skippedStat.textContent = `🌀 跳过 · ${stats.skipped}`;
+        statsEl.appendChild(skippedStat);
+      }
+
+      toast.appendChild(statsEl);
+    }
+
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.remove();
+    }, 4200);
+  } catch (error) {
+    console.error('[Chaospace Transfer] Failed to show toast', error);
+  }
+}
+
 async function refreshItems() {
   clearMessages();
-  dom.resultSection.classList.add('hidden');
-  const tab = await getActiveTab();
-  if (!tab || !tab.id) {
-    showMessage('未找到活动标签页。');
-    return;
+  if (dom.refreshButton) {
+    dom.refreshButton.disabled = true;
+    dom.refreshButton.textContent = '刷新中...';
   }
 
-  state.tabId = tab.id;
-
   try {
+    const tab = await getActiveTab();
+    if (!tab || !tab.id) {
+      showMessage('未找到活动标签页。');
+      return;
+    }
+
+    state.tabId = tab.id;
     const response = await sendMessageToTab(tab.id, { type: 'chaospace:collect-links' });
+
     if (!response || !Array.isArray(response.items) || !response.items.length) {
       state.items = [];
-      let origin = '';
-      try {
-        origin = response?.origin || new URL(tab.url).origin;
-      } catch (_error) {
-        origin = '';
-      }
-      state.origin = origin;
-      state.pageTitle = response?.title || tab.title;
+      state.selectedIds = new Set();
+      state.origin = response?.origin || new URL(tab.url || '').origin;
+      state.pageTitle = response?.title || tab.title || '';
       renderPageInfo();
       renderItems();
       showMessage('未从页面中解析到资源链接。', 'info');
       return;
     }
 
-    let origin = '';
-    try {
-      origin = response.origin || new URL(tab.url).origin;
-    } catch (_error) {
-      origin = '';
-    }
-    state.origin = origin;
-    state.pageTitle = response.title || tab.title;
-    state.items = response.items.map(item => ({
+    state.origin = response.origin || new URL(tab.url || '').origin;
+    state.pageTitle = response.title || tab.title || '';
+    state.items = response.items.map((item, index) => ({
       ...item,
-      selected: true,
-      subdir: ensureSubdir('', item.title)
+      order: typeof item.order === 'number' ? item.order : index
     }));
+    state.selectedIds = new Set(state.items.map(item => item.id));
 
     renderPageInfo();
     renderItems();
+    renderPathPreview();
   } catch (error) {
+    console.error('[Chaospace Transfer] refresh error', error);
     state.items = [];
-    state.pageTitle = tab?.title || '';
-    try {
-      state.origin = new URL(tab?.url || '').origin;
-    } catch (_error) {
-      state.origin = '';
-    }
-    renderPageInfo();
+    state.selectedIds = new Set();
     renderItems();
-    showMessage(`无法在当前页面使用：${error.message}`);
+    showMessage(`无法获取页面资源：${error.message}`);
+  } finally {
+    if (dom.refreshButton) {
+      dom.refreshButton.disabled = false;
+      dom.refreshButton.textContent = '刷新';
+    }
   }
 }
 
 async function handleTransfer() {
+  if (state.transferStatus === 'running') {
+    return;
+  }
+
   clearMessages();
-  dom.resultSection.classList.add('hidden');
 
-  const baseDir = normalizeDir(dom.baseDir.value);
-  state.baseDir = baseDir;
-  await saveSettings();
-
-  const selectedItems = state.items.filter(item => item.selected);
+  const selectedItems = state.items.filter(item => state.selectedIds.has(item.id));
   if (!selectedItems.length) {
     showMessage('请至少选择一条资源。', 'info');
     return;
   }
 
-  const payloadItems = selectedItems.map(item => ({
-    id: item.id,
-    title: item.title,
-    targetPath: computeTargetPath(item)
-  }));
+  if (dom.baseDir) {
+    setBaseDir(dom.baseDir.value);
+  }
+  if (dom.useTitleSubdir) {
+    state.useTitleSubdir = dom.useTitleSubdir.checked;
+    saveSettings();
+  }
 
-  setLoading(true);
+  const targetDirectory = computeTargetDirectory();
+
+  state.jobId = `job-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+  state.lastResult = null;
+  state.transferStatus = 'running';
+  state.statusMessage = '正在准备转存...';
+  state.logExpanded = false;
+  dom.logContainer?.classList.remove('is-expanded');
+  clearLogs();
+  pushLog('已准备好资源清单，开始请求后台任务', { stage: 'init' });
+  renderStatus();
+  updateTransferButton();
+  setControlsDisabled(true);
+
   try {
+    const payload = {
+      jobId: state.jobId,
+      origin: state.origin,
+      items: selectedItems.map(item => ({
+        id: item.id,
+        title: item.title,
+        targetPath: targetDirectory
+      })),
+      targetDirectory,
+      meta: {
+        total: selectedItems.length,
+        baseDir: state.baseDir,
+        useTitleSubdir: state.useTitleSubdir,
+        pageTitle: state.pageTitle
+      }
+    };
+
+    pushLog(`向后台发送 ${selectedItems.length} 条转存请求`, { stage: 'dispatch' });
+
     const response = await sendRuntimeMessage({
       type: 'chaospace:transfer',
-      payload: {
-        origin: state.origin,
-        items: payloadItems,
-        targetDirectory: baseDir
-      }
+      payload
     });
 
-    if (!response?.ok) {
-      const message = response?.error || '未知错误';
-      showMessage(`转存失败：${message}`);
-      setLoading(false);
-      return;
+    if (!response) {
+      throw new Error('未收到后台响应');
+    }
+    if (!response.ok) {
+      throw new Error(response.error || '后台执行失败');
     }
 
-    setResult(response);
+    const { results, summary } = response;
+    const success = results.filter(r => r.status === 'success').length;
+    const failed = results.filter(r => r.status === 'failed').length;
+    const skipped = results.filter(r => r.status === 'skipped').length;
+    const emoji = failed === 0 ? '🎯' : (success > 0 ? '🟡' : '💥');
+    const title = failed === 0 ? '转存成功' : (success > 0 ? '部分成功' : '全部失败');
+
+    state.lastResult = {
+      title: `${emoji} ${title}`,
+      detail: `成功 ${success} · 跳过 ${skipped} · 失败 ${failed}`
+    };
+
+    pushLog(`后台执行完成：${summary}`, { stage: 'complete', level: failed === 0 ? 'success' : 'warning' });
+
+    setStatus(failed === 0 ? 'success' : 'error', `${title}：${summary}`);
+    showToast(
+      failed === 0 ? 'success' : (success > 0 ? 'warning' : 'error'),
+      `${emoji} ${title}`,
+      `已保存到 ${targetDirectory}`,
+      { success, failed, skipped }
+    );
   } catch (error) {
-    showMessage(`转存失败：${error.message}`);
+    console.error('[Chaospace Transfer] transfer error', error);
+    pushLog(error.message || '后台执行发生未知错误', { level: 'error', stage: 'error' });
+    setStatus('error', `转存失败：${error.message || '未知错误'}`);
+    showToast('error', '转存失败', error.message || '发生未知错误');
   } finally {
-    setLoading(false);
+    if (state.transferStatus === 'running') {
+      setStatus('idle', '准备就绪 ✨');
+    }
+    updateTransferButton();
+    setControlsDisabled(false);
+    state.jobId = null;
   }
+}
+
+function handleProgressEvent(progress) {
+  if (!progress || progress.jobId !== state.jobId) {
+    return;
+  }
+  if (progress.message) {
+    pushLog(progress.message, {
+      level: progress.level || 'info',
+      detail: progress.detail || '',
+      stage: progress.stage || ''
+    });
+  }
+  if (progress.statusMessage) {
+    state.statusMessage = progress.statusMessage;
+    renderStatus();
+  } else if (typeof progress.current === 'number' && typeof progress.total === 'number') {
+    state.statusMessage = `正在处理 ${progress.current}/${progress.total}`;
+    renderStatus();
+  }
+}
+
+function registerEventListeners() {
+  if (dom.refreshButton) {
+    dom.refreshButton.addEventListener('click', refreshItems);
+  }
+
+  if (dom.selectAll) {
+    dom.selectAll.addEventListener('click', () => toggleSelectionAll(true));
+  }
+
+  if (dom.selectNone) {
+    dom.selectNone.addEventListener('click', () => toggleSelectionAll(false));
+  }
+
+  if (dom.sortKey) {
+    dom.sortKey.addEventListener('change', () => {
+      state.sortKey = dom.sortKey.value;
+      renderItems();
+    });
+  }
+
+  if (dom.sortOrder) {
+    dom.sortOrder.textContent = state.sortOrder === 'asc' ? '正序' : '倒序';
+    dom.sortOrder.addEventListener('click', () => {
+      state.sortOrder = state.sortOrder === 'asc' ? 'desc' : 'asc';
+      dom.sortOrder.textContent = state.sortOrder === 'asc' ? '正序' : '倒序';
+      renderItems();
+    });
+  }
+
+  if (dom.itemsContainer) {
+    dom.itemsContainer.addEventListener('change', event => {
+      const checkbox = event.target.closest('input[type="checkbox"]');
+      if (!checkbox) return;
+      const row = checkbox.closest('.popup-item');
+      if (!row) return;
+      const id = row.dataset.id;
+      if (!id) return;
+      if (checkbox.checked) {
+        state.selectedIds.add(id);
+      } else {
+        state.selectedIds.delete(id);
+      }
+      row.classList.toggle('is-muted', !checkbox.checked);
+      renderSelectionSummary();
+      updateTransferButton();
+    });
+  }
+
+  if (dom.presetList) {
+    dom.presetList.addEventListener('click', event => {
+      if (state.transferStatus === 'running') {
+        return;
+      }
+      const button = event.target.closest('button[data-value]');
+      if (!button) return;
+      const preset = button.dataset.value;
+      setBaseDir(preset, { fromPreset: true });
+    });
+  }
+
+  if (dom.baseDir) {
+    dom.baseDir.value = state.baseDir;
+    dom.baseDir.addEventListener('change', () => setBaseDir(dom.baseDir.value));
+    dom.baseDir.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        setBaseDir(dom.baseDir.value);
+      }
+    });
+    dom.baseDir.addEventListener('input', () => {
+      state.baseDir = normalizeDir(dom.baseDir.value);
+      renderPathPreview();
+    });
+  }
+
+  if (dom.addPreset) {
+    dom.addPreset.addEventListener('click', () => {
+      const preset = ensurePreset(dom.baseDir ? dom.baseDir.value : state.baseDir);
+      if (preset) {
+        setBaseDir(preset, { fromPreset: true });
+        showToast('success', '已收藏路径', `${preset} 已加入候选列表`);
+      }
+    });
+  }
+
+  if (dom.useTitleSubdir) {
+    dom.useTitleSubdir.checked = state.useTitleSubdir;
+    dom.useTitleSubdir.addEventListener('change', () => {
+      state.useTitleSubdir = dom.useTitleSubdir.checked;
+      saveSettings();
+      renderPathPreview();
+    });
+  }
+
+  if (dom.toggleLog) {
+    dom.toggleLog.addEventListener('click', () => {
+      state.logExpanded = !state.logExpanded;
+      dom.logContainer?.classList.toggle('is-expanded', state.logExpanded);
+      renderLogs();
+    });
+  }
+
+  if (dom.transferButton) {
+    dom.transferButton.addEventListener('click', handleTransfer);
+  }
+}
+
+function registerMessageListener() {
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message?.type === 'chaospace:transfer-progress') {
+      handleProgressEvent(message);
+    }
+  });
 }
 
 async function init() {
   await loadSettings();
-  dom.baseDir.value = state.baseDir;
-  dom.useTitleSubdir.checked = state.useTitleSubdir;
-
-  dom.baseDir.addEventListener('change', () => {
-    state.baseDir = normalizeDir(dom.baseDir.value);
-    dom.baseDir.value = state.baseDir;
-    saveSettings();
-    renderItems();
-  });
-
-  dom.useTitleSubdir.addEventListener('change', () => {
-    state.useTitleSubdir = dom.useTitleSubdir.checked;
-    saveSettings();
-    renderItems();
-  });
-
-  dom.refreshButton.addEventListener('click', refreshItems);
-  dom.transferButton.addEventListener('click', handleTransfer);
-  dom.selectAll.addEventListener('click', () => selectAll(true));
-  dom.selectNone.addEventListener('click', () => selectAll(false));
-
+  renderPresets();
+  renderPathPreview();
+  renderStatus();
+  renderItems();
+  updateTransferButton();
+  registerEventListeners();
+  registerMessageListener();
   await refreshItems();
 }
 

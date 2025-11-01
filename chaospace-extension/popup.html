@@ -5,45 +5,83 @@
     <title>CHAOSPACE 转存助手</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
-  <body>
-    <header>
-      <h1>CHAOSPACE 转存助手</h1>
-      <p id="page-info"></p>
-    </header>
-
-    <section class="settings">
-      <label class="field">
-        <span>百度网盘目录</span>
-        <input id="base-dir" type="text" placeholder="例如：/视频/番剧/剧集合集" />
-      </label>
-      <label class="checkbox">
-        <input id="use-title-subdir" type="checkbox" checked />
-        <span>每个资源使用标题创建子目录</span>
-      </label>
-    </section>
-
-    <section class="items">
-      <div class="items-toolbar">
-        <button id="refresh-btn" type="button">重新获取</button>
-        <div class="select-actions">
-          <button id="select-all" type="button">全选</button>
-          <button id="select-none" type="button">全不选</button>
+  <body class="popup-theme">
+    <main class="popup-shell">
+      <header class="popup-header">
+        <div class="popup-header-text">
+          <h1>🚀 CHAOSPACE 转存助手</h1>
+          <p id="page-info"></p>
         </div>
-      </div>
-      <div id="items-container" class="items-list"></div>
-    </section>
+        <button id="refresh-btn" type="button" class="popup-ghost-btn">刷新</button>
+      </header>
 
-    <section class="actions">
-      <button id="transfer-btn" type="button" class="primary">转存选中资源</button>
-    </section>
+      <section class="popup-columns">
+        <div class="popup-column popup-column-left">
+          <div class="popup-section-heading">
+            <div class="popup-section-title" id="items-title"></div>
+            <div class="popup-section-caption" id="selection-summary"></div>
+          </div>
+          <div class="popup-toolbar">
+            <div class="popup-sort-group">
+              <label class="popup-sort-label">
+                <span>排序</span>
+                <select id="sort-key">
+                  <option value="page">默认顺序</option>
+                  <option value="title">标题</option>
+                </select>
+              </label>
+              <button id="sort-order" type="button" class="popup-order-btn">正序</button>
+            </div>
+            <div class="popup-select-group">
+              <button id="select-all" type="button">全选</button>
+              <button id="select-none" type="button">清空</button>
+            </div>
+          </div>
+          <div id="items-container" class="popup-items"></div>
+        </div>
 
-    <section id="result" class="result hidden">
-      <h2>执行结果</h2>
-      <p id="result-summary"></p>
-      <ul id="result-list"></ul>
-    </section>
+        <div class="popup-column popup-column-right">
+          <div class="popup-card popup-path-card">
+            <div class="popup-card-title">📁 转存目录</div>
+            <div class="popup-card-body">
+              <div id="preset-list" class="popup-chip-list"></div>
+              <div class="popup-input-row">
+                <input id="base-dir" type="text" placeholder="/视频/番剧" />
+                <button id="add-preset" type="button">收藏路径</button>
+              </div>
+              <label class="popup-checkbox">
+                <input id="use-title-subdir" type="checkbox" checked />
+                <span>为资源创建标题子目录</span>
+              </label>
+              <div id="path-preview" class="popup-path-preview"></div>
+            </div>
+          </div>
 
-    <section id="messages" class="messages"></section>
+          <div class="popup-card popup-status-card">
+            <div class="popup-card-title">🧠 转存状态</div>
+            <div id="status-line" class="popup-status-line"></div>
+            <div class="popup-log-header">
+              <span>📜 日志</span>
+              <button id="toggle-log" type="button" class="popup-log-toggle">展开</button>
+            </div>
+            <div id="log-container" class="popup-log-container">
+              <ul id="log-list" class="popup-log-list"></ul>
+            </div>
+            <div id="result-summary" class="popup-result-summary is-empty"></div>
+          </div>
+
+          <div class="popup-card popup-transfer-card">
+            <button id="transfer-btn" type="button" class="popup-transfer-button">
+              <span class="popup-spinner" id="transfer-spinner" aria-hidden="true"></span>
+              <span class="popup-button-icon">🚀</span>
+              <span id="transfer-label">转存选中资源</span>
+            </button>
+          </div>
+
+          <div id="messages" class="popup-messages"></div>
+        </div>
+      </section>
+    </main>
 
     <script src="popup.js" type="module"></script>
   </body>
