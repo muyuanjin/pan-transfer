@@ -4,7 +4,6 @@
   const SIZE_KEY = 'chaospace-panel-size';
   const DEFAULT_PRESETS = ['/视频/番剧', '/视频/影视', '/视频/电影'];
   const MAX_LOG_ENTRIES = 80;
-  const LOG_COLLAPSED_COUNT = 4;
 
   const state = {
     baseDir: '/',
@@ -18,7 +17,6 @@
     origin: '',
     jobId: null,
     logs: [],
-    logExpanded: false,
     transferStatus: 'idle', // idle | running | success | error
     lastResult: null,
     statusMessage: '准备就绪 ✨',
@@ -350,22 +348,9 @@
     }
   }
 
-  function formatTime(date) {
-    try {
-      return new Intl.DateTimeFormat('zh-CN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      }).format(date);
-    } catch (_error) {
-      // 兼容部分环境
-      return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`;
-    }
-  }
-
   function formatStageLabel(stage) {
     if (!stage) {
-      return '—';
+      return '📡 进度';
     }
     const stageKey = String(stage);
     const base = stageKey.split(':')[0] || stageKey;
@@ -393,9 +378,18 @@
   }
 
   function pushLog(message, { level = 'info', detail = '', stage = '' } = {}) {
+    const lastEntry = state.logs[state.logs.length - 1];
+    if (
+      lastEntry &&
+      lastEntry.message === message &&
+      lastEntry.stage === stage &&
+      lastEntry.detail === detail &&
+      lastEntry.level === level
+    ) {
+      return;
+    }
     const entry = {
       id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-      time: new Date(),
       message,
       detail,
       level,
@@ -409,38 +403,43 @@
     if (!panelDom.logList) {
       return;
     }
-    const container = panelDom.logList;
-    container.innerHTML = '';
+    const list = panelDom.logList;
+    list.innerHTML = '';
 
-    const entries = state.logExpanded ? state.logs : state.logs.slice(-LOG_COLLAPSED_COUNT);
-    if (!entries.length) {
+    if (!state.logs.length) {
       panelDom.logContainer?.classList.add('is-empty');
-      if (panelDom.toggleLogButton) {
-        panelDom.toggleLogButton.textContent = state.logExpanded ? '折叠日志' : '展开日志';
-      }
       return;
     }
+
     panelDom.logContainer?.classList.remove('is-empty');
 
-    entries.forEach(entry => {
+    state.logs.forEach(entry => {
       const li = document.createElement('li');
       li.className = `chaospace-log-item chaospace-log-${entry.level}`;
       li.dataset.logId = entry.id;
       li.dataset.stage = entry.stage || '';
+      const stageLabel = formatStageLabel(entry.stage);
       li.innerHTML = `
-        <span class="chaospace-log-time">${formatTime(entry.time)}</span>
-        <span class="chaospace-log-stage">${formatStageLabel(entry.stage)}</span>
-        <span class="chaospace-log-message">${entry.message}</span>
-        ${entry.detail ? `<span class="chaospace-log-detail">${entry.detail}</span>` : ''}
+        <span class="chaospace-log-stage">${stageLabel}</span>
+        <div class="chaospace-log-content">
+          <span class="chaospace-log-message">${entry.message}</span>
+          ${entry.detail ? `<span class="chaospace-log-detail">${entry.detail}</span>` : ''}
+        </div>
       `;
-      container.appendChild(li);
+      list.appendChild(li);
       requestAnimationFrame(() => {
         li.classList.add('is-visible');
       });
     });
 
-    if (panelDom.toggleLogButton) {
-      panelDom.toggleLogButton.textContent = state.logExpanded ? '折叠日志' : '展开日志';
+    const logWrapper = panelDom.logContainer;
+    if (logWrapper) {
+      requestAnimationFrame(() => {
+        logWrapper.scrollTo({
+          top: logWrapper.scrollHeight,
+          behavior: 'smooth'
+        });
+      });
     }
   }
 
@@ -453,9 +452,6 @@
   }
 
   function renderStatus() {
-    if (!panelDom.statusText) {
-      return;
-    }
     const emojiMap = {
       idle: '🌙',
       running: '⚙️',
@@ -463,7 +459,9 @@
       error: '⚠️'
     };
     const emoji = emojiMap[state.transferStatus] || 'ℹ️';
-    panelDom.statusText.innerHTML = `<span class="chaospace-status-emoji">${emoji}</span>${state.statusMessage}`;
+    if (panelDom.statusText) {
+      panelDom.statusText.innerHTML = `<span class="chaospace-status-emoji">${emoji}</span>${state.statusMessage}`;
+    }
 
     if (panelDom.resultSummary) {
       if (!state.lastResult) {
@@ -471,9 +469,11 @@
         panelDom.resultSummary.classList.add('is-empty');
       } else {
         panelDom.resultSummary.classList.remove('is-empty');
+        const title = state.lastResult.title || '';
+        const detail = state.lastResult.detail || '';
         panelDom.resultSummary.innerHTML = `
-          <div class="chaospace-result-heading">${state.lastResult.title}</div>
-          <div class="chaospace-result-detail">${state.lastResult.detail}</div>
+          <span class="chaospace-log-summary-title">${title}</span>
+          ${detail ? `<span class="chaospace-log-summary-detail">${detail}</span>` : ''}
         `;
       }
     }
@@ -819,7 +819,6 @@
       state.lastResult = null;
       state.transferStatus = 'idle';
       state.statusMessage = '准备就绪 ✨';
-      state.logExpanded = false;
       resetLogs();
 
       const panel = document.createElement('div');
@@ -877,16 +876,13 @@
                 </div>
               </div>
               <div class="chaospace-card chaospace-status-card">
-                <div class="chaospace-card-title">🧠 转存状态</div>
-                <div class="chaospace-status-line" data-role="status"></div>
-                <div class="chaospace-log-header">
-                  <span>📜 日志</span>
-                  <button type="button" data-role="toggle-log">展开</button>
+                <div class="chaospace-card-title chaospace-log-header">
+                  <span class="chaospace-log-title">📜 日志</span>
+                  <div class="chaospace-log-summary is-empty" data-role="result-summary"></div>
                 </div>
                 <div class="chaospace-log-container" data-role="log-container">
                   <ul class="chaospace-log-list" data-role="log-list"></ul>
                 </div>
-                <div class="chaospace-result-summary is-empty" data-role="result-summary"></div>
               </div>
               <div class="chaospace-card chaospace-transfer-card">
                 <button class="chaospace-float-btn" data-role="transfer-btn">
@@ -1002,7 +998,6 @@
       panelDom.addPresetButton = panel.querySelector('[data-role="add-preset"]');
       panelDom.themeToggle = panel.querySelector('[data-role="theme-toggle"]');
       panelDom.minimizeBtn = panel.querySelector('[data-role="minimize"]');
-      panelDom.toggleLogButton = panel.querySelector('[data-role="toggle-log"]');
       panelDom.logContainer = panel.querySelector('[data-role="log-container"]');
       panelDom.logList = panel.querySelector('[data-role="log-list"]');
       panelDom.resultSummary = panel.querySelector('[data-role="result-summary"]');
@@ -1132,14 +1127,6 @@
           state.sortOrder = state.sortOrder === 'asc' ? 'desc' : 'asc';
           refreshOrderButton();
           renderResourceList();
-        });
-      }
-
-      if (panelDom.toggleLogButton) {
-        panelDom.toggleLogButton.addEventListener('click', () => {
-          state.logExpanded = !state.logExpanded;
-          panelDom.logContainer?.classList.toggle('is-expanded', state.logExpanded);
-          renderLogs();
         });
       }
 

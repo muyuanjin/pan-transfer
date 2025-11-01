@@ -234,7 +234,6 @@ async function verifySharePassword(linkUrl, passCode, bdstoken, options = {}) {
   const { jobId, context = '' } = options;
   const titleLabel = context ? `《${context}》` : '资源';
   if (!passCode) {
-    logStage(jobId, 'verify', `${titleLabel}无需提取码验证`);
     return { errno: 0 };
   }
   const surl = buildSurl(linkUrl);
@@ -260,7 +259,6 @@ async function verifySharePassword(linkUrl, passCode, bdstoken, options = {}) {
   // Python 版本使用固定的 Referer: https://pan.baidu.com
   const referer = 'https://pan.baidu.com';
 
-  logStage(jobId, 'verify', `${titleLabel}验证提取码：${passCode}`);
   console.log('[Chaospace Transfer] verify request', {
     url,
     referer,
@@ -330,10 +328,7 @@ async function fetchShareMetadata(linkUrl, passCode, bdstoken, options = {}) {
       return { error: verifyResult.errno };
     }
     // 确保 Cookie 已设置完成,添加短暂延迟
-    logStage(jobId, 'verify', `${titleLabel}等待验证结果生效`);
     await new Promise(resolve => setTimeout(resolve, 100));
-  } else {
-    logStage(jobId, 'verify', `${titleLabel}未提供提取码，跳过验证`);
   }
 
   let linkToFetch = linkUrl;

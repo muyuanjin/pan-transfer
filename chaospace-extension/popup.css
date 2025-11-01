@@ -32,6 +32,8 @@ body.popup-theme {
   font-family: 'Inter', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   box-sizing: border-box;
   overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
   resize: both;
 }
 
@@ -52,6 +54,23 @@ body.popup-theme.theme-light {
   --pp-warning: #d97706;
   --pp-error: #dc2626;
   color-scheme: light;
+}
+
+body.popup-theme::-webkit-scrollbar {
+  width: 8px;
+}
+
+body.popup-theme::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+}
+
+body.popup-theme::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.48);
+}
+
+body.popup-theme::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .popup-shell {
@@ -573,16 +592,36 @@ body.popup-theme.theme-light .popup-sort-label select option {
 
 .popup-log-container {
   max-height: 140px;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   border-radius: 14px;
   border: 1px solid rgba(148, 163, 184, 0.24);
   background: rgba(15, 23, 42, 0.7);
   padding: 10px 12px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.38) transparent;
   transition: max-height 0.25s ease;
 }
 
 .popup-log-container.is-expanded {
   max-height: 240px;
+}
+
+.popup-log-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.popup-log-container::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+}
+
+.popup-log-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+.popup-log-container::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .popup-log-list {

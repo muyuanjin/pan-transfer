@@ -163,6 +163,31 @@
   padding: 20px 26px 34px;
   display: flex;
   flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+
+.chaospace-float-body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.chaospace-float-body::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.chaospace-float-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.chaospace-float-body::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .chaospace-float-columns {
@@ -613,34 +638,71 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+}
+
+.chaospace-log-title {
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chaospace-log-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 12px;
   color: var(--cp-text-muted);
 }
 
-.chaospace-log-header button {
-  border: none;
-  background: transparent;
-  color: var(--cp-text-secondary);
-  cursor: pointer;
-  font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 8px;
-  transition: background 0.2s ease;
+.chaospace-log-summary.is-empty {
+  display: none;
 }
 
-.chaospace-log-header button:hover {
-  background: rgba(99, 102, 241, 0.15);
+.chaospace-log-summary-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cp-text-secondary);
+}
+
+.chaospace-log-summary-detail {
+  font-size: 12px;
+  color: var(--cp-text-muted);
 }
 
 .chaospace-log-container {
   position: relative;
   max-height: 140px;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   border-radius: 14px;
   background: var(--cp-surface-soft);
   border: 1px solid var(--cp-border);
   padding: 10px 12px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
   transition: max-height 0.25s ease;
+}
+
+.chaospace-log-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chaospace-log-container::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+}
+
+.chaospace-log-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+.chaospace-log-container::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .chaospace-log-container.is-expanded {
@@ -650,6 +712,7 @@
 .chaospace-log-container.is-empty {
   padding: 14px;
   color: var(--cp-text-muted);
+  overflow: hidden;
 }
 
 .chaospace-log-list {
@@ -658,20 +721,28 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
 }
 
 .chaospace-log-item {
   display: grid;
-  grid-template-columns: 72px minmax(96px, 140px) 1fr;
-  grid-template-areas:
-    "time stage message"
-    "time stage detail";
-  gap: 8px;
+  grid-template-columns: 128px 1fr;
+  gap: 12px;
   font-size: 11px;
   color: var(--cp-text-secondary);
   opacity: 0;
   transform: translateY(6px);
+  padding: 12px 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.chaospace-log-item:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.chaospace-log-item:last-child {
+  padding-bottom: 0;
 }
 
 .chaospace-log-item.is-visible {
@@ -680,25 +751,24 @@
   transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
-.chaospace-log-time {
-  grid-area: time;
-  font-family: 'SFMono-Regular', 'Cascadia Code', monospace;
-  color: var(--cp-text-muted);
-  white-space: nowrap;
-}
-
 .chaospace-log-stage {
-  grid-area: stage;
-  align-self: center;
+  align-self: flex-start;
   justify-self: flex-start;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 999px;
   background: var(--cp-accent-softer);
   color: var(--cp-accent);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.2px;
   white-space: nowrap;
+  line-height: 1.4;
+}
+
+.chaospace-log-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .chaospace-log-success .chaospace-log-stage {
@@ -717,14 +787,15 @@
 }
 
 .chaospace-log-message {
-  grid-area: message;
-  align-self: center;
+  font-size: 12px;
+  color: var(--cp-text-secondary);
+  line-height: 1.5;
 }
 
 .chaospace-log-detail {
-  grid-area: detail;
   color: var(--cp-text-muted);
   font-size: 10px;
+  line-height: 1.4;
 }
 
 .chaospace-log-success {
@@ -737,32 +808,6 @@
 
 .chaospace-log-error {
   color: var(--cp-error);
-}
-
-.chaospace-result-summary {
-  font-size: 12px;
-  border-radius: 12px;
-  padding: 10px 14px;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  background: rgba(148, 163, 184, 0.12);
-  color: var(--cp-text-secondary);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.chaospace-result-summary.is-empty {
-  display: none;
-}
-
-.chaospace-result-heading {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.chaospace-result-detail {
-  font-size: 12px;
-  color: var(--cp-text-muted);
 }
 
 .chaospace-transfer-card {
