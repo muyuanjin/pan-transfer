@@ -11,7 +11,7 @@ const dom = {
   sortKey: document.getElementById('sort-key'),
   sortOrder: document.getElementById('sort-order'),
   selectAll: document.getElementById('select-all'),
-  selectNone: document.getElementById('select-none'),
+  selectInvert: document.getElementById('select-invert'),
   presetList: document.getElementById('preset-list'),
   baseDir: document.getElementById('base-dir'),
   addPreset: document.getElementById('add-preset'),
@@ -26,7 +26,8 @@ const dom = {
   transferLabel: document.getElementById('transfer-label'),
   transferSpinner: document.getElementById('transfer-spinner'),
   messages: document.getElementById('messages'),
-  refreshButton: document.getElementById('refresh-btn')
+  refreshButton: document.getElementById('refresh-btn'),
+  themeToggle: document.getElementById('theme-toggle')
 };
 
 const state = {
@@ -45,7 +46,8 @@ const state = {
   transferStatus: 'idle',
   statusMessage: '准备就绪 ✨',
   jobId: null,
-  lastResult: null
+  lastResult: null,
+  theme: 'dark'
 };
 
 function normalizeDir(value) {
@@ -96,6 +98,9 @@ async function loadSettings() {
         .filter(Boolean);
       state.presets = Array.from(new Set(merged));
     }
+    if (settings.theme === 'light' || settings.theme === 'dark') {
+      state.theme = settings.theme;
+    }
   } catch (error) {
     console.error('[Chaospace Transfer] Failed to load settings', error);
   }
@@ -107,7 +112,8 @@ async function saveSettings() {
       [STORAGE_KEY]: {
         baseDir: state.baseDir,
         useTitleSubdir: state.useTitleSubdir,
-        presets: state.presets
+        presets: state.presets,
+        theme: state.theme
       }
     });
   } catch (error) {
@@ -127,6 +133,25 @@ function ensurePreset(value) {
   return preset;
 }
 
+function removePreset(value) {
+  const preset = sanitizePreset(value);
+  if (!preset || preset === '/' || DEFAULT_PRESETS.includes(preset)) {
+    return;
+  }
+  const beforeSize = state.presets.length;
+  state.presets = state.presets.filter(item => item !== preset);
+  if (state.presets.length === beforeSize) {
+    return;
+  }
+  if (state.baseDir === preset) {
+    setBaseDir('/', { fromPreset: true });
+  } else {
+    saveSettings();
+    renderPresets();
+  }
+  showToast('info', '已移除路径', `${preset} 已从收藏中移除`);
+}
+
 function formatTime(date) {
   try {
     return new Intl.DateTimeFormat('zh-CN', {
@@ -143,6 +168,26 @@ function clearMessages() {
   if (dom.messages) {
     dom.messages.innerHTML = '';
   }
+}
+
+function applyTheme() {
+  const isLight = state.theme === 'light';
+  document.body.classList.toggle('theme-light', isLight);
+  if (dom.themeToggle) {
+    dom.themeToggle.textContent = isLight ? '切换深色 🌙' : '切换浅色 ☀️';
+  }
+}
+
+function setTheme(theme) {
+  if (theme !== 'light' && theme !== 'dark') {
+    return;
+  }
+  if (state.theme === theme) {
+    return;
+  }
+  state.theme = theme;
+  applyTheme();
+  saveSettings();
 }
 
 function showMessage(text, type = 'error') {
@@ -175,12 +220,30 @@ function renderPresets() {
   dom.presetList.innerHTML = '';
   const presets = Array.from(new Set(['/', ...state.presets]));
   presets.forEach(preset => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = `popup-chip${preset === state.baseDir ? ' is-active' : ''}`;
-    button.textContent = preset;
-    button.dataset.value = preset;
-    dom.presetList.appendChild(button);
+    const group = document.createElement('div');
+    group.className = 'popup-chip-group';
+
+    const selectBtn = document.createElement('button');
+    selectBtn.type = 'button';
+    selectBtn.className = `popup-chip-button${preset === state.baseDir ? ' is-active' : ''}`;
+    selectBtn.textContent = preset;
+    selectBtn.dataset.value = preset;
+    selectBtn.dataset.action = 'select';
+    group.appendChild(selectBtn);
+
+    const isRemovable = preset !== '/' && !DEFAULT_PRESETS.includes(preset);
+    if (isRemovable) {
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'popup-chip-remove';
+      removeBtn.dataset.value = preset;
+      removeBtn.dataset.action = 'remove';
+      removeBtn.setAttribute('aria-label', `移除 ${preset}`);
+      removeBtn.textContent = '×';
+      group.appendChild(removeBtn);
+    }
+
+    dom.presetList.appendChild(group);
   });
 }
 
@@ -275,8 +338,19 @@ function renderItems() {
   updateTransferButton();
 }
 
-function toggleSelectionAll(selected) {
+function setSelectionAll(selected) {
   state.selectedIds = selected ? new Set(state.items.map(item => item.id)) : new Set();
+  renderItems();
+}
+
+function invertSelection() {
+  const next = new Set();
+  state.items.forEach(item => {
+    if (!state.selectedIds.has(item.id)) {
+      next.add(item.id);
+    }
+  });
+  state.selectedIds = next;
   renderItems();
 }
 
@@ -395,7 +469,7 @@ function setControlsDisabled(disabled) {
   if (dom.sortKey) dom.sortKey.disabled = disabled;
   if (dom.sortOrder) dom.sortOrder.disabled = disabled;
   if (dom.selectAll) dom.selectAll.disabled = disabled;
-  if (dom.selectNone) dom.selectNone.disabled = disabled;
+  if (dom.selectInvert) dom.selectInvert.disabled = disabled;
   if (dom.presetList) dom.presetList.classList.toggle('is-disabled', disabled);
 }
 
@@ -676,11 +750,18 @@ function registerEventListeners() {
   }
 
   if (dom.selectAll) {
-    dom.selectAll.addEventListener('click', () => toggleSelectionAll(true));
+    dom.selectAll.addEventListener('click', () => setSelectionAll(true));
   }
 
-  if (dom.selectNone) {
-    dom.selectNone.addEventListener('click', () => toggleSelectionAll(false));
+  if (dom.selectInvert) {
+    dom.selectInvert.addEventListener('click', () => invertSelection());
+  }
+
+  if (dom.themeToggle) {
+    dom.themeToggle.addEventListener('click', () => {
+      const nextTheme = state.theme === 'dark' ? 'light' : 'dark';
+      setTheme(nextTheme);
+    });
   }
 
   if (dom.sortKey) {
@@ -723,10 +804,14 @@ function registerEventListeners() {
       if (state.transferStatus === 'running') {
         return;
       }
-      const button = event.target.closest('button[data-value]');
+      const button = event.target.closest('button[data-action][data-value]');
       if (!button) return;
-      const preset = button.dataset.value;
-      setBaseDir(preset, { fromPreset: true });
+      const { action, value } = button.dataset;
+      if (action === 'select') {
+        setBaseDir(value, { fromPreset: true });
+      } else if (action === 'remove') {
+        removePreset(value);
+      }
     });
   }
 
@@ -785,8 +870,25 @@ function registerMessageListener() {
   });
 }
 
+function registerStorageListener() {
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'local') {
+      return;
+    }
+    const settingsChange = changes[STORAGE_KEY];
+    if (settingsChange?.newValue) {
+      const nextTheme = settingsChange.newValue.theme;
+      if ((nextTheme === 'light' || nextTheme === 'dark') && nextTheme !== state.theme) {
+        state.theme = nextTheme;
+        applyTheme();
+      }
+    }
+  });
+}
+
 async function init() {
   await loadSettings();
+  applyTheme();
   renderPresets();
   renderPathPreview();
   renderStatus();
@@ -794,6 +896,7 @@ async function init() {
   updateTransferButton();
   registerEventListeners();
   registerMessageListener();
+  registerStorageListener();
   await refreshItems();
 }
 

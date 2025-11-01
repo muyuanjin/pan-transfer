@@ -12,7 +12,10 @@
           <h1>🚀 CHAOSPACE 转存助手</h1>
           <p id="page-info"></p>
         </div>
-        <button id="refresh-btn" type="button" class="popup-ghost-btn">刷新</button>
+        <div class="popup-header-actions">
+          <button id="theme-toggle" type="button" class="popup-ghost-btn">切换浅色</button>
+          <button id="refresh-btn" type="button" class="popup-ghost-btn">刷新</button>
+        </div>
       </header>
 
       <section class="popup-columns">
@@ -34,7 +37,7 @@
             </div>
             <div class="popup-select-group">
               <button id="select-all" type="button">全选</button>
-              <button id="select-none" type="button">清空</button>
+              <button id="select-invert" type="button">反选</button>
             </div>
           </div>
           <div id="items-container" class="popup-items"></div>
@@ -73,8 +76,8 @@
           <div class="popup-card popup-transfer-card">
             <button id="transfer-btn" type="button" class="popup-transfer-button">
               <span class="popup-spinner" id="transfer-spinner" aria-hidden="true"></span>
-              <span class="popup-button-icon">🚀</span>
               <span id="transfer-label">转存选中资源</span>
+              <span class="popup-button-icon" aria-hidden="true">🚀</span>
             </button>
           </div>
 

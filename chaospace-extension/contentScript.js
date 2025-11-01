@@ -20,7 +20,8 @@
     logExpanded: false,
     transferStatus: 'idle', // idle | running | success | error
     lastResult: null,
-    statusMessage: '准备就绪 ✨'
+    statusMessage: '准备就绪 ✨',
+    theme: 'dark'
   };
 
   const panelDom = {};
@@ -186,6 +187,9 @@
       } else {
         state.presets = [...DEFAULT_PRESETS];
       }
+      if (settings.theme === 'light' || settings.theme === 'dark') {
+        state.theme = settings.theme;
+      }
     } catch (error) {
       console.error('[Chaospace Transfer] Failed to load settings', error);
     }
@@ -197,7 +201,8 @@
         [STORAGE_KEY]: {
           baseDir: state.baseDir,
           useTitleSubdir: state.useTitleSubdir,
-          presets: state.presets
+          presets: state.presets,
+          theme: state.theme
         }
       });
     } catch (error) {
@@ -215,6 +220,57 @@
       saveSettings();
     }
     return preset;
+  }
+
+  function removePreset(value) {
+    const preset = sanitizePreset(value);
+    if (!preset || preset === '/' || DEFAULT_PRESETS.includes(preset)) {
+      return;
+    }
+    const before = state.presets.length;
+    state.presets = state.presets.filter(item => item !== preset);
+    if (state.presets.length === before) {
+      return;
+    }
+    if (state.baseDir === preset) {
+      setBaseDir('/', { fromPreset: true });
+    } else {
+      saveSettings();
+      renderPresets();
+    }
+    showToast('info', '已移除路径', `${preset} 已从收藏中移除`);
+  }
+
+  function applyPanelTheme() {
+    const isLight = state.theme === 'light';
+    document.documentElement.classList.toggle('chaospace-light-root', isLight);
+    if (floatingPanel) {
+      floatingPanel.classList.toggle('theme-light', isLight);
+    }
+    if (panelDom.themeToggle) {
+      panelDom.themeToggle.textContent = isLight ? '切换深色 🌙' : '切换浅色 ☀️';
+    }
+  }
+
+  function setTheme(theme) {
+    if (theme !== 'light' && theme !== 'dark') {
+      return;
+    }
+    if (state.theme === theme) {
+      return;
+    }
+    state.theme = theme;
+    applyPanelTheme();
+    saveSettings();
+  }
+
+  function updateMinimizeButton() {
+    if (!panelDom.minimizeBtn) {
+      return;
+    }
+    const label = isMinimized ? '展开' : '折叠';
+    panelDom.minimizeBtn.textContent = label;
+    panelDom.minimizeBtn.title = label;
   }
 
   function showToast(type, title, message, stats = null) {
@@ -407,12 +463,30 @@
     panelDom.presetList.innerHTML = '';
     const presets = Array.from(new Set(['/', ...state.presets]));
     presets.forEach(preset => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = `chaospace-chip${preset === state.baseDir ? ' is-active' : ''}`;
-      button.textContent = preset;
-      button.dataset.value = preset;
-      panelDom.presetList.appendChild(button);
+      const group = document.createElement('div');
+      group.className = 'chaospace-chip-group';
+
+      const selectBtn = document.createElement('button');
+      selectBtn.type = 'button';
+      selectBtn.className = `chaospace-chip-button${preset === state.baseDir ? ' is-active' : ''}`;
+      selectBtn.dataset.action = 'select';
+      selectBtn.dataset.value = preset;
+      selectBtn.textContent = preset;
+      group.appendChild(selectBtn);
+
+      const isRemovable = preset !== '/' && !DEFAULT_PRESETS.includes(preset);
+      if (isRemovable) {
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'chaospace-chip-remove';
+        removeBtn.dataset.action = 'remove';
+        removeBtn.dataset.value = preset;
+        removeBtn.setAttribute('aria-label', `移除 ${preset}`);
+        removeBtn.textContent = '×';
+        group.appendChild(removeBtn);
+      }
+
+      panelDom.presetList.appendChild(group);
     });
   }
 
@@ -517,8 +591,19 @@
     renderPathPreview();
   }
 
-  function toggleSelectionAll(selected) {
+  function setSelectionAll(selected) {
     state.selectedIds = selected ? new Set(state.items.map(item => item.id)) : new Set();
+    renderResourceList();
+  }
+
+  function invertSelection() {
+    const next = new Set();
+    state.items.forEach(item => {
+      if (!state.selectedIds.has(item.id)) {
+        next.add(item.id);
+      }
+    });
+    state.selectedIds = next;
     renderResourceList();
   }
 
@@ -679,12 +764,13 @@
     }
 
     try {
+      await loadSettings();
+      applyPanelTheme();
+
       const data = collectLinks();
       if (!data.items || data.items.length === 0) {
         return;
       }
-
-      await loadSettings();
 
       state.pageTitle = data.title || '';
       state.origin = data.origin || window.location.origin;
@@ -700,7 +786,7 @@
       resetLogs();
 
       const panel = document.createElement('div');
-      panel.className = 'chaospace-float-panel chaospace-theme';
+      panel.className = `chaospace-float-panel chaospace-theme${state.theme === 'light' ? ' theme-light' : ''}`;
       panel.innerHTML = `
         <div class="chaospace-float-header">
           <div class="chaospace-header-text">
@@ -708,7 +794,8 @@
             <p class="chaospace-float-subtitle">${state.pageTitle ? `🎬 ${state.pageTitle}` : '等待选择剧集'}</p>
           </div>
           <div class="chaospace-float-controls">
-            <button class="chaospace-float-minimize" title="折叠">−</button>
+            <button type="button" class="chaospace-theme-toggle" data-role="theme-toggle">切换浅色 ☀️</button>
+            <button type="button" class="chaospace-float-minimize" data-role="minimize" title="折叠">折叠</button>
           </div>
         </div>
         <div class="chaospace-float-body">
@@ -731,7 +818,7 @@
                 </div>
                 <div class="chaospace-select-group">
                   <button type="button" data-action="select-all">全选</button>
-                  <button type="button" data-action="select-none">清空</button>
+                  <button type="button" data-action="select-invert">反选</button>
                 </div>
               </div>
               <div class="chaospace-items-scroll" data-role="items"></div>
@@ -767,8 +854,8 @@
               <div class="chaospace-card chaospace-transfer-card">
                 <button class="chaospace-float-btn" data-role="transfer-btn">
                   <span class="chaospace-btn-spinner" data-role="transfer-spinner"></span>
-                  <span class="chaospace-btn-icon">🚀</span>
                   <span data-role="transfer-label">开始转存</span>
+                  <span class="chaospace-btn-icon">🚀</span>
                 </button>
               </div>
             </section>
@@ -815,6 +902,8 @@
       panelDom.pathPreview = panel.querySelector('[data-role="path-preview"]');
       panelDom.presetList = panel.querySelector('[data-role="preset-list"]');
       panelDom.addPresetButton = panel.querySelector('[data-role="add-preset"]');
+      panelDom.themeToggle = panel.querySelector('[data-role="theme-toggle"]');
+      panelDom.minimizeBtn = panel.querySelector('[data-role="minimize"]');
       panelDom.toggleLogButton = panel.querySelector('[data-role="toggle-log"]');
       panelDom.logContainer = panel.querySelector('[data-role="log-container"]');
       panelDom.logList = panel.querySelector('[data-role="log-list"]');
@@ -829,6 +918,9 @@
       panelDom.transferSpinner = panel.querySelector('[data-role="transfer-spinner"]');
       panelDom.miniStatus = panel.querySelector('[data-role="mini-status"]');
       panelDom.statusText = panel.querySelector('[data-role="status"]');
+
+      applyPanelTheme();
+      updateMinimizeButton();
 
       if (panelDom.baseDirInput) {
         panelDom.baseDirInput.value = state.baseDir;
@@ -870,12 +962,26 @@
         });
       }
 
+      if (panelDom.themeToggle) {
+        panelDom.themeToggle.addEventListener('click', () => {
+          const nextTheme = state.theme === 'dark' ? 'light' : 'dark';
+          setTheme(nextTheme);
+        });
+      }
+
       if (panelDom.presetList) {
         panelDom.presetList.addEventListener('click', (event) => {
-          const target = event.target.closest('button[data-value]');
+          if (state.transferStatus === 'running') {
+            return;
+          }
+          const target = event.target.closest('button[data-action][data-value]');
           if (!target) return;
-          const value = target.dataset.value;
-          setBaseDir(value, { fromPreset: true });
+          const { action, value } = target.dataset;
+          if (action === 'select') {
+            setBaseDir(value, { fromPreset: true });
+          } else if (action === 'remove') {
+            removePreset(value);
+          }
         });
       }
 
@@ -904,9 +1010,9 @@
           if (!button) return;
           const action = button.dataset.action;
           if (action === 'select-all') {
-            toggleSelectionAll(true);
-          } else if (action === 'select-none') {
-            toggleSelectionAll(false);
+            setSelectionAll(true);
+          } else if (action === 'select-invert') {
+            invertSelection();
           }
         });
       }
@@ -944,11 +1050,8 @@
         miniExpand.addEventListener('click', () => {
           isMinimized = false;
           panel.classList.remove('minimized');
+          updateMinimizeButton();
         });
-      }
-
-      if (panelDom.transferBtn) {
-        panelDom.transferBtn.addEventListener('click', handleTransfer);
       }
 
       const header = panel.querySelector('.chaospace-float-header');
@@ -959,7 +1062,7 @@
       let initialY = 0;
 
       header.addEventListener('mousedown', (e) => {
-        if (e.target.closest('.chaospace-float-minimize')) {
+        if (e.target.closest('.chaospace-float-minimize') || e.target.closest('.chaospace-theme-toggle')) {
           return;
         }
         isDragging = true;
@@ -997,13 +1100,17 @@
         }
       });
 
-      const minimizeBtn = panel.querySelector('.chaospace-float-minimize');
-      minimizeBtn.addEventListener('click', () => {
-        isMinimized = !isMinimized;
-        panel.classList.toggle('minimized', isMinimized);
-        minimizeBtn.textContent = isMinimized ? '+' : '−';
-        minimizeBtn.title = isMinimized ? '展开' : '折叠';
-      });
+      if (panelDom.transferBtn) {
+        panelDom.transferBtn.addEventListener('click', handleTransfer);
+      }
+
+      if (panelDom.minimizeBtn) {
+        panelDom.minimizeBtn.addEventListener('click', () => {
+          isMinimized = !isMinimized;
+          panel.classList.toggle('minimized', isMinimized);
+          updateMinimizeButton();
+        });
+      }
 
       const savedPosition = await chrome.storage.local.get(POSITION_KEY);
       if (savedPosition[POSITION_KEY]) {
@@ -1106,6 +1213,20 @@
       console.error('[Chaospace] Init error:', error);
     }
   }
+
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'local') {
+      return;
+    }
+    const settingsChange = changes[STORAGE_KEY];
+    if (settingsChange?.newValue) {
+      const nextTheme = settingsChange.newValue.theme;
+      if ((nextTheme === 'light' || nextTheme === 'dark') && nextTheme !== state.theme) {
+        state.theme = nextTheme;
+        applyPanelTheme();
+      }
+    }
+  });
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type === 'chaospace:collect-links') {

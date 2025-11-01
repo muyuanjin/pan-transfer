@@ -1,13 +1,17 @@
 :root {
   color-scheme: dark;
-  --cp-bg: rgba(13, 17, 23, 0.92);
-  --cp-surface: rgba(24, 32, 45, 0.9);
+  --cp-panel-bg: linear-gradient(155deg, rgba(23, 33, 54, 0.94) 0%, rgba(14, 18, 29, 0.92) 100%);
+  --cp-header-bg: linear-gradient(125deg, rgba(79, 70, 229, 0.32) 0%, rgba(30, 64, 175, 0.28) 45%, rgba(17, 24, 39, 0.28) 100%);
+  --cp-surface: rgba(24, 32, 45, 0.92);
+  --cp-surface-soft: rgba(17, 24, 39, 0.82);
+  --cp-overlay: rgba(21, 27, 43, 0.78);
   --cp-border: rgba(148, 163, 184, 0.24);
   --cp-border-strong: rgba(148, 163, 184, 0.35);
   --cp-accent: #6366f1;
   --cp-accent-strong: #4f46e5;
   --cp-accent-soft: rgba(99, 102, 241, 0.18);
   --cp-accent-softer: rgba(99, 102, 241, 0.08);
+  --cp-chip-bg: rgba(148, 163, 184, 0.12);
   --cp-text-primary: #f8fafc;
   --cp-text-secondary: #cbd5f5;
   --cp-text-muted: #94a3b8;
@@ -15,11 +19,37 @@
   --cp-warning: #fbbf24;
   --cp-error: #f87171;
   --cp-shadow: 0 30px 80px rgba(8, 13, 24, 0.45);
+  --cp-toast-bg: rgba(17, 24, 39, 0.92);
 }
 
 .chaospace-theme {
   font-family: 'Inter', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   color: var(--cp-text-primary);
+}
+
+.chaospace-theme.theme-light,
+.chaospace-light-root {
+  --cp-panel-bg: linear-gradient(150deg, rgba(247, 250, 255, 0.96) 0%, rgba(230, 240, 255, 0.94) 100%);
+  --cp-header-bg: linear-gradient(125deg, rgba(96, 165, 250, 0.38) 0%, rgba(129, 140, 248, 0.32) 45%, rgba(241, 245, 249, 0.4) 100%);
+  --cp-surface: rgba(249, 251, 255, 0.94);
+  --cp-surface-soft: rgba(241, 245, 249, 0.92);
+  --cp-overlay: rgba(236, 244, 255, 0.88);
+  --cp-border: rgba(148, 163, 184, 0.28);
+  --cp-border-strong: rgba(99, 102, 241, 0.35);
+  --cp-accent: #4f46e5;
+  --cp-accent-strong: #4338ca;
+  --cp-accent-soft: rgba(99, 102, 241, 0.16);
+  --cp-accent-softer: rgba(99, 102, 241, 0.08);
+  --cp-chip-bg: rgba(148, 163, 184, 0.16);
+  --cp-text-primary: #1e293b;
+  --cp-text-secondary: #475569;
+  --cp-text-muted: #64748b;
+  --cp-success: #059669;
+  --cp-warning: #d97706;
+  --cp-error: #dc2626;
+  --cp-shadow: 0 24px 60px rgba(15, 23, 42, 0.2);
+  --cp-toast-bg: rgba(255, 255, 255, 0.95);
+  color-scheme: light;
 }
 
 .chaospace-theme,
@@ -33,9 +63,12 @@
   right: 24px;
   transform: none;
   z-index: 9999;
-  width: min(620px, calc(100vw - 32px));
+  width: min(640px, calc(100vw - 32px));
+  min-width: 420px;
+  max-width: calc(100vw - 32px);
+  min-height: 380px;
   max-height: calc(100vh - 48px);
-  background: linear-gradient(155deg, rgba(23, 33, 54, 0.94) 0%, rgba(14, 18, 29, 0.92) 100%);
+  background: var(--cp-panel-bg);
   border-radius: 26px;
   border: 1px solid var(--cp-border);
   box-shadow: var(--cp-shadow);
@@ -46,6 +79,7 @@
   transition: transform 0.25s ease, opacity 0.25s ease, top 0.25s ease, left 0.25s ease;
   opacity: 0;
   animation: chaospace-panel-in 0.35s ease forwards;
+  resize: both;
 }
 
 @keyframes chaospace-panel-in {
@@ -64,7 +98,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  background: linear-gradient(125deg, rgba(79, 70, 229, 0.32) 0%, rgba(30, 64, 175, 0.28) 45%, rgba(17, 24, 39, 0.28) 100%);
+  background: var(--cp-header-bg);
   border-bottom: 1px solid var(--cp-border);
   cursor: move;
   user-select: none;
@@ -93,27 +127,33 @@
 
 .chaospace-float-controls {
   display: flex;
+  align-items: center;
   gap: 10px;
 }
 
+.chaospace-theme-toggle,
 .chaospace-float-minimize {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(15, 23, 42, 0.35);
-  color: #ffffff;
-  font-size: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border: 1px solid var(--cp-border);
+  background: transparent;
+  color: var(--cp-text-primary);
+  border-radius: 12px;
+  padding: 6px 14px;
+  font-size: 12px;
   cursor: pointer;
-  transition: background 0.2s ease, transform 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
 }
 
+.chaospace-theme-toggle:hover,
 .chaospace-float-minimize:hover {
-  background: rgba(79, 70, 229, 0.85);
-  transform: translateY(-2px);
+  background: var(--cp-accent-soft);
+  border-color: var(--cp-accent);
+  color: var(--cp-text-primary);
+}
+
+.chaospace-theme-toggle:disabled,
+.chaospace-float-minimize:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .chaospace-float-body {
@@ -164,7 +204,7 @@
   gap: 12px;
   padding: 10px 14px;
   border-radius: 14px;
-  background: rgba(21, 27, 43, 0.75);
+  background: var(--cp-overlay);
   border: 1px solid var(--cp-border);
 }
 
@@ -180,26 +220,40 @@
   gap: 8px;
   font-size: 12px;
   color: var(--cp-text-secondary);
+  position: relative;
 }
 
 .chaospace-sort-label select {
   height: 32px;
   border-radius: 10px;
   border: 1px solid var(--cp-border);
-  background: rgba(13, 17, 23, 0.9);
+  background: var(--cp-surface);
   color: var(--cp-text-primary);
-  padding: 0 12px;
+  padding: 0 28px 0 12px;
   font-size: 12px;
   cursor: pointer;
   appearance: none;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+}
+
+.chaospace-sort-label::after {
+  content: '';
+  position: absolute;
+  right: 12px;
+  width: 8px;
+  height: 8px;
+  border-right: 1.5px solid var(--cp-text-secondary);
+  border-bottom: 1.5px solid var(--cp-text-secondary);
+  transform: rotate(45deg);
+  pointer-events: none;
 }
 
 .chaospace-order-btn {
   height: 32px;
   padding: 0 12px;
   border-radius: 10px;
-  border: 1px solid rgba(99, 102, 241, 0.35);
-  background: rgba(99, 102, 241, 0.16);
+  border: 1px solid var(--cp-accent);
+  background: var(--cp-accent-soft);
   color: var(--cp-text-primary);
   font-size: 12px;
   cursor: pointer;
@@ -207,7 +261,7 @@
 }
 
 .chaospace-order-btn:hover {
-  background: rgba(99, 102, 241, 0.28);
+  background: rgba(99, 102, 241, 0.24);
   transform: translateY(-1px);
 }
 
@@ -226,7 +280,7 @@
   padding: 6px 12px;
   border-radius: 10px;
   border: 1px solid var(--cp-border);
-  background: rgba(15, 23, 42, 0.6);
+  background: var(--cp-surface);
   color: var(--cp-text-secondary);
   font-size: 12px;
   cursor: pointer;
@@ -235,7 +289,7 @@
 
 .chaospace-select-group button:hover {
   background: rgba(99, 102, 241, 0.16);
-  border-color: rgba(99, 102, 241, 0.42);
+  border-color: var(--cp-accent);
 }
 
 .chaospace-select-group button:disabled {
@@ -248,8 +302,8 @@
   min-height: 260px;
   max-height: 360px;
   border-radius: 18px;
-  background: rgba(17, 24, 39, 0.72);
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: var(--cp-surface-soft);
+  border: 1px solid var(--cp-border);
   padding: 14px;
   overflow-y: auto;
   display: flex;
@@ -274,8 +328,8 @@
   align-items: flex-start;
   padding: 14px 16px;
   border-radius: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  background: rgba(30, 41, 59, 0.82);
+  border: 1px solid var(--cp-border);
+  background: var(--cp-surface);
   color: var(--cp-text-primary);
   cursor: pointer;
   transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease, opacity 0.2s ease;
@@ -326,9 +380,9 @@
 }
 
 .chaospace-item:hover {
-  border-color: rgba(99, 102, 241, 0.45);
+  border-color: var(--cp-accent);
   transform: translateY(-2px);
-  background: rgba(40, 51, 78, 0.9);
+  background: rgba(99, 102, 241, 0.18);
 }
 
 .chaospace-item.is-muted {
@@ -346,8 +400,8 @@
 .chaospace-card {
   padding: 16px 18px;
   border-radius: 20px;
-  background: rgba(17, 24, 39, 0.82);
-  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: var(--cp-surface);
+  border: 1px solid var(--cp-border);
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -371,33 +425,55 @@
   gap: 8px;
 }
 
-.chaospace-preset-list.is-disabled button {
+.chaospace-preset-list.is-disabled {
+  opacity: 0.6;
   pointer-events: none;
-  opacity: 0.5;
 }
 
-.chaospace-chip {
-  padding: 6px 12px;
+.chaospace-chip-group {
+  display: inline-flex;
+  align-items: center;
   border-radius: 999px;
-  font-size: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid var(--cp-border);
+  background: var(--cp-chip-bg);
+  overflow: hidden;
+}
+
+.chaospace-chip-button {
+  padding: 6px 14px;
+  border: none;
+  background: transparent;
   color: var(--cp-text-secondary);
+  font-size: 12px;
   cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
-.chaospace-chip:hover {
-  border-color: rgba(99, 102, 241, 0.4);
+.chaospace-chip-button:hover {
   background: rgba(99, 102, 241, 0.16);
-  color: #ffffff;
+  color: var(--cp-text-primary);
 }
 
-.chaospace-chip.is-active {
-  border-color: rgba(99, 102, 241, 0.65);
-  background: rgba(99, 102, 241, 0.28);
-  color: #ffffff;
-  box-shadow: 0 6px 16px rgba(99, 102, 241, 0.25);
+.chaospace-chip-button.is-active {
+  background: rgba(99, 102, 241, 0.24);
+  color: var(--cp-text-primary);
+}
+
+.chaospace-chip-remove {
+  border: none;
+  background: transparent;
+  color: var(--cp-text-muted);
+  font-size: 14px;
+  padding: 0 10px 0 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.chaospace-chip-remove:hover {
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--cp-error);
 }
 
 .chaospace-input-row {
@@ -410,7 +486,7 @@
   height: 36px;
   border-radius: 12px;
   border: 1px solid var(--cp-border);
-  background: rgba(15, 23, 42, 0.75);
+  background: var(--cp-surface);
   color: var(--cp-text-primary);
   padding: 0 14px;
   font-size: 13px;
@@ -426,9 +502,9 @@
 .chaospace-input-row button {
   padding: 0 16px;
   border-radius: 12px;
-  border: 1px solid rgba(99, 102, 241, 0.45);
-  background: rgba(79, 70, 229, 0.4);
-  color: #ffffff;
+  border: 1px solid var(--cp-accent);
+  background: rgba(79, 70, 229, 0.32);
+  color: var(--cp-text-primary);
   font-size: 12px;
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -459,7 +535,7 @@
   border-radius: 12px;
   font-size: 12px;
   border: 1px solid rgba(99, 102, 241, 0.3);
-  background: rgba(79, 70, 229, 0.12);
+  background: rgba(99, 102, 241, 0.16);
   color: var(--cp-text-secondary);
   word-break: break-all;
 }
@@ -504,8 +580,8 @@
   max-height: 140px;
   overflow: hidden;
   border-radius: 14px;
-  background: rgba(15, 23, 42, 0.65);
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: var(--cp-surface-soft);
+  border: 1px solid var(--cp-border);
   padding: 10px 12px;
   transition: max-height 0.25s ease;
 }
@@ -602,11 +678,11 @@
   width: 100%;
   height: 54px;
   border-radius: 16px;
-  border: none;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
-  color: #ffffff;
+  border: 1px solid var(--cp-accent);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.9) 0%, var(--cp-accent-strong) 100%);
+  color: var(--cp-text-primary);
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -637,14 +713,18 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.28);
-  border-top-color: #ffffff;
+  border: 2px solid rgba(148, 163, 184, 0.3);
+  border-top-color: var(--cp-text-primary);
   opacity: 0;
   transform: scale(0.6);
   transition: opacity 0.2s ease, transform 0.2s ease;
+  display: none;
+  align-items: center;
+  justify-content: center;
 }
 
 .chaospace-btn-spinner.is-visible {
+  display: inline-flex;
   opacity: 1;
   transform: scale(1);
   animation: chaospace-spin 0.75s linear infinite;
@@ -659,6 +739,7 @@
 .chaospace-float-btn.is-loading .chaospace-btn-icon {
   opacity: 0;
   transform: scale(0.6);
+  display: none;
 }
 
 .chaospace-float-mini {
@@ -666,8 +747,9 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 20px;
-  background: rgba(17, 24, 39, 0.9);
-  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  gap: 12px;
+  background: var(--cp-surface);
+  border-top: 1px solid var(--cp-border);
 }
 
 .chaospace-mini-title {
@@ -678,21 +760,27 @@
 .chaospace-mini-status {
   font-size: 12px;
   color: var(--cp-text-secondary);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chaospace-mini-expand {
-  border: none;
-  background: rgba(99, 102, 241, 0.26);
-  color: #ffffff;
+  border: 1px solid var(--cp-accent);
+  background: var(--cp-accent-soft);
+  color: var(--cp-text-primary);
   font-size: 12px;
-  padding: 6px 10px;
+  padding: 6px 12px;
   border-radius: 999px;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 
 .chaospace-mini-expand:hover {
-  background: rgba(99, 102, 241, 0.42);
+  background: rgba(99, 102, 241, 0.24);
+  border-color: var(--cp-accent);
 }
 
 .chaospace-float-panel.minimized .chaospace-float-body,
@@ -702,21 +790,25 @@
 
 .chaospace-float-panel.minimized {
   width: 280px;
+  min-width: 280px;
   right: 24px;
   top: auto;
   bottom: 24px;
   transform: none;
+  resize: none;
 }
 
 .chaospace-float-panel.minimized .chaospace-float-mini {
   display: flex;
 }
 
-.chaospace-chip,
+.chaospace-chip-button,
+.chaospace-chip-remove,
 .chaospace-select-group button,
 .chaospace-input-row button,
 .chaospace-order-btn,
 .chaospace-float-minimize,
+.chaospace-theme-toggle,
 .chaospace-log-header button,
 .chaospace-mini-expand,
 .chaospace-float-btn {
@@ -732,9 +824,9 @@
   max-width: 360px;
   padding: 16px 18px;
   border-radius: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  background: rgba(17, 24, 39, 0.92);
-  box-shadow: 0 24px 60px rgba(8, 13, 24, 0.4);
+  border: 1px solid var(--cp-border);
+  background: var(--cp-toast-bg);
+  box-shadow: 0 24px 60px rgba(8, 13, 24, 0.28);
   color: var(--cp-text-primary);
   display: flex;
   flex-direction: column;
