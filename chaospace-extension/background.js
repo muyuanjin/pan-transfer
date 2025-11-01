@@ -26,6 +26,10 @@ let cachedBdstoken = null;
 let cachedBdstokenAt = 0;
 const ensuredDirectories = new Set();
 ensuredDirectories.add('/');
+const MAX_TRANSFER_ATTEMPTS = 3;
+const TRANSFER_RETRYABLE_ERRNOS = new Set([4]);
+const DIRECTORY_LIST_PAGE_SIZE = 200;
+const directoryFileCache = new Map();
 
 // 初始化时设置请求头修改规则
 chrome.runtime.onInstalled.addListener(() => {
@@ -78,6 +82,10 @@ function normalizePath(input) {
     normalized = normalized.slice(0, -1);
   }
   return normalized;
+}
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function fetchJson(url, options = {}, referer = 'https://pan.baidu.com/') {
@@ -351,6 +359,59 @@ async function checkDirectoryExists(path, bdstoken) {
   throw new Error(`查询目录失败(${normalized})：${data.errno}`);
 }
 
+async function fetchDirectoryFileNames(path, bdstoken) {
+  const normalized = normalizePath(path);
+  if (normalized === '/') {
+    return new Set();
+  }
+
+  const cached = directoryFileCache.get(normalized);
+  if (cached) {
+    return cached;
+  }
+
+  const collected = new Set();
+  let start = 0;
+  while (true) {
+    const params = new URLSearchParams({
+      dir: normalized,
+      bdstoken,
+      order: 'name',
+      desc: '0',
+      limit: String(DIRECTORY_LIST_PAGE_SIZE),
+      start: String(start),
+      web: '1',
+      folder: '0',
+      showempty: '0',
+      clienttype: '0',
+      channel: 'web'
+    });
+
+    const url = `https://pan.baidu.com/api/list?${params.toString()}`;
+    const data = await fetchJson(url, {}, 'https://pan.baidu.com/disk/home');
+    if (data.errno !== 0) {
+      throw new Error(`查询目录内容失败(${normalized})：${data.errno}`);
+    }
+
+    const entries = Array.isArray(data.list) ? data.list : [];
+    for (const entry of entries) {
+      if (!entry || typeof entry.server_filename !== 'string') {
+        continue;
+      }
+      collected.add(entry.server_filename);
+    }
+
+    const hasMore = Number(data.has_more) === 1;
+    if (!hasMore || !entries.length) {
+      break;
+    }
+    start += entries.length;
+  }
+
+  directoryFileCache.set(normalized, collected);
+  return collected;
+}
+
 async function ensureDirectoryExists(path, bdstoken) {
   const normalized = normalizePath(path);
   if (normalized === '/') {
@@ -399,6 +460,52 @@ async function ensureDirectoryExists(path, bdstoken) {
   return normalized;
 }
 
+async function filterAlreadyTransferred(meta, targetPath, bdstoken) {
+  if (!Array.isArray(meta.fsIds) || !meta.fsIds.length) {
+    return { fsIds: [], fileNames: [], skippedFiles: [] };
+  }
+
+  try {
+    const existingNames = await fetchDirectoryFileNames(targetPath, bdstoken);
+    if (!existingNames.size) {
+      return {
+        fsIds: meta.fsIds.slice(),
+        fileNames: Array.isArray(meta.fileNames) ? meta.fileNames.slice() : [],
+        skippedFiles: []
+      };
+    }
+
+    const filteredFsIds = [];
+    const filteredFileNames = [];
+    const skippedFiles = [];
+
+    const names = Array.isArray(meta.fileNames) ? meta.fileNames : [];
+    meta.fsIds.forEach((fsId, index) => {
+      const name = names[index];
+      if (typeof name === 'string' && existingNames.has(name)) {
+        skippedFiles.push(name);
+        return;
+      }
+      filteredFsIds.push(fsId);
+      if (typeof name === 'string') {
+        filteredFileNames.push(name);
+      }
+    });
+
+    return { fsIds: filteredFsIds, fileNames: filteredFileNames, skippedFiles };
+  } catch (error) {
+    console.warn('[Chaospace Transfer] directory listing failed, proceeding without skip filter', {
+      path: targetPath,
+      error: error.message
+    });
+    return {
+      fsIds: meta.fsIds.slice(),
+      fileNames: Array.isArray(meta.fileNames) ? meta.fileNames.slice() : [],
+      skippedFiles: []
+    };
+  }
+}
+
 async function transferShare(meta, targetPath, bdstoken, referer) {
   const url = `https://pan.baidu.com/share/transfer?shareid=${encodeURIComponent(meta.shareId)}&from=${encodeURIComponent(meta.userId)}&bdstoken=${encodeURIComponent(bdstoken)}&channel=chunlei&web=1&clienttype=0`;
   const body = new URLSearchParams({
@@ -417,6 +524,30 @@ async function transferShare(meta, targetPath, bdstoken, referer) {
 
   const data = await response.json();
   return typeof data.errno === 'number' ? data.errno : -999;
+}
+
+async function transferWithRetry(meta, targetPath, bdstoken, referer, maxAttempts = MAX_TRANSFER_ATTEMPTS) {
+  let attempt = 0;
+  let errno = -999;
+
+  while (attempt < maxAttempts) {
+    attempt += 1;
+    errno = await transferShare(meta, targetPath, bdstoken, referer);
+    if (errno === 0 || errno === 666) {
+      return { errno, attempts: attempt };
+    }
+    if (!TRANSFER_RETRYABLE_ERRNOS.has(errno)) {
+      break;
+    }
+    console.log('[Chaospace Transfer] transfer retry scheduled', {
+      path: targetPath,
+      errno,
+      attempt
+    });
+    await delay(500 * attempt);
+  }
+
+  return { errno, attempts: attempt };
 }
 
 function mapErrorMessage(errno, fallback) {
@@ -539,27 +670,83 @@ async function handleTransfer(request) {
 
       const targetPath = normalizePath(item.targetPath || normalizedBaseDir);
       await ensureDirectoryExists(targetPath, bdstoken);
+
+      const filtered = await filterAlreadyTransferred(meta, targetPath, bdstoken);
+      if (!filtered.fsIds.length) {
+        const message = filtered.skippedFiles.length
+          ? `已跳过：文件已存在（${filtered.skippedFiles.length} 项）`
+          : mapErrorMessage(666);
+        console.log('[Chaospace Transfer] transfer skipped, all files already exist', {
+          id: item.id,
+          targetPath,
+          skippedCount: filtered.skippedFiles.length
+        });
+        results.push({
+          id: item.id,
+          title: item.title,
+          status: 'skipped',
+          message,
+          files: [],
+          skippedFiles: filtered.skippedFiles,
+          linkUrl: detail.linkUrl,
+          passCode: detail.passCode
+        });
+        continue;
+      }
+
+      const transferMeta = {
+        shareId: meta.shareId,
+        userId: meta.userId,
+        fsIds: filtered.fsIds
+      };
+
       const referer = detail.linkUrl ? detail.linkUrl : 'https://pan.baidu.com/disk/home';
-      const errno = await transferShare(meta, targetPath, bdstoken, referer);
+      const { errno, attempts } = await transferWithRetry(transferMeta, targetPath, bdstoken, referer);
       if (errno === 0 || errno === 666) {
+        let message = mapErrorMessage(errno, '操作成功');
+        if (errno === 0 && attempts > 1) {
+          message = `${message}（第 ${attempts} 次尝试成功）`;
+        }
+        if (filtered.skippedFiles.length) {
+          message = `${message}，已有 ${filtered.skippedFiles.length} 项跳过`;
+        }
+        if (filtered.fileNames.length) {
+          const normalizedTarget = normalizePath(targetPath);
+          let cachedFiles = directoryFileCache.get(normalizedTarget);
+          if (!cachedFiles) {
+            cachedFiles = new Set();
+            directoryFileCache.set(normalizedTarget, cachedFiles);
+          }
+          filtered.fileNames.forEach(name => {
+            if (typeof name === 'string') {
+              cachedFiles.add(name);
+            }
+          });
+        }
         results.push({
           id: item.id,
           title: item.title,
           status: errno === 0 ? 'success' : 'skipped',
-          message: mapErrorMessage(errno, '操作成功'),
-          files: meta.fileNames,
+          message,
+          files: filtered.fileNames,
+          skippedFiles: filtered.skippedFiles,
           linkUrl: detail.linkUrl,
           passCode: detail.passCode
         });
       } else {
-        const message = mapErrorMessage(errno);
+        let message = mapErrorMessage(errno);
+        if (TRANSFER_RETRYABLE_ERRNOS.has(errno) && attempts > 1) {
+          message = `${message}（已重试 ${attempts - 1} 次）`;
+        }
         console.log('[Chaospace Transfer] transfer failed', item.id, errno, message);
         results.push({
           id: item.id,
           title: item.title,
           status: 'failed',
           message,
-          errno
+          errno,
+          attempts,
+          skippedFiles: filtered.skippedFiles
         });
       }
     } catch (error) {
