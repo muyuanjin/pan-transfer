@@ -271,6 +271,12 @@
     const label = isMinimized ? '展开' : '折叠';
     panelDom.minimizeBtn.textContent = label;
     panelDom.minimizeBtn.title = label;
+
+    // 同步路径到迷你窗口输入框
+    const miniPathInput = floatingPanel?.querySelector('[data-role="mini-path"]');
+    if (miniPathInput && isMinimized) {
+      miniPathInput.value = state.baseDir;
+    }
   }
 
   function showToast(type, title, message, stats = null) {
@@ -429,10 +435,6 @@
     };
     const emoji = emojiMap[state.transferStatus] || 'ℹ️';
     panelDom.statusText.innerHTML = `<span class="chaospace-status-emoji">${emoji}</span>${state.statusMessage}`;
-
-    if (panelDom.miniStatus) {
-      panelDom.miniStatus.textContent = `${emoji} ${state.statusMessage}`;
-    }
 
     if (panelDom.resultSummary) {
       if (!state.lastResult) {
@@ -862,9 +864,15 @@
           </div>
         </div>
         <div class="chaospace-float-mini">
-          <div class="chaospace-mini-title">🚀 CHAOSPACE</div>
-          <div class="chaospace-mini-status" data-role="mini-status"></div>
-          <button type="button" class="chaospace-mini-expand">展开</button>
+          <button
+            type="button"
+            class="chaospace-mini-expand"
+            data-role="mini-expand"
+            title="展开面板"
+            aria-label="展开面板"
+          >⤢</button>
+          <input type="text" class="chaospace-mini-input" data-role="mini-path" placeholder="/视频/番剧" />
+          <button type="button" class="chaospace-mini-save" data-role="mini-save">保存</button>
         </div>
       `;
 
@@ -916,7 +924,6 @@
       panelDom.transferBtn = panel.querySelector('[data-role="transfer-btn"]');
       panelDom.transferLabel = panel.querySelector('[data-role="transfer-label"]');
       panelDom.transferSpinner = panel.querySelector('[data-role="transfer-spinner"]');
-      panelDom.miniStatus = panel.querySelector('[data-role="mini-status"]');
       panelDom.statusText = panel.querySelector('[data-role="status"]');
 
       applyPanelTheme();
@@ -1045,24 +1052,79 @@
         });
       }
 
-      const miniExpand = panel.querySelector('.chaospace-mini-expand');
-      if (miniExpand) {
-        miniExpand.addEventListener('click', () => {
-          isMinimized = false;
-          panel.classList.remove('minimized');
-          updateMinimizeButton();
+      // 迷你窗口的路径输入和保存按钮
+      const miniPathInput = panel.querySelector('[data-role="mini-path"]');
+      const miniSaveBtn = panel.querySelector('[data-role="mini-save"]');
+
+      if (miniPathInput && miniSaveBtn) {
+        // 同步当前路径到迷你窗口
+        miniPathInput.value = state.baseDir;
+
+        // 保存按钮点击
+        miniSaveBtn.addEventListener('click', async () => {
+          const targetPath = normalizeDir(miniPathInput.value);
+          if (!targetPath) {
+            showToast('warning', '路径无效', '请输入有效的保存路径');
+            return;
+          }
+
+          // 获取选中的资源
+          const selectedItems = state.items.filter(item => state.selectedIds.has(item.id));
+          if (!selectedItems.length) {
+            showToast('warning', '未选择资源', '请在展开窗口中选择要保存的资源');
+            // 自动展开窗口
+            isMinimized = false;
+            panel.classList.remove('minimized');
+            updateMinimizeButton();
+            return;
+          }
+
+          // 更新状态并保存设置
+          state.baseDir = targetPath;
+          if (panelDom.baseDirInput) {
+            panelDom.baseDirInput.value = targetPath;
+          }
+          await saveSettings();
+          renderPathPreview();
+
+          // 触发转存
+          handleTransfer();
+        });
+
+        // 输入框回车
+        miniPathInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            miniSaveBtn.click();
+          }
+        });
+
+        // 输入框失焦时同步到主输入框
+        miniPathInput.addEventListener('blur', () => {
+          const normalized = normalizeDir(miniPathInput.value);
+          miniPathInput.value = normalized;
+          if (panelDom.baseDirInput) {
+            panelDom.baseDirInput.value = normalized;
+          }
+          state.baseDir = normalized;
+          renderPathPreview();
         });
       }
 
       const header = panel.querySelector('.chaospace-float-header');
+      const miniBar = panel.querySelector('.chaospace-float-mini');
+      const miniExpandBtn = panel.querySelector('[data-role="mini-expand"]');
       let isDragging = false;
       let currentX = 0;
       let currentY = 0;
       let initialX = 0;
       let initialY = 0;
 
-      header.addEventListener('mousedown', (e) => {
-        if (e.target.closest('.chaospace-float-minimize') || e.target.closest('.chaospace-theme-toggle')) {
+      // 拖拽功能 - 适用于标题栏和迷你栏
+      const startDrag = (e) => {
+        // 如果点击的是按钮或输入框,不触发拖拽
+        if (e.target.closest('button') ||
+            e.target.closest('input') ||
+            e.target.closest('.chaospace-theme-toggle')) {
           return;
         }
         isDragging = true;
@@ -1070,8 +1132,17 @@
         initialX = e.clientX - rect.left;
         initialY = e.clientY - rect.top;
         panel.style.transition = 'none';
-        header.style.cursor = 'grabbing';
-      });
+        e.currentTarget.style.cursor = 'grabbing';
+      };
+
+      if (header) {
+        header.addEventListener('mousedown', startDrag);
+      }
+
+      if (miniBar) {
+        miniBar.style.cursor = 'grab';
+        miniBar.addEventListener('mousedown', startDrag);
+      }
 
       document.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
@@ -1085,6 +1156,7 @@
         panel.style.left = currentX + 'px';
         panel.style.top = currentY + 'px';
         panel.style.right = 'auto';
+        panel.style.bottom = 'auto';
         panel.style.transform = 'none';
         lastKnownPosition = { left: currentX, top: currentY };
       });
@@ -1093,12 +1165,27 @@
         if (isDragging) {
           isDragging = false;
           panel.style.transition = '';
-          header.style.cursor = 'move';
+          if (header) header.style.cursor = 'move';
+          if (miniBar) miniBar.style.cursor = 'grab';
           chrome.storage.local.set({
             [POSITION_KEY]: lastKnownPosition
           });
         }
       });
+
+      if (miniExpandBtn) {
+        miniExpandBtn.addEventListener('click', () => {
+          if (!isMinimized) {
+            return;
+          }
+          isMinimized = false;
+          panel.classList.remove('minimized');
+          updateMinimizeButton();
+          if (panelDom.baseDirInput) {
+            panelDom.baseDirInput.focus();
+          }
+        });
+      }
 
       if (panelDom.transferBtn) {
         panelDom.transferBtn.addEventListener('click', handleTransfer);
