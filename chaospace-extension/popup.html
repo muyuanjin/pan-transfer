@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>CHAOSPACE 转存助手</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <h1>CHAOSPACE 转存助手</h1>
+      <p id="page-info"></p>
+    </header>
+
+    <section class="settings">
+      <label class="field">
+        <span>百度网盘目录</span>
+        <input id="base-dir" type="text" placeholder="例如：/视频/番剧/剧集合集" />
+      </label>
+      <label class="checkbox">
+        <input id="use-title-subdir" type="checkbox" checked />
+        <span>每个资源使用标题创建子目录</span>
+      </label>
+    </section>
+
+    <section class="items">
+      <div class="items-toolbar">
+        <button id="refresh-btn" type="button">重新获取</button>
+        <div class="select-actions">
+          <button id="select-all" type="button">全选</button>
+          <button id="select-none" type="button">全不选</button>
+        </div>
+      </div>
+      <div id="items-container" class="items-list"></div>
+    </section>
+
+    <section class="actions">
+      <button id="transfer-btn" type="button" class="primary">转存选中资源</button>
+    </section>
+
+    <section id="result" class="result hidden">
+      <h2>执行结果</h2>
+      <p id="result-summary"></p>
+      <ul id="result-list"></ul>
+    </section>
+
+    <section id="messages" class="messages"></section>
+
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>
