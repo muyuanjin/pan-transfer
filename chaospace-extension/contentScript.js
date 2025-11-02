@@ -58,7 +58,6 @@
   let floatingPanel = null;
   let currentToast = null;
   let posterPreviewOverlay = null;
-  let isMinimized = false;
   let lastKnownSize = null;
   let detachWindowResize = null;
   let panelCreationInProgress = false;
@@ -2505,21 +2504,6 @@
     saveSettings();
   }
 
-  function updateMinimizeButton() {
-    if (!panelDom.minimizeBtn) {
-      return;
-    }
-    const label = isMinimized ? '展开' : '折叠';
-    panelDom.minimizeBtn.textContent = label;
-    panelDom.minimizeBtn.title = label;
-
-    // 同步路径到迷你窗口输入框
-    const miniPathInput = floatingPanel?.querySelector('[data-role="mini-path"]');
-    if (miniPathInput && isMinimized) {
-      miniPathInput.value = state.baseDir;
-    }
-  }
-
   function updatePinButton() {
     if (!panelDom.pinBtn) {
       return;
@@ -3346,12 +3330,6 @@
               <div class="chaospace-float-controls">
                 <button
                   type="button"
-                  class="chaospace-float-minimize"
-                  data-role="minimize"
-                  title="折叠"
-                >折叠</button>
-                <button
-                  type="button"
                   class="chaospace-theme-toggle"
                   data-role="theme-toggle"
                   aria-label="切换主题"
@@ -3457,17 +3435,6 @@
           title="拖动调整面板大小"
           aria-hidden="true"
         ></div>
-        <div class="chaospace-float-mini">
-          <button
-            type="button"
-            class="chaospace-mini-expand"
-            data-role="mini-expand"
-            title="展开面板"
-            aria-label="展开面板"
-          >⤢</button>
-          <input type="text" class="chaospace-mini-input" data-role="mini-path" placeholder="/视频/番剧" />
-          <button type="button" class="chaospace-mini-save" data-role="mini-save">保存</button>
-        </div>
       `;
 
       document.body.appendChild(panel);
@@ -3680,7 +3647,6 @@
       panelDom.addPresetButton = panel.querySelector('[data-role="add-preset"]');
       panelDom.themeToggle = panel.querySelector('[data-role="theme-toggle"]');
       panelDom.pinBtn = panel.querySelector('[data-role="pin-toggle"]');
-      panelDom.minimizeBtn = panel.querySelector('[data-role="minimize"]');
       panelDom.logContainer = panel.querySelector('[data-role="log-container"]');
       panelDom.logList = panel.querySelector('[data-role="log-list"]');
       panelDom.resultSummary = panel.querySelector('[data-role="result-summary"]');
@@ -3749,7 +3715,6 @@
         }
       });
       applyPanelTheme();
-      updateMinimizeButton();
 
       if (panelDom.baseDirInput) {
         panelDom.baseDirInput.value = state.baseDir;
@@ -4012,67 +3977,7 @@
         });
       }
 
-      // 迷你窗口的路径输入和保存按钮
-      const miniPathInput = panel.querySelector('[data-role="mini-path"]');
-      const miniSaveBtn = panel.querySelector('[data-role="mini-save"]');
-
-      if (miniPathInput && miniSaveBtn) {
-        // 同步当前路径到迷你窗口
-        miniPathInput.value = state.baseDir;
-
-        // 保存按钮点击
-        miniSaveBtn.addEventListener('click', async () => {
-          const targetPath = normalizeDir(miniPathInput.value);
-          if (!targetPath) {
-            showToast('warning', '路径无效', '请输入有效的保存路径');
-            return;
-          }
-
-          // 获取选中的资源
-          const selectedItems = state.items.filter(item => state.selectedIds.has(item.id));
-          if (!selectedItems.length) {
-            showToast('warning', '未选择资源', '请在展开窗口中选择要保存的资源');
-            // 自动展开窗口
-            isMinimized = false;
-            panel.classList.remove('minimized');
-            updateMinimizeButton();
-            return;
-          }
-
-          // 更新状态并保存设置
-          state.baseDir = targetPath;
-          if (panelDom.baseDirInput) {
-            panelDom.baseDirInput.value = targetPath;
-          }
-          await saveSettings();
-          renderPathPreview();
-
-          // 触发转存
-          handleTransfer();
-        });
-
-        // 输入框回车
-        miniPathInput.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
-            miniSaveBtn.click();
-          }
-        });
-
-        // 输入框失焦时同步到主输入框
-        miniPathInput.addEventListener('blur', () => {
-          const normalized = normalizeDir(miniPathInput.value);
-          miniPathInput.value = normalized;
-          if (panelDom.baseDirInput) {
-            panelDom.baseDirInput.value = normalized;
-          }
-          state.baseDir = normalized;
-          renderPathPreview();
-        });
-      }
-
       const header = panel.querySelector('.chaospace-float-header');
-      const miniBar = panel.querySelector('.chaospace-float-mini');
-      const miniExpandBtn = panel.querySelector('[data-role="mini-expand"]');
       let isDragging = false;
       let isResizing = false;
       let currentX = 0;
@@ -4085,7 +3990,7 @@
       let resizeStartHeight = 0;
       let resizeAnchorRight = 0;
 
-      // 拖拽功能 - 适用于标题栏和迷你栏
+      // 拖拽功能 - 适用于标题栏
       const startDrag = (e) => {
         if (e.button !== 0) {
           return;
@@ -4112,9 +4017,6 @@
         if (event.button !== 0 || !panelDom.resizeHandle) {
           return;
         }
-        if (panel.classList.contains('minimized')) {
-          return;
-        }
         if (!panelDom.resizeHandle.contains(event.target)) {
           return;
         }
@@ -4138,11 +4040,6 @@
 
       if (header) {
         header.addEventListener('mousedown', startDrag);
-      }
-
-      if (miniBar) {
-        miniBar.style.cursor = 'grab';
-        miniBar.addEventListener('mousedown', startDrag);
       }
 
       if (panelDom.resizeHandle) {
@@ -4182,7 +4079,6 @@
           isDragging = false;
           panel.style.transition = '';
           if (header) header.style.cursor = 'move';
-          if (miniBar) miniBar.style.cursor = 'grab';
           safeStorageSet({
             [POSITION_KEY]: lastKnownPosition
           }, 'panel position');
@@ -4209,14 +4105,6 @@
         if (!floatingPanel) {
           return;
         }
-        if (panel.classList.contains('minimized')) {
-          const clampedPosition = applyPanelPosition(lastKnownPosition.left, lastKnownPosition.top);
-          lastKnownPosition = clampedPosition;
-          safeStorageSet({
-            [POSITION_KEY]: lastKnownPosition
-          }, 'panel position');
-          return;
-        }
         const sourceWidth = lastKnownSize?.width ?? panel.offsetWidth;
         const sourceHeight = lastKnownSize?.height ?? panel.offsetHeight;
         applyPanelSize(sourceWidth, sourceHeight);
@@ -4233,63 +4121,8 @@
         window.removeEventListener('resize', handleWindowResize);
       };
 
-      if (miniExpandBtn) {
-        miniExpandBtn.addEventListener('click', () => {
-          if (!isMinimized) {
-            return;
-          }
-          isMinimized = false;
-          panel.classList.remove('minimized');
-          const restoreWidth = lastKnownSize?.width ?? panel.offsetWidth;
-          const restoreHeight = lastKnownSize?.height ?? panel.offsetHeight;
-          applyPanelSize(restoreWidth, restoreHeight);
-          const clampedPosition = applyPanelPosition(lastKnownPosition.left, lastKnownPosition.top);
-          lastKnownPosition = clampedPosition;
-          safeStorageSet({
-            [SIZE_KEY]: lastKnownSize,
-            [POSITION_KEY]: lastKnownPosition
-          }, 'panel geometry');
-          updateMinimizeButton();
-          cancelEdgeHide({ show: true });
-          if (!isPanelPinned) {
-            scheduleEdgeHide();
-          }
-          if (panelDom.baseDirInput) {
-            panelDom.baseDirInput.focus();
-          }
-        });
-      }
-
       if (panelDom.transferBtn) {
         panelDom.transferBtn.addEventListener('click', handleTransfer);
-      }
-
-      if (panelDom.minimizeBtn) {
-        panelDom.minimizeBtn.addEventListener('click', () => {
-          isMinimized = !isMinimized;
-          if (isMinimized) {
-            panelEdgeState.isHidden = false;
-            panel.classList.add('minimized');
-            panel.style.removeProperty('width');
-            panel.style.removeProperty('height');
-          } else {
-            panel.classList.remove('minimized');
-            const restoreWidth = lastKnownSize?.width ?? panel.offsetWidth;
-            const restoreHeight = lastKnownSize?.height ?? panel.offsetHeight;
-            applyPanelSize(restoreWidth, restoreHeight);
-            const clampedPosition = applyPanelPosition(lastKnownPosition.left, lastKnownPosition.top);
-            lastKnownPosition = clampedPosition;
-            safeStorageSet({
-              [SIZE_KEY]: lastKnownSize,
-              [POSITION_KEY]: lastKnownPosition
-            }, 'panel geometry');
-          }
-          cancelEdgeHide({ show: true });
-          if (!isPanelPinned && !pointerInsidePanel) {
-            scheduleEdgeHide();
-          }
-          updateMinimizeButton();
-        });
       }
 
       renderPresets();
@@ -4338,7 +4171,6 @@
       state.historySeasonExpanded = new Set();
       deferredSeasonLoaderRunning = false;
       document.body.style.userSelect = '';
-      isMinimized = false;
       lastKnownSize = null;
       panelEdgeState = { isHidden: false, side: 'right', peek: EDGE_HIDE_DEFAULT_PEEK };
       pointerInsidePanel = false;
