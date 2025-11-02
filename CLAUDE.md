@@ -4,25 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-这是一个用于从 CHAOSPACE 视频资源网站批量提取百度网盘分享链接并自动转存的工具集。包含两个主要实现方式:
-
-1. **Python 脚本方式** (`潮片链接提取.py`) - 命令行脚本,通过代理抓取页面并调用百度网盘 API 转存
-2. **Chrome 扩展方式** (`chaospace-extension/`) - 浏览器插件,直接在页面上操作,复用浏览器登录态
+这是一个用于从 CHAOSPACE 视频资源网站批量提取百度网盘分享链接并自动转存的 Chrome 浏览器扩展工具。
 
 ## 核心架构
-
-### Python 脚本架构
-
-- `潮片链接提取.py` - 主脚本,负责抓取 CHAOSPACE 页面并调用转存模块
-  - 使用 `requests` + `BeautifulSoup` 解析 HTML
-  - 使用 `ThreadPoolExecutor` 并发获取多个剧集的百度网盘链接
-  - 依赖 `BaiduPanBatchTransfer.py` 模块完成实际转存
-
-- `BaiduPanBatchTransfer.py` - 百度网盘转存核心模块
-  - 基于百度网盘 Web API (`pan.baidu.com`)
-  - 支持两种链接格式: `/s/` 格式分享链接和秒传链接
-  - 关键流程: 获取 bdstoken → 验证提取码 → 获取文件元数据 → 创建目录 → 调用转存 API
-  - 包含完整的错误码映射 (`ERROR_CODES`) 和重试机制
 
 ### Chrome 扩展架构
 
@@ -50,7 +34,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 百度网盘 API 关键流程
 
-扩展和 Python 脚本都遵循相同的百度网盘 API 调用流程:
+扩展遵循以下百度网盘 API 调用流程:
 
 1. **获取 bdstoken**: `GET /api/gettemplatevariable?fields=["bdstoken",...]`
 2. **验证提取码** (如有): `POST /share/verify?surl={surl}` → 获取 randsk 写入 BDCLND Cookie
@@ -61,20 +45,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - Body: `fsidlist=[...]&path=/目标路径`
 
 ## 开发和调试
-
-### Python 脚本
-
-**运行脚本**:
-```bash
-python 潮片链接提取.py
-```
-
-**依赖项**: requests, beautifulsoup4, retrying (需手动安装,项目无 requirements.txt)
-
-**配置要点**:
-- 需要在 `潮片链接提取.py` 中配置代理 (`proxies`)
-- 需要在 `cookie` 变量中填入有效的百度网盘 Cookie (必须包含 `BAIDUID`)
-- 在 `series_list` 中添加要处理的剧集 URL 和目标目录
 
 ### Chrome 扩展
 
@@ -123,7 +93,7 @@ python 潮片链接提取.py
 - 使用 `declarativeNetRequest` API 在运行时修改请求头 (Referer/Origin)
 
 ### API 限制
-- 单次转存链接数不超过 1000 条 (BaiduPanBatchTransfer 限制)
+- 单次转存链接数不超过 1000 条
 - bdstoken 有时效性,扩展中缓存 10 分钟 (TOKEN_TTL 常量)
 - 频繁验证错误提取码会触发限流 (errno: -62)
 
@@ -138,8 +108,7 @@ python 潮片链接提取.py
 - `mapErrorMessage()` 函数负责错误码到消息的转换
 
 ### 链接格式支持
-- **Python 脚本**: 支持 `/s/` 链接和多种秒传格式 (bdlink/bdpan/BaiduPCS-Go)
-- **Chrome 扩展**: 仅支持 `/s/` 格式分享链接
+- Chrome 扩展仅支持 `/s/` 格式分享链接
 - `buildSurl()` 函数处理 surl 提取: `/s/1XXX` → `XXX` (去掉开头的 `1`)
 
 ## 文件和目录处理

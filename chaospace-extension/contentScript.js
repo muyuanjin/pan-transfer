@@ -554,7 +554,8 @@
       openBtn.type = 'button';
       openBtn.dataset.action = 'open';
       openBtn.dataset.url = record.pageUrl;
-      openBtn.textContent = '打开页面';
+      openBtn.className = 'chaospace-history-action chaospace-history-action-open';
+      openBtn.textContent = '进入资源';
       actions.appendChild(openBtn);
 
       if (record.pageType === 'series') {
@@ -562,7 +563,8 @@
         checkBtn.type = 'button';
         checkBtn.dataset.action = 'check';
         checkBtn.dataset.url = record.pageUrl;
-        checkBtn.textContent = '检测更新';
+        checkBtn.className = 'chaospace-history-action chaospace-history-action-check';
+        checkBtn.textContent = '检测新篇';
         actions.appendChild(checkBtn);
       }
 
@@ -606,10 +608,12 @@
         payload: { pageUrl }
       });
       if (!response || response.ok === false) {
-        throw new Error(response?.error || '检测失败');
+        const errorMessage = response?.error || '检测失败';
+        showToast('error', '检测失败', errorMessage);
+        return;
       }
       if (!response.hasUpdates) {
-        showToast('info', '暂无更新', '没有检测到新的剧集');
+        showToast('success', '无需转存', '所有剧集都已同步 ✅');
       } else {
         const transferred = Array.isArray(response.results)
           ? response.results.filter(item => item.status === 'success').length
@@ -617,8 +621,17 @@
         const skipped = Array.isArray(response.results)
           ? response.results.filter(item => item.status === 'skipped').length
           : 0;
+        const failed = Array.isArray(response.results)
+          ? response.results.filter(item => item.status === 'failed').length
+          : 0;
         const summary = response.summary || `新增 ${response.newItems} 项`;
-        showToast('success', '检测完成', `${summary}（成功 ${transferred} · 跳过 ${skipped}）`);
+        const toastType = failed > 0 ? 'warning' : 'success';
+        const stats = {
+          success: transferred,
+          skipped,
+          failed
+        };
+        showToast(toastType, '检测完成', summary, stats);
       }
       await loadHistory();
       applyHistoryToCurrentPage();
@@ -1306,6 +1319,11 @@
                 </div>
               </div>
               <div class="chaospace-items-scroll" data-role="items"></div>
+              <div class="chaospace-card chaospace-history-card" data-role="history-card">
+                <div class="chaospace-card-title">📚 转存历史</div>
+                <div class="chaospace-history-empty" data-role="history-empty">还没有转存记录</div>
+                <div class="chaospace-history-list" data-role="history-list"></div>
+              </div>
             </section>
             <section class="chaospace-column chaospace-column-right">
               <div class="chaospace-card chaospace-path-card">
@@ -1322,11 +1340,6 @@
                   </label>
                   <div class="chaospace-path-preview" data-role="path-preview"></div>
                 </div>
-              </div>
-              <div class="chaospace-card chaospace-history-card" data-role="history-card">
-                <div class="chaospace-card-title">📚 转存历史</div>
-                <div class="chaospace-history-empty" data-role="history-empty">还没有转存记录</div>
-                <div class="chaospace-history-list" data-role="history-list"></div>
               </div>
               <div class="chaospace-card chaospace-status-card">
                 <div class="chaospace-card-title chaospace-log-header">

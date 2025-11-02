@@ -5,7 +5,12 @@
   "version": "1.0.0",
   "action": {
     "default_popup": "popup.html",
-    "default_title": "CHAOSPACE 转存助手"
+    "default_title": "CHAOSPACE 转存助手",
+    "default_icon": "icon-48.png"
+  },
+  "icons": {
+    "48": "icon-48.png",
+    "128": "icon-128.png"
   },
   "permissions": [
     "storage",
