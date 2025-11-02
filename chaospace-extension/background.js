@@ -32,6 +32,241 @@ const DIRECTORY_LIST_PAGE_SIZE = 200;
 const directoryFileCache = new Map();
 const jobContexts = new Map();
 
+const STORAGE_KEYS = {
+  cache: 'chaospace-transfer-cache',
+  history: 'chaospace-transfer-history'
+};
+const CACHE_VERSION = 1;
+const HISTORY_VERSION = 1;
+const MAX_DIRECTORY_CACHE_ENTRIES = 100;
+const MAX_HISTORY_RECORDS = 200;
+
+let persistentCacheState = null;
+let historyState = null;
+const historyIndexByUrl = new Map();
+let cacheLoadPromise = null;
+let historyLoadPromise = null;
+
+function storageGet(keys) {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get(keys, result => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        reject(new Error(error.message));
+        return;
+      }
+      resolve(result || {});
+    });
+  });
+}
+
+function storageSet(entries) {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.set(entries, () => {
+      const error = chrome.runtime.lastError;
+      if (error) {
+        reject(new Error(error.message));
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+function nowTs() {
+  return Date.now();
+}
+
+function createDefaultCacheState() {
+  return {
+    version: CACHE_VERSION,
+    directories: {},
+    ensured: { '/': nowTs() }
+  };
+}
+
+function createDefaultHistoryState() {
+  return {
+    version: HISTORY_VERSION,
+    records: []
+  };
+}
+
+async function ensureCacheLoaded() {
+  if (cacheLoadPromise) {
+    await cacheLoadPromise;
+    return;
+  }
+  cacheLoadPromise = (async () => {
+    try {
+      const stored = await storageGet([STORAGE_KEYS.cache]);
+      const raw = stored[STORAGE_KEYS.cache];
+      if (raw && raw.version === CACHE_VERSION && raw.directories && raw.ensured) {
+        persistentCacheState = {
+          version: CACHE_VERSION,
+          directories: raw.directories || {},
+          ensured: { ...raw.ensured }
+        };
+      } else {
+        persistentCacheState = createDefaultCacheState();
+      }
+    } catch (error) {
+      console.warn('[Chaospace Transfer] Failed to load persistent cache', error);
+      persistentCacheState = createDefaultCacheState();
+    }
+
+    ensuredDirectories.clear();
+    ensuredDirectories.add('/');
+    if (persistentCacheState && persistentCacheState.ensured) {
+      Object.keys(persistentCacheState.ensured).forEach(path => {
+        if (path) {
+          ensuredDirectories.add(path);
+        }
+      });
+    }
+
+    directoryFileCache.clear();
+    if (persistentCacheState && persistentCacheState.directories) {
+      Object.entries(persistentCacheState.directories).forEach(([path, entry]) => {
+        if (!path || !entry || !Array.isArray(entry.files)) {
+          return;
+        }
+        directoryFileCache.set(path, new Set(entry.files));
+      });
+    }
+  })();
+  await cacheLoadPromise;
+}
+
+function rebuildHistoryIndex() {
+  historyIndexByUrl.clear();
+  if (!historyState || !Array.isArray(historyState.records)) {
+    return;
+  }
+  historyState.records.forEach((record, index) => {
+    if (record && typeof record.pageUrl === 'string' && record.pageUrl) {
+      historyIndexByUrl.set(record.pageUrl, { index, record });
+    }
+  });
+}
+
+async function ensureHistoryLoaded() {
+  if (historyLoadPromise) {
+    await historyLoadPromise;
+    return;
+  }
+  historyLoadPromise = (async () => {
+    try {
+      const stored = await storageGet([STORAGE_KEYS.history]);
+      const raw = stored[STORAGE_KEYS.history];
+      if (raw && raw.version === HISTORY_VERSION && Array.isArray(raw.records)) {
+        historyState = {
+          version: HISTORY_VERSION,
+          records: raw.records.map(record => {
+            const safeRecord = record || {};
+            if (!safeRecord.items || typeof safeRecord.items !== 'object') {
+              safeRecord.items = {};
+            }
+            if (!Array.isArray(safeRecord.itemOrder)) {
+              safeRecord.itemOrder = Object.keys(safeRecord.items);
+            }
+            return safeRecord;
+          })
+        };
+      } else {
+        historyState = createDefaultHistoryState();
+      }
+    } catch (error) {
+      console.warn('[Chaospace Transfer] Failed to load transfer history', error);
+      historyState = createDefaultHistoryState();
+    }
+    rebuildHistoryIndex();
+  })();
+  await historyLoadPromise;
+}
+
+async function persistCacheNow() {
+  await ensureCacheLoaded();
+  if (!persistentCacheState) {
+    persistentCacheState = createDefaultCacheState();
+  }
+  try {
+    await storageSet({
+      [STORAGE_KEYS.cache]: {
+        version: CACHE_VERSION,
+        directories: persistentCacheState.directories,
+        ensured: persistentCacheState.ensured
+      }
+    });
+  } catch (error) {
+    console.warn('[Chaospace Transfer] Failed to persist directory cache', error);
+  }
+}
+
+async function persistHistoryNow() {
+  await ensureHistoryLoaded();
+  if (!historyState) {
+    historyState = createDefaultHistoryState();
+  }
+  try {
+    await storageSet({
+      [STORAGE_KEYS.history]: historyState
+    });
+  } catch (error) {
+    console.warn('[Chaospace Transfer] Failed to persist history', error);
+  }
+}
+
+function markDirectoryEnsured(path) {
+  if (!path) {
+    return;
+  }
+  ensuredDirectories.add(path);
+  if (!persistentCacheState) {
+    persistentCacheState = createDefaultCacheState();
+  }
+  persistentCacheState.ensured[path] = nowTs();
+}
+
+function pruneDirectoryCacheIfNeeded() {
+  if (!persistentCacheState) {
+    return;
+  }
+  const entries = Object.entries(persistentCacheState.directories || {});
+  if (entries.length <= MAX_DIRECTORY_CACHE_ENTRIES) {
+    return;
+  }
+  entries
+    .sort((a, b) => {
+      const tsA = a[1]?.updatedAt || 0;
+      const tsB = b[1]?.updatedAt || 0;
+      return tsA - tsB;
+    })
+    .slice(0, Math.max(0, entries.length - MAX_DIRECTORY_CACHE_ENTRIES))
+    .forEach(([path]) => {
+      delete persistentCacheState.directories[path];
+      directoryFileCache.delete(path);
+    });
+}
+
+function recordDirectoryCache(path, names) {
+  if (!path) {
+    return;
+  }
+  if (!persistentCacheState) {
+    persistentCacheState = createDefaultCacheState();
+  }
+  const files = Array.from(names || []).filter(name => typeof name === 'string' && name);
+  persistentCacheState.directories[path] = {
+    files,
+    updatedAt: nowTs()
+  };
+  pruneDirectoryCacheIfNeeded();
+}
+
+ensureCacheLoaded();
+ensureHistoryLoaded();
+
 function isIgnorableMessageError(error) {
   if (!error) {
     return true;
@@ -421,6 +656,8 @@ async function checkDirectoryExists(path, bdstoken, options = {}) {
     return true;
   }
 
+  await ensureCacheLoaded();
+
   const params = new URLSearchParams({
     dir: normalized,
     bdstoken,
@@ -469,6 +706,8 @@ async function fetchDirectoryFileNames(path, bdstoken, options = {}) {
     logStage(jobId, 'list', '根目录不缓存文件清单');
     return new Set();
   }
+
+  await ensureCacheLoaded();
 
   const cached = directoryFileCache.get(normalized);
   if (cached) {
@@ -519,6 +758,7 @@ async function fetchDirectoryFileNames(path, bdstoken, options = {}) {
   }
 
   directoryFileCache.set(normalized, collected);
+  recordDirectoryCache(normalized, collected);
   logStage(jobId, 'list', `目录缓存完成：${normalized}${contextLabel}（共 ${collected.size} 项）`);
   return collected;
 }
@@ -528,8 +768,11 @@ async function ensureDirectoryExists(path, bdstoken, options = {}) {
   const normalized = normalizePath(path);
   if (normalized === '/') {
     logStage(jobId, 'list', '根目录无需创建');
+    markDirectoryEnsured('/');
     return normalized;
   }
+
+  await ensureCacheLoaded();
 
   if (ensuredDirectories.has(normalized)) {
     logStage(jobId, 'list', `目录已缓存：${normalized}`);
@@ -547,7 +790,7 @@ async function ensureDirectoryExists(path, bdstoken, options = {}) {
     }
     const exists = await checkDirectoryExists(current, bdstoken, { jobId, context });
     if (exists) {
-      ensuredDirectories.add(current);
+      markDirectoryEnsured(current);
       continue;
     }
     const url = `https://pan.baidu.com/api/create?a=commit&bdstoken=${encodeURIComponent(bdstoken)}`;
@@ -576,7 +819,7 @@ async function ensureDirectoryExists(path, bdstoken, options = {}) {
     logStage(jobId, 'list', `目录创建完成：${current}${contextLabel}${data.errno === -8 || data.errno === 31039 ? '（已存在）' : ''}`, {
       level: data.errno === 0 ? 'success' : 'warning'
     });
-    ensuredDirectories.add(current);
+    markDirectoryEnsured(current);
   }
   logStage(jobId, 'list', `目录准备就绪：${normalized}${contextLabel}`, { level: 'success' });
   return normalized;
@@ -787,6 +1030,341 @@ async function fetchLinkDetail(origin, id, options = {}) {
   }
   logStage(jobId, 'list', `${titleLabel}解析详情页成功`);
   return parsed;
+}
+
+function sanitizePosterInfo(input) {
+  if (!input || typeof input !== 'object') {
+    return null;
+  }
+  if (typeof input.src !== 'string' || !input.src) {
+    return null;
+  }
+  return {
+    src: input.src,
+    alt: typeof input.alt === 'string' ? input.alt : ''
+  };
+}
+
+function ensureHistoryRecordStructure(record) {
+  if (!record.items || typeof record.items !== 'object') {
+    record.items = {};
+  }
+  if (!Array.isArray(record.itemOrder)) {
+    record.itemOrder = Object.keys(record.items);
+  }
+  return record;
+}
+
+function upsertHistoryRecord(pageUrl) {
+  if (!historyState) {
+    historyState = createDefaultHistoryState();
+  }
+  let entry = historyIndexByUrl.get(pageUrl);
+  if (entry) {
+    return { record: ensureHistoryRecordStructure(entry.record), index: entry.index };
+  }
+  const record = ensureHistoryRecordStructure({
+    pageUrl,
+    pageTitle: '',
+    pageType: 'unknown',
+    origin: '',
+    poster: null,
+    targetDirectory: '/',
+    baseDir: '/',
+    useTitleSubdir: true,
+    lastTransferredAt: 0,
+    lastCheckedAt: 0,
+    totalTransferred: 0,
+    items: {},
+    itemOrder: [],
+    lastResult: null
+  });
+  historyState.records.push(record);
+  rebuildHistoryIndex();
+  const index = historyState.records.length - 1;
+  historyIndexByUrl.set(pageUrl, { index, record });
+  return { record, index };
+}
+
+function normalizeHistoryPath(value, fallback = '/') {
+  if (typeof value !== 'string' || !value.trim()) {
+    return fallback;
+  }
+  return normalizePath(value);
+}
+
+function applyResultToHistoryRecord(record, result, timestamp) {
+  if (!result || typeof result.id === 'undefined') {
+    return;
+  }
+  const itemId = String(result.id);
+  if (!itemId) {
+    return;
+  }
+  const existing = record.items[itemId] || {};
+  const next = {
+    id: itemId,
+    title: typeof result.title === 'string' && result.title ? result.title : (existing.title || ''),
+    lastStatus: result.status || existing.lastStatus || 'unknown',
+    lastTransferredAt: result.status === 'success' ? timestamp : (existing.lastTransferredAt || timestamp),
+    files: Array.isArray(result.files) ? result.files.slice() : (existing.files || []),
+    linkUrl: result.linkUrl || existing.linkUrl || '',
+    passCode: result.passCode || existing.passCode || '',
+    skippedFiles: Array.isArray(result.skippedFiles) ? result.skippedFiles.slice() : (existing.skippedFiles || []),
+    message: result.message || existing.message || '',
+    attempts: typeof existing.attempts === 'number' ? existing.attempts + 1 : 1,
+    totalSuccess: (result.status === 'success')
+      ? (typeof existing.totalSuccess === 'number' ? existing.totalSuccess + 1 : 1)
+      : (existing.totalSuccess || 0),
+    lastUpdatedAt: timestamp
+  };
+  if (result.status === 'skipped' && !existing.lastTransferredAt) {
+    next.lastTransferredAt = timestamp;
+  }
+  record.items[itemId] = next;
+  if (!record.itemOrder.includes(itemId)) {
+    record.itemOrder.push(itemId);
+  }
+}
+
+async function recordTransferHistory(payload, outcome) {
+  if (!payload || !payload.meta) {
+    return;
+  }
+  await ensureHistoryLoaded();
+  const { meta } = payload;
+  const pageUrl = typeof meta.pageUrl === 'string' && meta.pageUrl ? meta.pageUrl : '';
+  if (!pageUrl) {
+    return;
+  }
+
+  const timestamp = nowTs();
+  const { record } = upsertHistoryRecord(pageUrl);
+  const origin = payload.origin || record.origin || '';
+  record.pageTitle = typeof meta.pageTitle === 'string' && meta.pageTitle ? meta.pageTitle : (record.pageTitle || '');
+  record.origin = origin;
+  record.pageType = typeof meta.pageType === 'string' && meta.pageType ? meta.pageType : (record.pageType || 'unknown');
+  record.poster = sanitizePosterInfo(meta.poster) || record.poster || null;
+  record.targetDirectory = normalizeHistoryPath(meta.targetDirectory || payload.targetDirectory || record.targetDirectory, record.targetDirectory || '/');
+  record.baseDir = normalizeHistoryPath(meta.baseDir || record.baseDir || record.targetDirectory, record.baseDir || '/');
+  record.useTitleSubdir = typeof meta.useTitleSubdir === 'boolean' ? meta.useTitleSubdir : Boolean(record.useTitleSubdir);
+  record.lastCheckedAt = timestamp;
+
+  const results = Array.isArray(outcome?.results) ? outcome.results : [];
+  let successCount = 0;
+  let skippedCount = 0;
+  let failedCount = 0;
+  for (const res of results) {
+    if (!res || typeof res.id === 'undefined') {
+      continue;
+    }
+    if (res.status === 'failed') {
+      failedCount += 1;
+      continue;
+    }
+    applyResultToHistoryRecord(record, res, timestamp);
+    if (res.status === 'success') {
+      successCount += 1;
+    } else if (res.status === 'skipped') {
+      skippedCount += 1;
+    }
+  }
+
+  record.totalTransferred = Object.keys(record.items).length;
+  if (successCount > 0) {
+    record.lastTransferredAt = timestamp;
+  }
+  const summary = typeof outcome?.summary === 'string' ? outcome.summary : '';
+  record.lastResult = {
+    summary,
+    updatedAt: timestamp,
+    success: successCount,
+    skipped: skippedCount,
+    failed: failedCount
+  };
+
+  historyState.records.sort((a, b) => {
+    const tsA = a.lastTransferredAt || a.lastCheckedAt || 0;
+    const tsB = b.lastTransferredAt || b.lastCheckedAt || 0;
+    return tsB - tsA;
+  });
+
+  if (historyState.records.length > MAX_HISTORY_RECORDS) {
+    historyState.records = historyState.records.slice(0, MAX_HISTORY_RECORDS);
+  }
+
+  rebuildHistoryIndex();
+  await persistHistoryNow();
+}
+
+function decodeHtmlEntities(input) {
+  if (!input || typeof input !== 'string') {
+    return '';
+  }
+  return input
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, '\'')
+    .replace(/&#x27;/gi, '\'')
+    .replace(/&#x2F;/gi, '/')
+    .replace(/&#(\d+);/g, (_m, code) => {
+      const num = parseInt(code, 10);
+      return Number.isFinite(num) ? String.fromCharCode(num) : '';
+    })
+    .replace(/&#x([0-9a-fA-F]+);/g, (_m, hex) => {
+      const num = parseInt(hex, 16);
+      return Number.isFinite(num) ? String.fromCharCode(num) : '';
+    });
+}
+
+function stripHtmlTags(input) {
+  return decodeHtmlEntities((input || '').replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
+}
+
+function extractCleanTitle(rawTitle) {
+  if (!rawTitle) return '未命名资源';
+
+  let title = rawTitle.trim();
+
+  title = title.replace(/\s*提取码\s+\S+\s*$/gi, '');
+  title = title.replace(/[:：]\s*(第[0-9一二三四五六七八九十百]+季|[Ss]eason\s*\d+|S\d+)\s*$/gi, '');
+  title = title.replace(/\s+(第[0-9一二三四五六七八九十百]+季|[Ss]eason\s*\d+|S\d+)\s*$/gi, '');
+  title = title.replace(/[:：]\s*$/, '');
+  title = title.replace(/\s+/g, ' ').trim();
+
+  return title || '未命名资源';
+}
+
+function parsePageTitleFromHtml(html) {
+  const match = html.match(/<title>([\s\S]*?)<\/title>/i);
+  if (!match) {
+    return '';
+  }
+  let title = stripHtmlTags(match[1]);
+  title = title.replace(/\s*[–\-_|]\s*CHAOSPACE.*$/i, '');
+  return extractCleanTitle(title);
+}
+
+function parseItemsFromHtml(html) {
+  const items = [];
+  const seenIds = new Set();
+  const rowRegex = /<tr[^>]*id=["']link-(\d+)["'][\s\S]*?<\/tr>/gi;
+  let match;
+  while ((match = rowRegex.exec(html))) {
+    const id = match[1];
+    if (!id || seenIds.has(id)) {
+      continue;
+    }
+    const rowHtml = match[0];
+    const anchorMatch = rowHtml.match(/<a[^>]+href=["'][^"']*\/links\/\d+\.html[^"']*["'][^>]*>([\s\S]*?)<\/a>/i);
+    const rawTitle = anchorMatch ? stripHtmlTags(anchorMatch[1]) : '';
+    const title = extractCleanTitle(rawTitle || '');
+    items.push({
+      id,
+      title: title || `资源 ${id}`
+    });
+    seenIds.add(id);
+  }
+  return items;
+}
+
+async function collectPageSnapshot(pageUrl) {
+  const response = await fetch(pageUrl, { credentials: 'include' });
+  if (!response.ok) {
+    throw new Error(`获取页面失败：${response.status}`);
+  }
+  const html = await response.text();
+  const items = parseItemsFromHtml(html);
+  const pageTitle = parsePageTitleFromHtml(html);
+  const pageType = items.length > 1 ? 'series' : 'movie';
+  return {
+    pageUrl,
+    pageTitle,
+    pageType,
+    total: items.length,
+    items
+  };
+}
+
+async function handleCheckUpdatesRequest(payload = {}) {
+  const pageUrl = typeof payload.pageUrl === 'string' ? payload.pageUrl : '';
+  if (!pageUrl) {
+    throw new Error('缺少页面地址');
+  }
+  await ensureHistoryLoaded();
+  const entry = historyIndexByUrl.get(pageUrl);
+  if (!entry || !entry.record) {
+    throw new Error('未找到该页面的历史记录');
+  }
+  const record = ensureHistoryRecordStructure(entry.record);
+  const snapshot = await collectPageSnapshot(pageUrl);
+  const knownIds = new Set(Object.keys(record.items || {}));
+  const newItems = snapshot.items.filter(item => !knownIds.has(String(item.id)));
+
+  if (!newItems.length) {
+    record.lastCheckedAt = nowTs();
+    await persistHistoryNow();
+    return {
+      ok: true,
+      hasUpdates: false,
+      pageUrl,
+      pageTitle: snapshot.pageTitle || record.pageTitle || '',
+      totalKnown: knownIds.size,
+      latestCount: snapshot.items.length
+    };
+  }
+
+  const targetDirectory = normalizeHistoryPath(record.targetDirectory || payload.targetDirectory || '/');
+  let origin = record.origin;
+  if (!origin) {
+    try {
+      const url = new URL(pageUrl);
+      origin = `${url.protocol}//${url.host}`;
+    } catch (_error) {
+      origin = record.origin || '';
+    }
+  }
+
+  const jobId = `update-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+  const meta = {
+    baseDir: normalizeHistoryPath(record.baseDir || targetDirectory),
+    useTitleSubdir: false,
+    pageTitle: snapshot.pageTitle || record.pageTitle || '',
+    pageUrl,
+    pageType: record.pageType || snapshot.pageType || 'series',
+    targetDirectory,
+    poster: record.poster || null,
+    trigger: 'history-update',
+    total: newItems.length
+  };
+
+  const transferPayload = {
+    jobId,
+    origin: origin || '',
+    items: newItems.map(item => ({
+      id: item.id,
+      title: item.title,
+      targetPath: targetDirectory
+    })),
+    targetDirectory,
+    meta
+  };
+
+  const transferResult = await handleTransfer(transferPayload);
+
+  return {
+    ok: true,
+    hasUpdates: true,
+    pageUrl,
+    pageTitle: meta.pageTitle,
+    newItems: newItems.length,
+    summary: transferResult.summary,
+    results: transferResult.results || [],
+    jobId: transferResult.jobId
+  };
 }
 
 async function handleTransfer(payload) {
@@ -1046,6 +1624,18 @@ async function handleTransfer(payload) {
       level: failedCount ? 'warning' : 'success'
     });
 
+    try {
+      await recordTransferHistory(payload, { results, summary });
+    } catch (historyError) {
+      console.warn('[Chaospace Transfer] Failed to record transfer history', historyError);
+    }
+
+    try {
+      await persistCacheNow();
+    } catch (cacheError) {
+      console.warn('[Chaospace Transfer] Failed to persist cache after transfer', cacheError);
+    }
+
     return { jobId, results, summary };
   } catch (error) {
     emitProgress(jobId, {
@@ -1059,6 +1649,17 @@ async function handleTransfer(payload) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === 'chaospace:check-updates') {
+    handleCheckUpdatesRequest(message.payload || {})
+      .then(result => {
+        sendResponse(result);
+      })
+      .catch(error => {
+        sendResponse({ ok: false, error: error.message || '检测更新失败' });
+      });
+    return true;
+  }
+
   if (message?.type === 'chaospace:transfer') {
     const payload = message.payload || {};
     if (payload.jobId) {

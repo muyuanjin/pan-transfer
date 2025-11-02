@@ -550,6 +550,24 @@
   color: var(--cp-text-secondary);
 }
 
+.chaospace-badge-success {
+  background: rgba(52, 211, 153, 0.18);
+  border-color: rgba(52, 211, 153, 0.4);
+  color: var(--cp-success);
+}
+
+.chaospace-badge-new {
+  background: rgba(59, 130, 246, 0.18);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #60a5fa;
+}
+
+.chaospace-badge-pending {
+  background: rgba(251, 191, 36, 0.18);
+  border-color: rgba(251, 191, 36, 0.4);
+  color: var(--cp-warning);
+}
+
 .chaospace-item.is-visible {
   opacity: 1;
   transform: translateY(0);
@@ -567,6 +585,16 @@
   border-style: dashed;
 }
 
+.chaospace-item.is-transferred {
+  border-color: rgba(52, 211, 153, 0.28);
+}
+
+.chaospace-item.is-new {
+  border-color: rgba(59, 130, 246, 0.35);
+  background: rgba(59, 130, 246, 0.14);
+  box-shadow: 0 8px 22px rgba(59, 130, 246, 0.18);
+}
+
 .chaospace-empty {
   text-align: center;
   color: var(--cp-text-muted);
@@ -582,6 +610,104 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.chaospace-card.chaospace-history-card {
+  gap: 12px;
+}
+
+.chaospace-history-empty {
+  font-size: 12px;
+  color: var(--cp-text-muted);
+  background: var(--cp-surface-soft);
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px dashed var(--cp-border);
+  text-align: center;
+}
+
+.chaospace-history-empty.is-hidden {
+  display: none;
+}
+
+.chaospace-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.chaospace-history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--cp-surface-soft);
+  border: 1px solid rgba(99, 102, 241, 0.14);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.chaospace-history-item:hover {
+  border-color: var(--cp-accent);
+  transform: translateY(-1px);
+}
+
+.chaospace-history-item.is-current {
+  border-color: var(--cp-accent);
+  box-shadow: 0 12px 28px rgba(99, 102, 241, 0.18);
+}
+
+.chaospace-history-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 auto;
+}
+
+.chaospace-history-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cp-text-primary);
+}
+
+.chaospace-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--cp-text-muted);
+}
+
+.chaospace-history-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chaospace-history-actions button {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--cp-border);
+  background: transparent;
+  color: var(--cp-text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.chaospace-history-actions button:hover {
+  background: var(--cp-accent-soft);
+  border-color: var(--cp-accent);
+  color: var(--cp-text-primary);
+}
+
+.chaospace-history-actions button:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 
 .chaospace-card-title {

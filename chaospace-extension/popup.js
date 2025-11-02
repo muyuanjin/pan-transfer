@@ -1,7 +1,9 @@
 const STORAGE_KEY = 'chaospace-transfer-settings';
+const HISTORY_KEY = 'chaospace-transfer-history';
 const DEFAULT_PRESETS = ['/视频/番剧', '/视频/影视', '/视频/电影'];
 const MAX_LOG_ENTRIES = 80;
 const LOG_COLLAPSED_COUNT = 4;
+const HISTORY_DISPLAY_LIMIT = 8;
 
 const dom = {
   header: document.getElementById('popup-header'),
@@ -15,6 +17,7 @@ const dom = {
   sortOrder: document.getElementById('sort-order'),
   selectAll: document.getElementById('select-all'),
   selectInvert: document.getElementById('select-invert'),
+  selectNew: document.getElementById('select-new'),
   presetList: document.getElementById('preset-list'),
   baseDir: document.getElementById('base-dir'),
   addPreset: document.getElementById('add-preset'),
@@ -30,13 +33,17 @@ const dom = {
   transferSpinner: document.getElementById('transfer-spinner'),
   messages: document.getElementById('messages'),
   refreshButton: document.getElementById('refresh-btn'),
-  themeToggle: document.getElementById('theme-toggle')
+  themeToggle: document.getElementById('theme-toggle'),
+  historyCard: document.getElementById('history-card'),
+  historyList: document.getElementById('history-list'),
+  historyEmpty: document.getElementById('history-empty')
 };
 
 const state = {
   tabId: null,
   origin: '',
   pageTitle: '',
+  pageUrl: '',
   poster: null,
   items: [],
   baseDir: '/',
@@ -51,7 +58,11 @@ const state = {
   statusMessage: '准备就绪 ✨',
   jobId: null,
   lastResult: null,
-  theme: 'dark'
+  theme: 'dark',
+  historyRecords: [],
+  currentHistory: null,
+  transferredIds: new Set(),
+  newItemIds: new Set()
 };
 
 function normalizeDir(value) {
@@ -228,6 +239,212 @@ function formatStageLabel(stage) {
   return labels[stageKey] || labels[base] || stageKey;
 }
 
+function normalizePageUrl(input) {
+  if (!input || typeof input !== 'string') {
+    return '';
+  }
+  try {
+    const url = new URL(input, state.origin || window.location.href);
+    url.hash = '';
+    return url.toString();
+  } catch (_error) {
+    return input.split('#')[0];
+  }
+}
+
+function prepareHistoryRecords(raw) {
+  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.records)) {
+    return [];
+  }
+  return raw.records
+    .map(record => {
+      const safe = record || {};
+      if (!safe.items || typeof safe.items !== 'object') {
+        safe.items = {};
+      }
+      return safe;
+    })
+    .sort((a, b) => {
+      const tsA = a.lastTransferredAt || a.lastCheckedAt || 0;
+      const tsB = b.lastTransferredAt || b.lastCheckedAt || 0;
+      return tsB - tsA;
+    });
+}
+
+function applyHistoryToCurrentPage() {
+  const normalizedUrl = normalizePageUrl(state.pageUrl);
+  state.transferredIds = new Set();
+  state.newItemIds = new Set();
+  state.currentHistory = null;
+
+  if (!normalizedUrl || !state.historyRecords.length) {
+    return;
+  }
+
+  const matched = state.historyRecords.find(record => normalizePageUrl(record.pageUrl) === normalizedUrl);
+  if (!matched) {
+    return;
+  }
+
+  state.currentHistory = matched;
+  const knownIds = new Set(Object.keys(matched.items || {}));
+  state.transferredIds = knownIds;
+  state.items.forEach(item => {
+    if (item && !knownIds.has(item.id)) {
+      state.newItemIds.add(item.id);
+    }
+  });
+}
+
+function renderHistoryCard() {
+  if (!dom.historyList || !dom.historyEmpty) {
+    return;
+  }
+  dom.historyList.innerHTML = '';
+  const records = state.historyRecords.slice(0, HISTORY_DISPLAY_LIMIT);
+  if (!records.length) {
+    dom.historyEmpty.classList.remove('is-hidden');
+    return;
+  }
+  dom.historyEmpty.classList.add('is-hidden');
+  const currentUrl = normalizePageUrl(state.pageUrl);
+  records.forEach(record => {
+    const item = document.createElement('div');
+    item.className = 'popup-history-item';
+    const recordUrl = normalizePageUrl(record.pageUrl);
+    if (recordUrl === currentUrl) {
+      item.classList.add('is-current');
+    }
+
+    const main = document.createElement('div');
+    main.className = 'popup-history-main';
+    const title = document.createElement('div');
+    title.className = 'popup-history-title';
+    title.textContent = record.pageTitle || '未命名资源';
+    main.appendChild(title);
+
+    const meta = document.createElement('div');
+    meta.className = 'popup-history-meta';
+    const typeLabel = record.pageType === 'series'
+      ? '剧集'
+      : (record.pageType === 'movie' ? '电影' : '资源');
+    const timeLabel = record.lastTransferredAt || record.lastCheckedAt
+      ? formatTime(new Date(record.lastTransferredAt || record.lastCheckedAt))
+      : '';
+    const total = record.totalTransferred || Object.keys(record.items || {}).length || 0;
+    const dir = record.targetDirectory || '';
+    const metaParts = [typeLabel];
+    if (total) {
+      metaParts.push(`共 ${total} 项`);
+    }
+    if (timeLabel) {
+      metaParts.push(`更新于 ${timeLabel}`);
+    }
+    if (dir) {
+      metaParts.push(dir);
+    }
+    meta.textContent = metaParts.join(' · ');
+    main.appendChild(meta);
+    item.appendChild(main);
+
+    const actions = document.createElement('div');
+    actions.className = 'popup-history-actions';
+    const openBtn = document.createElement('button');
+    openBtn.type = 'button';
+    openBtn.dataset.action = 'open';
+    openBtn.dataset.url = record.pageUrl;
+    openBtn.textContent = '打开';
+    actions.appendChild(openBtn);
+
+    if (record.pageType === 'series') {
+      const updateBtn = document.createElement('button');
+      updateBtn.type = 'button';
+      updateBtn.dataset.action = 'check';
+      updateBtn.dataset.url = record.pageUrl;
+      updateBtn.textContent = '检测更新';
+      actions.appendChild(updateBtn);
+    }
+
+    item.appendChild(actions);
+    dom.historyList.appendChild(item);
+  });
+}
+
+async function loadHistory(options = {}) {
+  const { silent = false } = options;
+  try {
+    const stored = await chrome.storage.local.get(HISTORY_KEY);
+    state.historyRecords = prepareHistoryRecords(stored[HISTORY_KEY]);
+  } catch (error) {
+    console.error('[Chaospace Transfer] Failed to load history', error);
+    state.historyRecords = [];
+  }
+  if (!silent) {
+    applyHistoryToCurrentPage();
+    renderHistoryCard();
+    renderItems();
+    renderSelectionSummary();
+  }
+}
+
+async function triggerHistoryUpdate(pageUrl, button) {
+  if (!pageUrl) {
+    return;
+  }
+  let previous = '';
+  if (button) {
+    previous = button.textContent;
+    button.disabled = true;
+    button.textContent = '检测中...';
+  }
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'chaospace:check-updates',
+      payload: { pageUrl }
+    });
+    if (!response || response.ok === false) {
+      throw new Error(response?.error || '检测失败');
+    }
+    if (!response.hasUpdates) {
+      showToast('info', '暂无更新', '没有检测到新的剧集。');
+    } else {
+      const transferred = Array.isArray(response.results)
+        ? response.results.filter(item => item.status === 'success').length
+        : 0;
+      const skipped = Array.isArray(response.results)
+        ? response.results.filter(item => item.status === 'skipped').length
+        : 0;
+      const summary = response.summary || `新增 ${response.newItems} 项`;
+      showToast('success', '检测完成', `${summary}（成功 ${transferred} · 跳过 ${skipped}）`);
+    }
+    await loadHistory();
+    applyHistoryToCurrentPage();
+    renderHistoryCard();
+    renderItems();
+    renderSelectionSummary();
+  } catch (error) {
+    console.error('[Chaospace Transfer] Update check failed', error);
+    showToast('error', '检测失败', error.message || '无法检测更新');
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = previous || '检测更新';
+    }
+  }
+}
+
+function selectNewItems() {
+  if (!state.newItemIds.size) {
+    showToast('info', '暂无新增', '没有检测到新的剧集。');
+    return;
+  }
+  state.selectedIds = new Set(state.newItemIds);
+  renderItems();
+  renderSelectionSummary();
+  updateTransferButton();
+  showToast('success', '已选中新剧集', `共 ${state.newItemIds.size} 项。`);
+}
+
 function clearMessages() {
   if (dom.messages) {
     dom.messages.innerHTML = '';
@@ -350,7 +567,11 @@ function renderSelectionSummary() {
   }
   const total = state.items.length;
   const selected = state.selectedIds.size;
-  dom.selectionSummary.textContent = `🧾 已选 ${selected} / ${total}`;
+  const parts = [`🧾 已选 ${selected} / ${total}`];
+  if (state.newItemIds.size) {
+    parts.push(`新增 ${state.newItemIds.size}`);
+  }
+  dom.selectionSummary.textContent = parts.join(' · ');
   if (dom.itemsTitle) {
     dom.itemsTitle.textContent = `🔍 找到 ${total} 个百度网盘资源`;
   }
@@ -392,6 +613,26 @@ function renderItems() {
   const sortedItems = sortItems(state.items);
   sortedItems.forEach(item => {
     const isSelected = state.selectedIds.has(item.id);
+    const isTransferred = state.transferredIds.has(item.id);
+    const isNew = state.currentHistory && state.newItemIds.has(item.id);
+    const statusBadges = [];
+    if (isTransferred) {
+      statusBadges.push('<span class="popup-badge popup-badge-success">已转存</span>');
+    }
+    if (isNew) {
+      statusBadges.push('<span class="popup-badge popup-badge-new">新增</span>');
+    }
+    if (!isTransferred && !isNew && state.currentHistory) {
+      statusBadges.push('<span class="popup-badge popup-badge-pending">待转存</span>');
+    }
+    const detailBadges = [];
+    if (item.quality) {
+      detailBadges.push(`<span class="popup-badge">画质：${item.quality}</span>`);
+    }
+    if (item.subtitle) {
+      detailBadges.push(`<span class="popup-badge">字幕：${item.subtitle}</span>`);
+    }
+    const metaBadges = [...statusBadges, ...detailBadges].join('');
     const row = document.createElement('label');
     row.className = 'popup-item';
     row.dataset.id = item.id;
@@ -399,16 +640,15 @@ function renderItems() {
       <input type="checkbox" ${isSelected ? 'checked' : ''} />
       <div class="popup-item-body">
         <div class="popup-item-title">🔗 ${item.title}</div>
-        <div class="popup-item-meta">
-          ${item.quality ? `<span class="popup-badge">画质：${item.quality}</span>` : ''}
-          ${item.subtitle ? `<span class="popup-badge">字幕：${item.subtitle}</span>` : ''}
-        </div>
+        <div class="popup-item-meta">${metaBadges}</div>
       </div>
     `;
     dom.itemsContainer.appendChild(row);
     requestAnimationFrame(() => {
       row.classList.add('is-visible');
       row.classList.toggle('is-muted', !isSelected);
+      row.classList.toggle('is-transferred', isTransferred);
+      row.classList.toggle('is-new', isNew);
     });
   });
 
@@ -552,6 +792,7 @@ function setControlsDisabled(disabled) {
   if (dom.sortOrder) dom.sortOrder.disabled = disabled;
   if (dom.selectAll) dom.selectAll.disabled = disabled;
   if (dom.selectInvert) dom.selectInvert.disabled = disabled;
+  if (dom.selectNew) dom.selectNew.disabled = disabled;
   if (dom.presetList) dom.presetList.classList.toggle('is-disabled', disabled);
 }
 
@@ -667,6 +908,9 @@ async function refreshItems() {
     state.tabId = tab.id;
     const response = await sendMessageToTab(tab.id, { type: 'chaospace:collect-links' });
 
+    const pageUrl = response?.url || tab.url || '';
+    state.pageUrl = normalizePageUrl(pageUrl);
+
     if (!response || !Array.isArray(response.items) || !response.items.length) {
       state.items = [];
       state.selectedIds = new Set();
@@ -675,6 +919,10 @@ async function refreshItems() {
       state.poster = response?.poster || null;
       renderPageInfo();
       renderItems();
+      applyHistoryToCurrentPage();
+      renderHistoryCard();
+      renderSelectionSummary();
+      updateTransferButton();
       showMessage('未从页面中解析到资源链接。', 'info');
       return;
     }
@@ -689,8 +937,12 @@ async function refreshItems() {
     state.selectedIds = new Set(state.items.map(item => item.id));
 
     renderPageInfo();
+    applyHistoryToCurrentPage();
+    renderHistoryCard();
     renderItems();
     renderPathPreview();
+    renderSelectionSummary();
+    updateTransferButton();
   } catch (error) {
     console.error('[Chaospace Transfer] refresh error', error);
     state.items = [];
@@ -698,6 +950,9 @@ async function refreshItems() {
     state.poster = null;
     renderPageInfo();
     renderItems();
+    renderHistoryCard();
+    renderSelectionSummary();
+    updateTransferButton();
     showMessage(`无法获取页面资源：${error.message}`);
   } finally {
     if (dom.refreshButton) {
@@ -756,7 +1011,13 @@ async function handleTransfer() {
         total: selectedItems.length,
         baseDir: state.baseDir,
         useTitleSubdir: state.useTitleSubdir,
-        pageTitle: state.pageTitle
+        pageTitle: state.pageTitle,
+        pageUrl: state.pageUrl || normalizePageUrl(state.origin || window.location.href),
+        pageType: state.items.length > 1 ? 'series' : 'movie',
+        targetDirectory,
+        poster: state.poster && state.poster.src
+          ? { src: state.poster.src, alt: state.poster.alt || '' }
+          : null
       }
     };
 
@@ -789,6 +1050,12 @@ async function handleTransfer() {
     pushLog(`后台执行完成：${summary}`, { stage: 'complete', level: failed === 0 ? 'success' : 'warning' });
 
     setStatus(failed === 0 ? 'success' : 'error', `${title}：${summary}`);
+    await loadHistory();
+    applyHistoryToCurrentPage();
+    renderHistoryCard();
+    renderItems();
+    renderSelectionSummary();
+    updateTransferButton();
     showToast(
       failed === 0 ? 'success' : (success > 0 ? 'warning' : 'error'),
       `${emoji} ${title}`,
@@ -843,6 +1110,10 @@ function registerEventListeners() {
     dom.selectInvert.addEventListener('click', () => invertSelection());
   }
 
+  if (dom.selectNew) {
+    dom.selectNew.addEventListener('click', () => selectNewItems());
+  }
+
   if (dom.themeToggle) {
     dom.themeToggle.addEventListener('click', () => {
       const nextTheme = state.theme === 'dark' ? 'light' : 'dark';
@@ -882,6 +1153,20 @@ function registerEventListeners() {
       row.classList.toggle('is-muted', !checkbox.checked);
       renderSelectionSummary();
       updateTransferButton();
+    });
+  }
+
+  if (dom.historyList) {
+    dom.historyList.addEventListener('click', event => {
+      const button = event.target.closest('button[data-action]');
+      if (!button) return;
+      const { action, url } = button.dataset;
+      if (!url) return;
+      if (action === 'open') {
+        chrome.tabs.create({ url });
+      } else if (action === 'check') {
+        triggerHistoryUpdate(url, button);
+      }
     });
   }
 
@@ -969,16 +1254,26 @@ function registerStorageListener() {
         applyTheme();
       }
     }
+    const historyChange = changes[HISTORY_KEY];
+    if (historyChange) {
+      state.historyRecords = prepareHistoryRecords(historyChange.newValue);
+      applyHistoryToCurrentPage();
+      renderHistoryCard();
+      renderItems();
+      renderSelectionSummary();
+    }
   });
 }
 
 async function init() {
   await loadSettings();
+  await loadHistory({ silent: true });
   applyTheme();
   renderPresets();
   renderPathPreview();
   renderStatus();
   renderItems();
+  renderHistoryCard();
   updateTransferButton();
   registerEventListeners();
   registerMessageListener();

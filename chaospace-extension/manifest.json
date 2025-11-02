@@ -9,6 +9,7 @@
   },
   "permissions": [
     "storage",
+    "unlimitedStorage",
     "scripting",
     "activeTab",
     "cookies",

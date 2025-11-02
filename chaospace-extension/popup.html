@@ -42,6 +42,7 @@
             <div class="popup-select-group">
               <button id="select-all" type="button">全选</button>
               <button id="select-invert" type="button">反选</button>
+              <button id="select-new" type="button">仅选新增</button>
             </div>
           </div>
           <div id="items-container" class="popup-items"></div>
@@ -62,6 +63,12 @@
               </label>
               <div id="path-preview" class="popup-path-preview"></div>
             </div>
+          </div>
+
+          <div class="popup-card popup-history-card" id="history-card">
+            <div class="popup-card-title">📚 转存历史</div>
+            <div id="history-empty" class="popup-history-empty">还没有转存记录</div>
+            <div id="history-list" class="popup-history-list"></div>
           </div>
 
           <div class="popup-card popup-status-card">

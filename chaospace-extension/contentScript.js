@@ -4,6 +4,8 @@
   const SIZE_KEY = 'chaospace-panel-size';
   const DEFAULT_PRESETS = ['/视频/番剧', '/视频/影视', '/视频/电影'];
   const MAX_LOG_ENTRIES = 80;
+  const HISTORY_KEY = 'chaospace-transfer-history';
+  const HISTORY_DISPLAY_LIMIT = 6;
 
   const state = {
     baseDir: '/',
@@ -14,6 +16,7 @@
     sortOrder: 'asc', // asc | desc
     selectedIds: new Set(),
     pageTitle: '',
+    pageUrl: '',
     poster: null,
     origin: '',
     jobId: null,
@@ -21,7 +24,11 @@
     transferStatus: 'idle', // idle | running | success | error
     lastResult: null,
     statusMessage: '准备就绪 ✨',
-    theme: 'dark'
+    theme: 'dark',
+    historyRecords: [],
+    currentHistory: null,
+    transferredIds: new Set(),
+    newItemIds: new Set()
   };
 
   const panelDom = {};
@@ -253,6 +260,36 @@
     }
   }
 
+  function normalizePageUrl(input) {
+    if (!input || typeof input !== 'string') {
+      return '';
+    }
+    try {
+      const url = new URL(input, window.location.href);
+      url.hash = '';
+      return url.toString();
+    } catch (_error) {
+      return input.split('#')[0];
+    }
+  }
+
+  function formatHistoryTimestamp(timestamp) {
+    if (!Number.isFinite(timestamp) || timestamp <= 0) {
+      return '';
+    }
+    try {
+      const formatter = new Intl.DateTimeFormat('zh-CN', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      return formatter.format(new Date(timestamp));
+    } catch (_error) {
+      return '';
+    }
+  }
+
   function formatOriginLabel(origin) {
     if (!origin) {
       return '';
@@ -409,6 +446,205 @@
       renderPresets();
     }
     showToast('info', '已移除路径', `${preset} 已从收藏中移除`);
+  }
+
+  function prepareHistoryRecords(raw) {
+    if (!raw || typeof raw !== 'object' || !Array.isArray(raw.records)) {
+      return [];
+    }
+    return raw.records
+      .map(record => {
+        const safe = record || {};
+        if (!safe.items || typeof safe.items !== 'object') {
+          safe.items = {};
+        }
+        return safe;
+      })
+      .sort((a, b) => {
+        const tsA = a.lastTransferredAt || a.lastCheckedAt || 0;
+        const tsB = b.lastTransferredAt || b.lastCheckedAt || 0;
+        return tsB - tsA;
+      });
+  }
+
+  function applyHistoryToCurrentPage() {
+    const normalizedUrl = normalizePageUrl(state.pageUrl || window.location.href);
+    state.transferredIds = new Set();
+    state.newItemIds = new Set();
+    state.currentHistory = null;
+
+    if (!normalizedUrl || !state.historyRecords.length) {
+      return;
+    }
+
+    const matched = state.historyRecords.find(record => normalizePageUrl(record.pageUrl) === normalizedUrl);
+    if (!matched) {
+      return;
+    }
+
+    state.currentHistory = matched;
+    const knownIds = new Set(Object.keys(matched.items || {}));
+    state.transferredIds = knownIds;
+    state.items.forEach(item => {
+      if (item && !knownIds.has(item.id)) {
+        state.newItemIds.add(item.id);
+      }
+    });
+  }
+
+  function renderHistoryCard() {
+    if (!panelDom.historyList || !panelDom.historyEmpty) {
+      return;
+    }
+
+    const entries = state.historyRecords.slice(0, HISTORY_DISPLAY_LIMIT);
+    panelDom.historyList.innerHTML = '';
+    const currentUrl = normalizePageUrl(state.pageUrl || window.location.href);
+
+    if (!entries.length) {
+      panelDom.historyEmpty.classList.remove('is-hidden');
+      return;
+    }
+
+    panelDom.historyEmpty.classList.add('is-hidden');
+
+    entries.forEach(record => {
+      const item = document.createElement('div');
+      item.className = 'chaospace-history-item';
+      const recordUrl = normalizePageUrl(record.pageUrl);
+      if (recordUrl === currentUrl) {
+        item.classList.add('is-current');
+      }
+
+      const main = document.createElement('div');
+      main.className = 'chaospace-history-main';
+
+      const title = document.createElement('div');
+      title.className = 'chaospace-history-title';
+      title.textContent = record.pageTitle || '未命名资源';
+      main.appendChild(title);
+
+      const meta = document.createElement('div');
+      meta.className = 'chaospace-history-meta';
+      const typeLabel = record.pageType === 'series'
+        ? '剧集'
+        : (record.pageType === 'movie' ? '电影' : '资源');
+      const timeLabel = formatHistoryTimestamp(record.lastTransferredAt || record.lastCheckedAt);
+      const total = record.totalTransferred || Object.keys(record.items || {}).length || 0;
+      const targetDir = record.targetDirectory || '';
+
+      const metaParts = [
+        typeLabel,
+        total ? `共 ${total} 项` : ''
+      ].filter(Boolean);
+      if (timeLabel) {
+        metaParts.push(`更新于 ${timeLabel}`);
+      }
+      if (targetDir) {
+        metaParts.push(targetDir);
+      }
+      meta.textContent = metaParts.join(' · ');
+      main.appendChild(meta);
+      item.appendChild(main);
+
+      const actions = document.createElement('div');
+      actions.className = 'chaospace-history-actions';
+
+      const openBtn = document.createElement('button');
+      openBtn.type = 'button';
+      openBtn.dataset.action = 'open';
+      openBtn.dataset.url = record.pageUrl;
+      openBtn.textContent = '打开页面';
+      actions.appendChild(openBtn);
+
+      if (record.pageType === 'series') {
+        const checkBtn = document.createElement('button');
+        checkBtn.type = 'button';
+        checkBtn.dataset.action = 'check';
+        checkBtn.dataset.url = record.pageUrl;
+        checkBtn.textContent = '检测更新';
+        actions.appendChild(checkBtn);
+      }
+
+      item.appendChild(actions);
+      panelDom.historyList.appendChild(item);
+    });
+  }
+
+  async function loadHistory(options = {}) {
+    const { silent = false } = options;
+    try {
+      const stored = await chrome.storage.local.get(HISTORY_KEY);
+      state.historyRecords = prepareHistoryRecords(stored[HISTORY_KEY]);
+    } catch (error) {
+      console.error('[Chaospace Transfer] Failed to load history', error);
+      state.historyRecords = [];
+    }
+
+    if (!silent) {
+      applyHistoryToCurrentPage();
+      renderHistoryCard();
+      if (floatingPanel) {
+        renderResourceList();
+      }
+    }
+  }
+
+  async function triggerHistoryUpdate(pageUrl, button) {
+    if (!pageUrl) {
+      return;
+    }
+    let previousText = '';
+    if (button) {
+      previousText = button.textContent;
+      button.disabled = true;
+      button.textContent = '检测中...';
+    }
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'chaospace:check-updates',
+        payload: { pageUrl }
+      });
+      if (!response || response.ok === false) {
+        throw new Error(response?.error || '检测失败');
+      }
+      if (!response.hasUpdates) {
+        showToast('info', '暂无更新', '没有检测到新的剧集');
+      } else {
+        const transferred = Array.isArray(response.results)
+          ? response.results.filter(item => item.status === 'success').length
+          : 0;
+        const skipped = Array.isArray(response.results)
+          ? response.results.filter(item => item.status === 'skipped').length
+          : 0;
+        const summary = response.summary || `新增 ${response.newItems} 项`;
+        showToast('success', '检测完成', `${summary}（成功 ${transferred} · 跳过 ${skipped}）`);
+      }
+      await loadHistory();
+      applyHistoryToCurrentPage();
+      renderHistoryCard();
+      if (floatingPanel) {
+        renderResourceList();
+      }
+    } catch (error) {
+      console.error('[Chaospace Transfer] Update check failed', error);
+      showToast('error', '检测失败', error.message || '无法检测更新');
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = previousText || '检测更新';
+      }
+    }
+  }
+
+  function selectNewItems() {
+    if (!state.newItemIds.size) {
+      showToast('info', '暂无新增', '没有检测到新的剧集');
+      return;
+    }
+    state.selectedIds = new Set(state.newItemIds);
+    renderResourceList();
+    showToast('success', '已选中新剧集', `共 ${state.newItemIds.size} 项`);
   }
 
   function applyPanelTheme() {
@@ -696,7 +932,11 @@
     }
     const total = state.items.length;
     const selected = state.selectedIds.size;
-    panelDom.resourceSummary.textContent = `🧾 已选 ${selected} / ${total}`;
+    const parts = [`🧾 已选 ${selected} / ${total}`];
+    if (state.newItemIds.size) {
+      parts.push(`新增 ${state.newItemIds.size}`);
+    }
+    panelDom.resourceSummary.textContent = parts.join(' · ');
     if (panelDom.resourceTitle) {
       panelDom.resourceTitle.textContent = `🔍 找到 ${total} 个百度网盘资源`;
     }
@@ -739,6 +979,26 @@
     const sortedItems = sortItems(state.items);
     sortedItems.forEach(item => {
       const isSelected = state.selectedIds.has(item.id);
+      const isTransferred = state.transferredIds.has(item.id);
+      const isNew = state.currentHistory && state.newItemIds.has(item.id);
+      const statusBadges = [];
+      if (isTransferred) {
+        statusBadges.push('<span class="chaospace-badge chaospace-badge-success">已转存</span>');
+      }
+      if (isNew) {
+        statusBadges.push('<span class="chaospace-badge chaospace-badge-new">新增</span>');
+      }
+      if (!isTransferred && !isNew && state.currentHistory) {
+        statusBadges.push('<span class="chaospace-badge chaospace-badge-pending">待转存</span>');
+      }
+      const detailBadges = [];
+      if (item.quality) {
+        detailBadges.push(`<span class="chaospace-badge">画质：${item.quality}</span>`);
+      }
+      if (item.subtitle) {
+        detailBadges.push(`<span class="chaospace-badge">字幕：${item.subtitle}</span>`);
+      }
+      const metaBadges = [...statusBadges, ...detailBadges].join('');
       const row = document.createElement('label');
       row.className = 'chaospace-item';
       row.dataset.id = item.id;
@@ -746,16 +1006,15 @@
         <input type="checkbox" class="chaospace-item-checkbox" ${isSelected ? 'checked' : ''} />
         <div class="chaospace-item-body">
           <div class="chaospace-item-title">🔗 ${item.title}</div>
-          <div class="chaospace-item-meta">
-            ${item.quality ? `<span class="chaospace-badge">画质：${item.quality}</span>` : ''}
-            ${item.subtitle ? `<span class="chaospace-badge">字幕：${item.subtitle}</span>` : ''}
-          </div>
+          <div class="chaospace-item-meta">${metaBadges}</div>
         </div>
       `;
       container.appendChild(row);
       requestAnimationFrame(() => {
         row.classList.add('is-visible');
         row.classList.toggle('is-muted', !isSelected);
+        row.classList.toggle('is-transferred', isTransferred);
+        row.classList.toggle('is-new', isNew);
       });
     });
 
@@ -903,7 +1162,13 @@
           total: selectedItems.length,
           baseDir: state.baseDir,
           useTitleSubdir: state.useTitleSubdir,
-          pageTitle: state.pageTitle
+          pageTitle: state.pageTitle,
+          pageUrl: state.pageUrl || normalizePageUrl(window.location.href),
+          pageType: state.items.length > 1 ? 'series' : 'movie',
+          targetDirectory,
+          poster: state.poster && state.poster.src
+            ? { src: state.poster.src, alt: state.poster.alt || '' }
+            : null
         }
       };
 
@@ -939,6 +1204,8 @@
 
       setStatus(failed === 0 ? 'success' : 'error', `${title}：${summary}`);
 
+      await loadHistory();
+
       showToast(
         failed === 0 ? 'success' : (success > 0 ? 'warning' : 'error'),
         `${emoji} ${title}`,
@@ -973,6 +1240,7 @@
 
     try {
       await loadSettings();
+      await loadHistory({ silent: true });
       applyPanelTheme();
 
       const data = collectLinks();
@@ -981,6 +1249,7 @@
       }
 
       state.pageTitle = data.title || '';
+       state.pageUrl = normalizePageUrl(data.url || window.location.href);
       state.poster = data.poster || null;
       state.origin = data.origin || window.location.origin;
       state.items = data.items.map((item, index) => ({
@@ -992,6 +1261,7 @@
       state.transferStatus = 'idle';
       state.statusMessage = '准备就绪 ✨';
       resetLogs();
+      applyHistoryToCurrentPage();
 
       const panel = document.createElement('div');
       panel.className = `chaospace-float-panel chaospace-theme${state.theme === 'light' ? ' theme-light' : ''}`;
@@ -1032,6 +1302,7 @@
                 <div class="chaospace-select-group">
                   <button type="button" data-action="select-all">全选</button>
                   <button type="button" data-action="select-invert">反选</button>
+                  <button type="button" data-action="select-new">仅选新增</button>
                 </div>
               </div>
               <div class="chaospace-items-scroll" data-role="items"></div>
@@ -1051,6 +1322,11 @@
                   </label>
                   <div class="chaospace-path-preview" data-role="path-preview"></div>
                 </div>
+              </div>
+              <div class="chaospace-card chaospace-history-card" data-role="history-card">
+                <div class="chaospace-card-title">📚 转存历史</div>
+                <div class="chaospace-history-empty" data-role="history-empty">还没有转存记录</div>
+                <div class="chaospace-history-list" data-role="history-list"></div>
               </div>
               <div class="chaospace-card chaospace-status-card">
                 <div class="chaospace-card-title chaospace-log-header">
@@ -1185,6 +1461,9 @@
       panelDom.itemsContainer = panel.querySelector('[data-role="items"]');
       panelDom.sortKeySelect = panel.querySelector('[data-role="sort-key"]');
       panelDom.sortOrderButton = panel.querySelector('[data-role="sort-order"]');
+      panelDom.historyCard = panel.querySelector('[data-role="history-card"]');
+      panelDom.historyList = panel.querySelector('[data-role="history-list"]');
+      panelDom.historyEmpty = panel.querySelector('[data-role="history-empty"]');
       panelDom.resourceSummary = panel.querySelector('[data-role="resource-summary"]');
       panelDom.resourceTitle = panel.querySelector('[data-role="resource-title"]');
       panelDom.transferBtn = panel.querySelector('[data-role="transfer-btn"]');
@@ -1288,6 +1567,27 @@
             setSelectionAll(true);
           } else if (action === 'select-invert') {
             invertSelection();
+          } else if (action === 'select-new') {
+            selectNewItems();
+          }
+        });
+      }
+
+      if (panelDom.historyList) {
+        panelDom.historyList.addEventListener('click', event => {
+          const actionButton = event.target.closest('button[data-action]');
+          if (!actionButton) {
+            return;
+          }
+          const url = actionButton.dataset.url;
+          const action = actionButton.dataset.action;
+          if (!url) {
+            return;
+          }
+          if (action === 'open') {
+            window.open(url, '_blank', 'noopener');
+          } else if (action === 'check') {
+            triggerHistoryUpdate(url, actionButton);
           }
         });
       }
@@ -1573,6 +1873,8 @@
 
       renderPresets();
       renderPathPreview();
+      applyHistoryToCurrentPage();
+      renderHistoryCard();
       renderResourceList();
       setStatus('idle', state.statusMessage);
       renderLogs();
@@ -1684,6 +1986,15 @@
       if ((nextTheme === 'light' || nextTheme === 'dark') && nextTheme !== state.theme) {
         state.theme = nextTheme;
         applyPanelTheme();
+      }
+    }
+    const historyChange = changes[HISTORY_KEY];
+    if (historyChange) {
+      state.historyRecords = prepareHistoryRecords(historyChange.newValue);
+      applyHistoryToCurrentPage();
+      renderHistoryCard();
+      if (floatingPanel) {
+        renderResourceList();
       }
     }
   });
