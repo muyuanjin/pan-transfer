@@ -3246,7 +3246,6 @@
       state.seasonLoadProgress = { total: 0, loaded: 0 };
       state.itemIdSet = new Set();
       state.seasonEntries = [];
-      state.historyGroups = [];
       state.historySeasonExpanded = new Set();
 
       const data = await collectLinks({
