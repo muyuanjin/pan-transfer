@@ -3438,6 +3438,13 @@
       `;
 
       document.body.appendChild(panel);
+      const handlePanelIntroEnd = (event) => {
+        if (event.animationName === 'chaospace-panel-in') {
+          panel.classList.add('is-mounted');
+          panel.removeEventListener('animationend', handlePanelIntroEnd);
+        }
+      };
+      panel.addEventListener('animationend', handlePanelIntroEnd);
       floatingPanel = panel;
       panelEdgeState = { isHidden: false, side: 'right', peek: EDGE_HIDE_DEFAULT_PEEK };
       pointerInsidePanel = false;
@@ -4092,6 +4099,7 @@
         if (isDragging) {
           isDragging = false;
           panel.style.transition = '';
+          panel.style.removeProperty('transform');
           if (header) header.style.cursor = 'move';
           safeStorageSet({
             [POSITION_KEY]: lastKnownPosition

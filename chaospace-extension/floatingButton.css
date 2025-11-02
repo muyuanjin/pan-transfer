@@ -97,6 +97,12 @@
   will-change: transform, opacity;
 }
 
+.chaospace-float-panel.is-mounted {
+  animation: none;
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
 .chaospace-float-panel:not(.is-edge-hidden):hover,
 .chaospace-float-panel.is-hovering {
   transform: translate3d(0, -6px, 0) scale(1.012);
