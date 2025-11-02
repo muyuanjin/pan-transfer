@@ -243,6 +243,24 @@ body.popup-theme.theme-light .popup-header:not(.has-poster) .popup-assistant-bad
   color: var(--pp-text-primary);
 }
 
+body.popup-theme.theme-light .popup-ghost-btn {
+  background: rgba(129, 140, 248, 0.16);
+  border-color: rgba(129, 140, 248, 0.32);
+  color: var(--pp-text-primary);
+  box-shadow: none;
+}
+
+body.popup-theme.theme-light .popup-ghost-btn:hover {
+  background: rgba(99, 102, 241, 0.22);
+  border-color: rgba(99, 102, 241, 0.42);
+  color: var(--pp-text-primary);
+}
+
+body.popup-theme.theme-light .popup-ghost-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.28);
+}
+
 .popup-header.has-poster .popup-ghost-btn {
   background: var(--pp-header-button-bg);
   border-color: var(--pp-header-button-border);
@@ -1008,10 +1026,29 @@ body.popup-theme.theme-light .popup-sort-label select option {
   transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
 
+body.popup-theme.theme-light .popup-transfer-button {
+  border-color: rgba(148, 163, 184, 0.36);
+  background: linear-gradient(135deg, rgba(247, 250, 255, 0.98) 0%, rgba(224, 231, 255, 0.94) 100%);
+  color: #1f2a61;
+  box-shadow: 0 16px 32px rgba(148, 163, 184, 0.42);
+  filter: none;
+}
+
 .popup-transfer-button:hover {
   transform: translateY(-1px);
   box-shadow: 0 22px 46px rgba(99, 102, 241, 0.4);
   filter: brightness(1.05);
+}
+
+body.popup-theme.theme-light .popup-transfer-button:hover {
+  background: linear-gradient(135deg, rgba(240, 247, 255, 0.98) 0%, rgba(210, 220, 255, 0.96) 100%);
+  box-shadow: 0 20px 40px rgba(148, 163, 184, 0.48);
+  filter: none;
+}
+
+body.popup-theme.theme-light .popup-transfer-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.26), 0 18px 38px rgba(148, 163, 184, 0.46);
 }
 
 .popup-transfer-button:disabled {
