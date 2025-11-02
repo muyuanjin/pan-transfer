@@ -1306,12 +1306,61 @@ function parsePageTitleFromHtml(html) {
   return extractCleanTitle(title);
 }
 
-function parseItemsFromHtml(html) {
+function extractSectionById(html, id) {
+  if (!html) {
+    return '';
+  }
+  const openPattern = new RegExp(`<div[^>]+id\\s*=\\s*['"]${id}['"][^>]*>`, 'i');
+  const match = openPattern.exec(html);
+  if (!match) {
+    return '';
+  }
+  const startIndex = match.index;
+  const searchStart = match.index + match[0].length;
+  const divPattern = /<div\b[^>]*>|<\/div>/gi;
+  divPattern.lastIndex = searchStart;
+  let depth = 1;
+  let resultEnd = html.length;
+  let token;
+  while ((token = divPattern.exec(html))) {
+    if (token.index < searchStart) {
+      continue;
+    }
+    if (token[0][1] === '/') {
+      depth -= 1;
+      if (depth === 0) {
+        resultEnd = divPattern.lastIndex;
+        break;
+      }
+    } else {
+      depth += 1;
+    }
+  }
+  return html.slice(startIndex, resultEnd);
+}
+
+function extractDownloadTableHtml(html) {
+  const section = extractSectionById(html, 'download');
+  if (!section) {
+    return '';
+  }
+  const tbodyMatches = section.match(/<tbody[\s\S]*?<\/tbody>/gi);
+  if (!tbodyMatches) {
+    return '';
+  }
+  return tbodyMatches.join('\n');
+}
+
+function parseItemsFromHtml(html, historyItems = {}) {
+  const sectionHtml = extractDownloadTableHtml(html);
+  if (!sectionHtml) {
+    return [];
+  }
   const items = [];
   const seenIds = new Set();
   const rowRegex = /<tr[^>]*id=["']link-(\d+)["'][\s\S]*?<\/tr>/gi;
   let match;
-  while ((match = rowRegex.exec(html))) {
+  while ((match = rowRegex.exec(sectionHtml))) {
     const id = match[1];
     if (!id || seenIds.has(id)) {
       continue;
@@ -1320,9 +1369,12 @@ function parseItemsFromHtml(html) {
     const anchorMatch = rowHtml.match(/<a[^>]+href=["'][^"']*\/links\/\d+\.html[^"']*["'][^>]*>([\s\S]*?)<\/a>/i);
     const rawTitle = anchorMatch ? stripHtmlTags(anchorMatch[1]) : '';
     const title = extractCleanTitle(rawTitle || '');
+    const historyItem = historyItems[id];
     items.push({
       id,
-      title: title || `资源 ${id}`
+      title: title || `资源 ${id}`,
+      linkUrl: historyItem?.linkUrl || '',
+      passCode: historyItem?.passCode || ''
     });
     seenIds.add(id);
   }
@@ -1335,30 +1387,21 @@ async function collectPageSnapshot(pageUrl) {
     throw new Error(`获取页面失败：${response.status}`);
   }
   const html = await response.text();
-  const items = parseItemsFromHtml(html);
-  const pageTitle = parsePageTitleFromHtml(html);
-  const pageType = items.length > 1 ? 'series' : 'movie';
 
   await ensureHistoryLoaded();
   const existing = historyIndexByUrl.get(pageUrl);
   const recordItems = existing?.record?.items || {};
 
-  const normalizedItems = items.map(item => {
-    const id = String(item.id);
-    const historyItem = recordItems[id];
-    return {
-      ...item,
-      linkUrl: historyItem?.linkUrl || '',
-      passCode: historyItem?.passCode || ''
-    };
-  });
+  const items = parseItemsFromHtml(html, recordItems);
+  const pageTitle = parsePageTitleFromHtml(html);
+  const pageType = items.length > 1 ? 'series' : 'movie';
 
   return {
     pageUrl,
     pageTitle,
     pageType,
-    total: normalizedItems.length,
-    items: normalizedItems
+    total: items.length,
+    items
   };
 }
 
@@ -1421,8 +1464,8 @@ async function handleCheckUpdatesRequest(payload = {}) {
       id: item.id,
       title: item.title,
       targetPath: targetDirectory,
-      linkUrl: item.linkUrl || record.items[String(item.id)]?.linkUrl || '',
-      passCode: item.passCode || record.items[String(item.id)]?.passCode || ''
+      linkUrl: item.linkUrl || '',
+      passCode: item.passCode || ''
     })),
     targetDirectory,
     meta
