@@ -435,12 +435,16 @@
   grid-template-columns: 1.1fr 1fr;
   gap: 18px;
   width: 100%;
+  align-items: stretch;
 }
 
 .chaospace-column {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-height: 0;
+  align-self: stretch;
+  height: 100%;
 }
 
 .chaospace-section-heading {
@@ -621,7 +625,7 @@
 .chaospace-items-scroll {
   flex: 1;
   min-height: 260px;
-  max-height: 360px;
+  max-height: none;
   border-radius: 18px;
   background: var(--cp-surface-soft);
   border: 1px solid var(--cp-border);
@@ -754,6 +758,11 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.chaospace-status-card {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .chaospace-history-toggle {
@@ -1304,7 +1313,9 @@
 
 .chaospace-log-container {
   position: relative;
-  max-height: 140px;
+  flex: 1 1 auto;
+  min-height: 140px;
+  max-height: none;
   overflow-y: auto;
   overflow-x: hidden;
   border-radius: 14px;
@@ -1334,7 +1345,7 @@
 }
 
 .chaospace-log-container.is-expanded {
-  max-height: 260px;
+  max-height: none;
 }
 
 .chaospace-log-container.is-empty {
