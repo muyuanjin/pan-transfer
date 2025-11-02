@@ -9,6 +9,10 @@
   const TV_SHOW_INITIAL_SEASON_BATCH = 2;
   const ALL_SEASON_TAB_ID = '__all__';
   const NO_SEASON_TAB_ID = '__no-season__';
+  const EDGE_HIDE_DELAY = 480;
+  const EDGE_HIDE_MIN_PEEK = 44;
+  const EDGE_HIDE_MAX_PEEK = 128;
+  const EDGE_HIDE_DEFAULT_PEEK = 64;
 
   const state = {
     baseDir: '/',
@@ -58,6 +62,10 @@
   let lastKnownSize = null;
   let detachWindowResize = null;
   let panelCreationInProgress = false;
+  let panelHideTimer = null;
+  let panelEdgeState = { isHidden: false, side: 'right', peek: EDGE_HIDE_DEFAULT_PEEK };
+  let pointerInsidePanel = false;
+  let isPanelPinned = false;
 
   function computeItemTargetPath(item, defaultPath) {
     if (!state.useSeasonSubdir || !item || !item.seasonId) {
@@ -1254,12 +1262,12 @@
       title: getPageCleanTitle(),
       poster: extractPosterDetails(),
       completion: null,
-    seasonCompletion: {},
-    deferredSeasons: [],
-    totalSeasons: 0,
-    loadedSeasons: 0,
-    seasonEntries: []
-  };
+      seasonCompletion: {},
+      deferredSeasons: [],
+      totalSeasons: 0,
+      loadedSeasons: 0,
+      seasonEntries: []
+    };
 
     try {
       let completion = null;
@@ -1267,12 +1275,14 @@
       let deferredSeasons = [];
       let totalSeasons = 0;
       let loadedSeasons = 0;
+      let seasonEntries = [];
+      let seasonData = null;
       let items = extractItemsFromDocument(document);
       if (isSeasonPage()) {
         completion = extractSeasonPageCompletion(document);
       }
       if (isTvShowPage()) {
-        const seasonData = await collectTvShowSeasonItems({
+        seasonData = await collectTvShowSeasonItems({
           defer: deferTvSeasons,
           initialBatchSize: initialSeasonBatchSize
         });
@@ -1299,6 +1309,9 @@
             completion = summarizeSeasonCompletion(statuses);
           }
         }
+        if (Array.isArray(seasonData.seasonEntries)) {
+          seasonEntries = seasonData.seasonEntries;
+        }
       }
       if (!completion && isSeasonPage()) {
         completion = extractSeasonPageCompletion(document);
@@ -1314,7 +1327,7 @@
         deferredSeasons,
         totalSeasons,
         loadedSeasons,
-        seasonEntries: Array.isArray(seasonData.seasonEntries) ? seasonData.seasonEntries : []
+        seasonEntries
       };
     } catch (error) {
       console.error('[Chaospace Transfer] Failed to collect links', error);
@@ -2507,6 +2520,21 @@
     }
   }
 
+  function updatePinButton() {
+    if (!panelDom.pinBtn) {
+      return;
+    }
+    const label = isPanelPinned ? '取消固定面板' : '固定面板';
+    panelDom.pinBtn.textContent = '📌';
+    panelDom.pinBtn.title = label;
+    panelDom.pinBtn.setAttribute('aria-label', label);
+    panelDom.pinBtn.setAttribute('aria-pressed', isPanelPinned ? 'true' : 'false');
+    panelDom.pinBtn.classList.toggle('is-active', isPanelPinned);
+    if (floatingPanel) {
+      floatingPanel.classList.toggle('is-pinned', isPanelPinned);
+    }
+  }
+
   function showToast(type, title, message, stats = null) {
     try {
       if (currentToast && currentToast.parentNode) {
@@ -3292,6 +3320,13 @@
       panel.innerHTML = `
         <div class="chaospace-float-header">
           <div class="chaospace-header-art is-empty" data-role="header-art"></div>
+          <button
+            type="button"
+            class="chaospace-float-pin"
+            data-role="pin-toggle"
+            title="固定面板"
+            aria-pressed="false"
+          >📌</button>
           <div class="chaospace-header-content">
             <div class="chaospace-header-body">
               <div class="chaospace-header-topline">
@@ -3438,6 +3473,13 @@
 
       document.body.appendChild(panel);
       floatingPanel = panel;
+      panelEdgeState = { isHidden: false, side: 'right', peek: EDGE_HIDE_DEFAULT_PEEK };
+      pointerInsidePanel = false;
+      isPanelPinned = false;
+      if (panelHideTimer) {
+        clearTimeout(panelHideTimer);
+        panelHideTimer = null;
+      }
 
       const clamp = (value, min, max) => {
         return Math.min(Math.max(value, min), max);
@@ -3446,6 +3488,24 @@
       const PANEL_MARGIN = 16;
       const PANEL_MIN_WIDTH = 360;
       const PANEL_MIN_HEIGHT = 380;
+      let lastKnownPosition = { left: PANEL_MARGIN, top: PANEL_MARGIN };
+
+      const computeEdgePeek = () => {
+        const width = panel.offsetWidth || PANEL_MIN_WIDTH;
+        const derived = Math.round(width * 0.18);
+        const normalized = Number.isFinite(derived) ? derived : EDGE_HIDE_DEFAULT_PEEK;
+        const viewportWidth = Math.max(window.innerWidth || 0, 0);
+        const baseMax = Math.max(16, viewportWidth - 8);
+        const dynamicMax = Math.max(16, Math.min(EDGE_HIDE_MAX_PEEK, baseMax));
+        const dynamicMin = Math.min(EDGE_HIDE_MIN_PEEK, dynamicMax);
+        return Math.max(dynamicMin, Math.min(dynamicMax, normalized));
+      };
+
+      const determineDockSide = () => {
+        const panelCenter = lastKnownPosition.left + panel.offsetWidth / 2;
+        const viewportCenter = window.innerWidth / 2;
+        return panelCenter < viewportCenter ? 'left' : 'right';
+      };
 
       const getPanelBounds = () => {
         const availableWidth = window.innerWidth - PANEL_MARGIN * 2;
@@ -3466,6 +3526,86 @@
         panel.classList.toggle('is-compact', width < 520);
       };
 
+      const applyEdgeHiddenPosition = () => {
+        if (!floatingPanel) {
+          return;
+        }
+        const shouldHide = panelEdgeState.isHidden && !isPanelPinned;
+        panel.classList.toggle('is-edge-left', panelEdgeState.side === 'left');
+        panel.classList.toggle('is-edge-right', panelEdgeState.side === 'right');
+        if (!shouldHide) {
+          panelEdgeState.isHidden = false;
+          panel.classList.remove('is-edge-hidden');
+          panel.style.left = `${lastKnownPosition.left}px`;
+          panel.style.top = `${lastKnownPosition.top}px`;
+          panel.style.right = 'auto';
+          panel.style.removeProperty('--chaospace-edge-peek');
+          return;
+        }
+
+        const peek = computeEdgePeek();
+        panelEdgeState.peek = peek;
+        panel.style.setProperty('--chaospace-edge-peek', `${peek}px`);
+
+        const panelHeight = panel.offsetHeight;
+        const maxTop = Math.max(PANEL_MARGIN, window.innerHeight - panelHeight - PANEL_MARGIN);
+        const safeTop = clamp(lastKnownPosition.top, PANEL_MARGIN, maxTop);
+        lastKnownPosition.top = safeTop;
+        panel.style.top = `${safeTop}px`;
+
+        let targetLeft;
+        if (panelEdgeState.side === 'left') {
+          targetLeft = -(panel.offsetWidth - peek);
+        } else {
+          targetLeft = window.innerWidth - peek;
+        }
+        panel.style.left = `${targetLeft}px`;
+        panel.style.right = 'auto';
+        panel.classList.add('is-edge-hidden');
+      };
+
+      const showPanelFromEdge = () => {
+        if (!panelEdgeState.isHidden) {
+          return;
+        }
+        panelEdgeState.isHidden = false;
+        applyEdgeHiddenPosition();
+      };
+
+      const hidePanelToEdge = () => {
+        if (!floatingPanel || isPanelPinned) {
+          return;
+        }
+        panelEdgeState.side = determineDockSide();
+        panelEdgeState.isHidden = true;
+        applyEdgeHiddenPosition();
+      };
+
+      const scheduleEdgeHide = (delay = EDGE_HIDE_DELAY) => {
+        if (!floatingPanel || isPanelPinned) {
+          return;
+        }
+        if (panelHideTimer) {
+          clearTimeout(panelHideTimer);
+        }
+        panelHideTimer = window.setTimeout(() => {
+          panelHideTimer = null;
+          if (!pointerInsidePanel && floatingPanel && !floatingPanel.matches(':focus-within')) {
+            hidePanelToEdge();
+          }
+        }, Math.max(0, delay));
+      };
+
+      const cancelEdgeHide = ({ show = false } = {}) => {
+        if (panelHideTimer) {
+          clearTimeout(panelHideTimer);
+          panelHideTimer = null;
+        }
+        if (show) {
+          showPanelFromEdge();
+        }
+      };
+
       const applyPanelSize = (width, height) => {
         const bounds = getPanelBounds();
         const nextWidth = clamp(width, bounds.minWidth, bounds.maxWidth);
@@ -3474,6 +3614,8 @@
         panel.style.height = `${nextHeight}px`;
         lastKnownSize = { width: nextWidth, height: nextHeight };
         syncPanelLayout();
+        panelEdgeState.side = determineDockSide();
+        applyEdgeHiddenPosition();
         return lastKnownSize;
       };
 
@@ -3488,14 +3630,14 @@
         const hasTop = Number.isFinite(top);
         const safeLeft = clamp(hasLeft ? left : fallbackLeft, PANEL_MARGIN, maxLeft);
         const safeTop = clamp(hasTop ? top : fallbackTop, PANEL_MARGIN, maxTop);
+        lastKnownPosition = { left: safeLeft, top: safeTop };
         panel.style.left = `${safeLeft}px`;
         panel.style.top = `${safeTop}px`;
         panel.style.right = 'auto';
-        panel.style.transform = 'none';
+        panelEdgeState.side = determineDockSide();
+        applyEdgeHiddenPosition();
         return { left: safeLeft, top: safeTop };
       };
-
-      let lastKnownPosition = { left: PANEL_MARGIN, top: PANEL_MARGIN };
 
       let savedState = {};
       try {
@@ -3538,6 +3680,7 @@
       panelDom.presetList = panel.querySelector('[data-role="preset-list"]');
       panelDom.addPresetButton = panel.querySelector('[data-role="add-preset"]');
       panelDom.themeToggle = panel.querySelector('[data-role="theme-toggle"]');
+      panelDom.pinBtn = panel.querySelector('[data-role="pin-toggle"]');
       panelDom.minimizeBtn = panel.querySelector('[data-role="minimize"]');
       panelDom.logContainer = panel.querySelector('[data-role="log-container"]');
       panelDom.logList = panel.querySelector('[data-role="log-list"]');
@@ -3559,6 +3702,20 @@
       panelDom.transferSpinner = panel.querySelector('[data-role="transfer-spinner"]');
       panelDom.resizeHandle = panel.querySelector('[data-role="resize-handle"]');
 
+      updatePinButton();
+
+      if (panelDom.pinBtn) {
+        panelDom.pinBtn.addEventListener('click', () => {
+          isPanelPinned = !isPanelPinned;
+          updatePinButton();
+          if (isPanelPinned) {
+            cancelEdgeHide({ show: true });
+          } else if (!pointerInsidePanel) {
+            scheduleEdgeHide();
+          }
+        });
+      }
+
       if (panelDom.headerPoster) {
         panelDom.headerPoster.addEventListener('click', () => {
           const src = panelDom.headerPoster.dataset.src;
@@ -3572,6 +3729,26 @@
       }
 
       updatePanelHeader();
+
+      panel.addEventListener('pointerenter', () => {
+        pointerInsidePanel = true;
+        cancelEdgeHide({ show: true });
+      });
+
+      panel.addEventListener('pointerleave', () => {
+        pointerInsidePanel = false;
+        scheduleEdgeHide();
+      });
+
+      panel.addEventListener('focusin', () => {
+        cancelEdgeHide({ show: true });
+      });
+
+      panel.addEventListener('focusout', (event) => {
+        if (!panel.contains(event.relatedTarget)) {
+          scheduleEdgeHide();
+        }
+      });
       applyPanelTheme();
       updateMinimizeButton();
 
@@ -3919,6 +4096,10 @@
             e.target.closest('.chaospace-theme-toggle')) {
           return;
         }
+        cancelEdgeHide({ show: true });
+        panelEdgeState.isHidden = false;
+        pointerInsidePanel = true;
+        applyEdgeHiddenPosition();
         isDragging = true;
         const rect = panel.getBoundingClientRect();
         initialX = e.clientX - rect.left;
@@ -3938,6 +4119,10 @@
         if (!panelDom.resizeHandle.contains(event.target)) {
           return;
         }
+        cancelEdgeHide({ show: true });
+        panelEdgeState.isHidden = false;
+        pointerInsidePanel = true;
+        applyEdgeHiddenPosition();
         event.preventDefault();
         event.stopPropagation();
         isResizing = true;
@@ -4066,6 +4251,10 @@
             [POSITION_KEY]: lastKnownPosition
           }, 'panel geometry');
           updateMinimizeButton();
+          cancelEdgeHide({ show: true });
+          if (!isPanelPinned) {
+            scheduleEdgeHide();
+          }
           if (panelDom.baseDirInput) {
             panelDom.baseDirInput.focus();
           }
@@ -4080,6 +4269,7 @@
         panelDom.minimizeBtn.addEventListener('click', () => {
           isMinimized = !isMinimized;
           if (isMinimized) {
+            panelEdgeState.isHidden = false;
             panel.classList.add('minimized');
             panel.style.removeProperty('width');
             panel.style.removeProperty('height');
@@ -4095,6 +4285,10 @@
               [POSITION_KEY]: lastKnownPosition
             }, 'panel geometry');
           }
+          cancelEdgeHide({ show: true });
+          if (!isPanelPinned && !pointerInsidePanel) {
+            scheduleEdgeHide();
+          }
           updateMinimizeButton();
         });
       }
@@ -4108,6 +4302,9 @@
       setStatus('idle', state.statusMessage);
       renderLogs();
       updateTransferButton();
+      if (!isPanelPinned) {
+        scheduleEdgeHide(EDGE_HIDE_DELAY);
+      }
       if (state.deferredSeasonInfos.length) {
         ensureDeferredSeasonLoading().catch(error => {
           console.error('[Chaospace Transfer] Failed to schedule deferred season loading:', error);
@@ -4130,6 +4327,10 @@
       closePosterPreview();
       floatingPanel.remove();
       floatingPanel = null;
+      if (panelHideTimer) {
+        clearTimeout(panelHideTimer);
+        panelHideTimer = null;
+      }
       state.deferredSeasonInfos = [];
       state.isSeasonLoading = false;
       state.seasonLoadProgress = { total: 0, loaded: 0 };
@@ -4140,6 +4341,9 @@
       document.body.style.userSelect = '';
       isMinimized = false;
       lastKnownSize = null;
+      panelEdgeState = { isHidden: false, side: 'right', peek: EDGE_HIDE_DEFAULT_PEEK };
+      pointerInsidePanel = false;
+      isPanelPinned = false;
       Object.keys(panelDom).forEach(key => {
         panelDom[key] = null;
       });
