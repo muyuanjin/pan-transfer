@@ -268,41 +268,52 @@
 
 .chaospace-theme-toggle,
 .chaospace-float-minimize {
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.3);
   color: #f8fafc;
   border-radius: 14px;
   padding: 6px 16px;
   font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
   cursor: pointer;
-  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
   white-space: nowrap;
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 18px rgba(8, 13, 24, 0.18);
 }
 
 .chaospace-float-minimize {
-  font-size: 13px;
-  padding: 10px 20px;
-  min-width: 88px;
+  font-size: 14px;
+  padding: 10px 22px;
+  min-width: 94px;
 }
 
 .chaospace-theme-toggle {
   font-size: 18px;
-  padding: 6px 10px;
+  padding: 8px 10px;
   line-height: 1;
-  width: 42px;
-  height: 42px;
+  width: 46px;
+  height: 46px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border-radius: 16px;
+  box-shadow: 0 10px 24px rgba(8, 13, 24, 0.22);
 }
 
 .chaospace-theme-toggle:hover,
 .chaospace-float-minimize:hover {
-  background: rgba(99, 102, 241, 0.42);
-  border-color: rgba(129, 140, 248, 0.65);
+  background: rgba(31, 41, 55, 0.44);
+  border-color: rgba(129, 140, 248, 0.28);
   color: #f8fafc;
   transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(30, 41, 59, 0.24);
 }
 
 .chaospace-theme-toggle:disabled,
@@ -314,17 +325,23 @@
 
 .chaospace-float-panel.theme-light .chaospace-theme-toggle,
 .chaospace-float-panel.theme-light .chaospace-float-minimize {
-  background: rgba(129, 140, 248, 0.2);
-  color: #1e293b;
-  border-color: rgba(129, 140, 248, 0.45);
-  box-shadow: none;
+  background: rgba(255, 255, 255, 0.32);
+  color: #1f2937;
+  border-color: rgba(148, 163, 184, 0.3);
+  box-shadow: 0 8px 18px rgba(148, 163, 184, 0.14);
 }
 
 .chaospace-float-panel.theme-light .chaospace-theme-toggle:hover,
 .chaospace-float-panel.theme-light .chaospace-float-minimize:hover {
-  background: rgba(99, 102, 241, 0.24);
-  border-color: rgba(99, 102, 241, 0.45);
-  color: #111827;
+  background: rgba(237, 242, 255, 0.5);
+  border-color: rgba(129, 140, 248, 0.3);
+  color: #0f172a;
+  box-shadow: 0 10px 20px rgba(129, 140, 248, 0.16);
+}
+
+.chaospace-float-panel.theme-light .chaospace-theme-toggle:active,
+.chaospace-float-panel.theme-light .chaospace-float-minimize:active {
+  box-shadow: 0 10px 20px rgba(148, 163, 184, 0.22);
 }
 
 .chaospace-float-panel.theme-light .chaospace-theme-toggle:focus-visible,
@@ -1249,15 +1266,22 @@
 
 .chaospace-path-line {
   margin-top: 6px;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 8px;
+  row-gap: 2px;
+  align-items: flex-start;
 }
 
 .chaospace-path-line-label {
-  display: block;
+  display: inline-block;
+  white-space: nowrap;
 }
 
 .chaospace-path-line-value {
   display: block;
-  margin-top: 2px;
+  margin-top: 0;
+  overflow-wrap: anywhere;
 }
 
 .chaospace-path-label {
@@ -1635,7 +1659,8 @@
 }
 
 .chaospace-mini-expand {
-  order: 2;
+  order: 3;
+  margin-left: 8px;
   width: 36px;
   height: 36px;
   padding: 0;
@@ -1663,7 +1688,7 @@
 }
 
 .chaospace-mini-save {
-  order: 3;
+  order: 2;
   height: 36px;
   padding: 0 18px;
   border-radius: 10px;
