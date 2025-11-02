@@ -40,7 +40,7 @@
     newItemIds: new Set(),
     historyExpanded: false,
     seasonDirMap: {},
-    seasonExampleDir: ''
+    seasonResolvedPaths: []
   };
 
   const panelDom = {};
@@ -67,6 +67,10 @@
       state.seasonDirMap[seasonId] = dirName;
       dedupeSeasonDirMap();
       dirName = state.seasonDirMap[seasonId];
+      if (state.useSeasonSubdir) {
+        updateSeasonExampleDir();
+        renderSeasonHint();
+      }
     }
     const safeDir = sanitizeSeasonDirSegment(dirName);
     if (!safeDir) {
@@ -115,22 +119,45 @@
 
   function updateSeasonExampleDir() {
     if (!state.useSeasonSubdir) {
-      state.seasonExampleDir = '';
+      state.seasonResolvedPaths = [];
       return;
     }
-    const seasonIds = Object.keys(state.seasonDirMap || {});
-    if (!seasonIds.length) {
-      state.seasonExampleDir = '';
-      return;
-    }
-    const firstId = seasonIds[0];
-    const dirName = sanitizeSeasonDirSegment(state.seasonDirMap[firstId]);
-    if (!dirName) {
-      state.seasonExampleDir = '';
-      return;
-    }
+
     const base = getTargetPath(state.baseDir, state.useTitleSubdir, state.pageTitle);
-    state.seasonExampleDir = base === '/' ? `/${dirName}` : `${base}/${dirName}`;
+    const resolved = [];
+    const seen = new Set();
+
+    (state.items || []).forEach(item => {
+      if (!item || !item.seasonId || seen.has(item.seasonId)) {
+        return;
+      }
+      const rawDir = state.seasonDirMap[item.seasonId];
+      const safeDir = sanitizeSeasonDirSegment(rawDir);
+      const path = safeDir ? (base === '/' ? `/${safeDir}` : `${base}/${safeDir}`) : base;
+      const label = item.seasonLabel || `第${Number.isFinite(item.seasonIndex) ? item.seasonIndex + 1 : 1}季`;
+      resolved.push({
+        id: item.seasonId,
+        label,
+        path
+      });
+      seen.add(item.seasonId);
+    });
+
+    Object.entries(state.seasonDirMap || {}).forEach(([seasonId, rawDir]) => {
+      if (seen.has(seasonId)) {
+        return;
+      }
+      const safeDir = sanitizeSeasonDirSegment(rawDir);
+      const path = safeDir ? (base === '/' ? `/${safeDir}` : `${base}/${safeDir}`) : base;
+      const label = safeDir || (typeof rawDir === 'string' && rawDir.trim()) || `季 ${seasonId}`;
+      resolved.push({
+        id: seasonId,
+        label,
+        path
+      });
+    });
+
+    state.seasonResolvedPaths = resolved;
   }
 
   function getAvailableSeasonIds() {
@@ -179,14 +206,38 @@
     if (!panelDom.seasonPathHint) {
       return;
     }
-    const showHint = state.useSeasonSubdir && state.seasonExampleDir;
-    if (showHint) {
-      panelDom.seasonPathHint.innerHTML = `<span class="chaospace-path-label">📂 示例：</span><span class="chaospace-path-value">${state.seasonExampleDir}</span>`;
-      panelDom.seasonPathHint.classList.remove('is-empty');
-    } else {
+    const entries = state.seasonResolvedPaths || [];
+    const showHint = state.useSeasonSubdir && entries.length;
+    if (!showHint) {
       panelDom.seasonPathHint.textContent = '';
       panelDom.seasonPathHint.classList.add('is-empty');
+      return;
     }
+
+    panelDom.seasonPathHint.classList.remove('is-empty');
+    panelDom.seasonPathHint.textContent = '';
+
+    const heading = document.createElement('div');
+    heading.className = 'chaospace-path-heading';
+    heading.textContent = '📂 实际转存路径';
+    panelDom.seasonPathHint.appendChild(heading);
+
+    entries.forEach(entry => {
+      const row = document.createElement('div');
+      row.className = 'chaospace-path-line';
+
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'chaospace-path-label chaospace-path-line-label';
+      labelSpan.textContent = String(entry.label || '未命名季');
+      row.appendChild(labelSpan);
+
+      const valueSpan = document.createElement('span');
+      valueSpan.className = 'chaospace-path-value chaospace-path-line-value';
+      valueSpan.textContent = String(entry.path || '/');
+      row.appendChild(valueSpan);
+
+      panelDom.seasonPathHint.appendChild(row);
+    });
   }
 
   function renderSeasonControls() {

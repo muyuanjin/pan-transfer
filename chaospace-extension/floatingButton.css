@@ -1220,6 +1220,24 @@
   display: none;
 }
 
+.chaospace-path-heading {
+  font-weight: 600;
+  color: var(--cp-text-secondary);
+}
+
+.chaospace-path-line {
+  margin-top: 6px;
+}
+
+.chaospace-path-line-label {
+  display: block;
+}
+
+.chaospace-path-line-value {
+  display: block;
+  margin-top: 2px;
+}
+
 .chaospace-path-label {
   color: var(--cp-text-muted);
   font-weight: 500;
