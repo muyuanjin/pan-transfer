@@ -6,12 +6,17 @@
   const MAX_LOG_ENTRIES = 80;
   const HISTORY_KEY = 'chaospace-transfer-history';
   const HISTORY_DISPLAY_LIMIT = 6;
+  const TV_SHOW_INITIAL_SEASON_BATCH = 2;
 
   const state = {
     baseDir: '/',
     useTitleSubdir: true,
     presets: [...DEFAULT_PRESETS],
     items: [],
+    itemIdSet: new Set(),
+    isSeasonLoading: false,
+    seasonLoadProgress: { total: 0, loaded: 0 },
+    deferredSeasonInfos: [],
     sortKey: 'page', // page | title
     sortOrder: 'asc', // asc | desc
     selectedIds: new Set(),
@@ -65,6 +70,104 @@
     title = title.replace(/\s+/g, ' ').trim();
 
     return title || '未命名资源';
+  }
+
+  let deferredSeasonLoaderRunning = false;
+
+  async function hydrateDeferredSeason(info) {
+    if (!info || !info.url) {
+      return;
+    }
+    let seasonItems = [];
+    let completion = info.completion || null;
+    try {
+      const doc = await fetchHtmlDocument(info.url);
+      seasonItems = extractItemsFromDocument(doc, { baseUrl: info.url });
+      const derivedCompletion =
+        extractSeasonPageCompletion(doc, 'season-detail') ||
+        info.completion ||
+        null;
+      if (derivedCompletion) {
+        completion = derivedCompletion;
+      }
+    } catch (error) {
+      console.error('[Chaospace Transfer] Failed to load deferred season page', info.url, error);
+    }
+
+    if (!floatingPanel) {
+      return;
+    }
+
+    const seasonCompletion = completion || info.completion || null;
+    if (seasonCompletion) {
+      state.seasonCompletion[info.seasonId] = seasonCompletion;
+    }
+
+    if (Array.isArray(seasonItems) && seasonItems.length) {
+      const normalizedItems = seasonItems.map((item, itemIndex) => ({
+        ...item,
+        order: info.index * 10000 + (typeof item.order === 'number' ? item.order : itemIndex),
+        seasonLabel: info.label,
+        seasonId: info.seasonId,
+        seasonUrl: info.url,
+        seasonCompletion: seasonCompletion
+      }));
+      const newItems = normalizedItems.filter(item => !state.itemIdSet.has(item.id));
+      if (newItems.length) {
+        newItems.forEach(item => {
+          state.itemIdSet.add(item.id);
+          state.items.push(item);
+          state.selectedIds.add(item.id);
+          if (state.currentHistory && !state.transferredIds.has(item.id)) {
+            state.newItemIds.add(item.id);
+          }
+        });
+      }
+    }
+
+    const completionEntries = Object.values(state.seasonCompletion || {}).filter(Boolean);
+    if (completionEntries.length) {
+      state.completion = summarizeSeasonCompletion(completionEntries);
+    }
+
+    state.seasonLoadProgress.loaded = Math.min(
+      state.seasonLoadProgress.loaded + 1,
+      state.seasonLoadProgress.total || state.seasonLoadProgress.loaded + 1
+    );
+
+    renderResourceList();
+  }
+
+  async function ensureDeferredSeasonLoading() {
+    if (deferredSeasonLoaderRunning) {
+      return;
+    }
+    if (!state.deferredSeasonInfos || !state.deferredSeasonInfos.length) {
+      state.isSeasonLoading = false;
+      return;
+    }
+    deferredSeasonLoaderRunning = true;
+    state.isSeasonLoading = true;
+    renderResourceList();
+    try {
+      while (state.deferredSeasonInfos.length && floatingPanel) {
+        const info = state.deferredSeasonInfos.shift();
+        if (!info) {
+          continue;
+        }
+        await hydrateDeferredSeason(info);
+      }
+    } catch (error) {
+      console.error('[Chaospace Transfer] Deferred season loader error:', error);
+    } finally {
+      deferredSeasonLoaderRunning = false;
+      if (!state.deferredSeasonInfos.length) {
+        state.isSeasonLoading = false;
+      }
+      renderResourceList();
+      updatePanelHeader();
+      updateTransferButton();
+    }
   }
 
   // 从页面标题提取剧集名称
@@ -494,13 +597,20 @@
     return parser.parseFromString(html, 'text/html');
   }
 
-  async function collectTvShowSeasonItems() {
+  async function collectTvShowSeasonItems(options = {}) {
+    const {
+      defer = false,
+      initialBatchSize = TV_SHOW_INITIAL_SEASON_BATCH
+    } = options || {};
     const seasonBlocks = Array.from(document.querySelectorAll('#seasons .se-c'));
     if (!seasonBlocks.length) {
       return {
         items: [],
         seasonCompletion: {},
-        completion: null
+        completion: null,
+        deferredSeasons: [],
+        totalSeasons: 0,
+        loadedSeasons: 0
       };
     }
 
@@ -527,7 +637,10 @@
       return {
         items: [],
         seasonCompletion: {},
-        completion: null
+        completion: null,
+        deferredSeasons: [],
+        totalSeasons: 0,
+        loadedSeasons: 0
       };
     }
 
@@ -535,22 +648,42 @@
     const seen = new Set();
     const seasonCompletionMap = new Map();
 
-    const seasonResults = await Promise.all(
-      seasonInfos.map(async info => {
-        try {
-          const doc = await fetchHtmlDocument(info.url);
-          const seasonItems = extractItemsFromDocument(doc, { baseUrl: info.url });
-          const completion =
-            extractSeasonPageCompletion(doc, 'season-detail') ||
-            info.completion ||
-            null;
-          return { info, seasonItems, completion };
-        } catch (error) {
-          console.error('[Chaospace Transfer] Failed to load season page', info.url, error);
-          return { info, seasonItems: [], completion: info.completion || null };
-        }
-      })
-    );
+    seasonInfos.forEach(info => {
+      if (info.completion) {
+        seasonCompletionMap.set(info.seasonId, info.completion);
+      }
+    });
+
+    const effectiveBatchSize = defer
+      ? Math.max(
+        0,
+        Math.min(
+          Number.isFinite(initialBatchSize) ? Math.trunc(initialBatchSize) : 2,
+          seasonInfos.length
+        )
+      )
+      : seasonInfos.length;
+    const immediateInfos = seasonInfos.slice(0, effectiveBatchSize);
+    const deferredInfos = defer ? seasonInfos.slice(effectiveBatchSize) : [];
+
+    const seasonResults = immediateInfos.length
+      ? await Promise.all(
+        immediateInfos.map(async info => {
+          try {
+            const doc = await fetchHtmlDocument(info.url);
+            const seasonItems = extractItemsFromDocument(doc, { baseUrl: info.url });
+            const completion =
+              extractSeasonPageCompletion(doc, 'season-detail') ||
+              info.completion ||
+              null;
+            return { info, seasonItems, completion };
+          } catch (error) {
+            console.error('[Chaospace Transfer] Failed to load season page', info.url, error);
+            return { info, seasonItems: [], completion: info.completion || null };
+          }
+        })
+      )
+      : [];
 
     seasonResults.forEach(({ info, seasonItems, completion }) => {
       if (completion) {
@@ -589,11 +722,18 @@
     return {
       items: aggregated,
       seasonCompletion,
-      completion: completionSummary
+      completion: completionSummary,
+      deferredSeasons: defer ? deferredInfos : [],
+      totalSeasons: seasonInfos.length,
+      loadedSeasons: seasonInfos.length - deferredInfos.length
     };
   }
 
-  async function collectLinks() {
+  async function collectLinks(options = {}) {
+    const {
+      deferTvSeasons = false,
+      initialSeasonBatchSize = TV_SHOW_INITIAL_SEASON_BATCH
+    } = options || {};
     const baseResult = {
       items: [],
       url: window.location.href || '',
@@ -601,23 +741,41 @@
       title: getPageCleanTitle(),
       poster: extractPosterDetails(),
       completion: null,
-      seasonCompletion: {}
+      seasonCompletion: {},
+      deferredSeasons: [],
+      totalSeasons: 0,
+      loadedSeasons: 0
     };
 
     try {
       let completion = null;
       let seasonCompletion = {};
+      let deferredSeasons = [];
+      let totalSeasons = 0;
+      let loadedSeasons = 0;
       let items = extractItemsFromDocument(document);
       if (isSeasonPage()) {
         completion = extractSeasonPageCompletion(document);
       }
       if (isTvShowPage()) {
-        const seasonData = await collectTvShowSeasonItems();
+        const seasonData = await collectTvShowSeasonItems({
+          defer: deferTvSeasons,
+          initialBatchSize: initialSeasonBatchSize
+        });
         if (seasonData.items && seasonData.items.length > 0) {
           items = seasonData.items;
         }
         if (seasonData.seasonCompletion) {
           seasonCompletion = seasonData.seasonCompletion;
+        }
+        if (Array.isArray(seasonData.deferredSeasons)) {
+          deferredSeasons = seasonData.deferredSeasons;
+        }
+        if (Number.isFinite(seasonData.totalSeasons)) {
+          totalSeasons = seasonData.totalSeasons;
+        }
+        if (Number.isFinite(seasonData.loadedSeasons)) {
+          loadedSeasons = seasonData.loadedSeasons;
         }
         if (seasonData.completion) {
           completion = seasonData.completion;
@@ -638,7 +796,10 @@
         ...baseResult,
         items,
         completion,
-        seasonCompletion
+        seasonCompletion,
+        deferredSeasons,
+        totalSeasons,
+        loadedSeasons
       };
     } catch (error) {
       console.error('[Chaospace Transfer] Failed to collect links', error);
@@ -1588,6 +1749,9 @@
     if (seasonIds.size > 1) {
       parts.push(`涵盖 ${seasonIds.size} 季`);
     }
+    if (state.isSeasonLoading && state.seasonLoadProgress.total > 0) {
+      parts.push(`⏳ 加载 ${state.seasonLoadProgress.loaded}/${state.seasonLoadProgress.total}`);
+    }
     if (state.completion && state.completion.label) {
       const stateEmoji = state.completion.state === 'completed'
         ? '✅'
@@ -1626,7 +1790,13 @@
     if (!state.items.length) {
       const empty = document.createElement('div');
       empty.className = 'chaospace-empty';
-      empty.textContent = '😅 没有解析到百度网盘资源';
+      if (state.isSeasonLoading) {
+        const { loaded, total } = state.seasonLoadProgress;
+        const progress = total > 0 ? ` (${loaded}/${total})` : '';
+        empty.textContent = `⏳ 正在加载多季资源${progress}...`;
+      } else {
+        empty.textContent = '😅 没有解析到百度网盘资源';
+      }
       container.appendChild(empty);
       renderResourceSummary();
       updateTransferButton();
@@ -1914,8 +2084,18 @@
       await loadHistory({ silent: true });
       applyPanelTheme();
 
-      const data = await collectLinks();
-      if (!data.items || data.items.length === 0) {
+      state.deferredSeasonInfos = [];
+      state.isSeasonLoading = false;
+      state.seasonLoadProgress = { total: 0, loaded: 0 };
+      state.itemIdSet = new Set();
+
+      const data = await collectLinks({
+        deferTvSeasons: true,
+        initialSeasonBatchSize: TV_SHOW_INITIAL_SEASON_BATCH
+      });
+      const hasItems = Array.isArray(data.items) && data.items.length > 0;
+      const deferredSeasons = Array.isArray(data.deferredSeasons) ? [...data.deferredSeasons] : [];
+      if (!hasItems && deferredSeasons.length === 0) {
         return;
       }
 
@@ -1925,13 +2105,33 @@
       state.origin = data.origin || window.location.origin;
       state.completion = data.completion || null;
       state.seasonCompletion = (data.seasonCompletion && typeof data.seasonCompletion === 'object')
-        ? data.seasonCompletion
+        ? { ...data.seasonCompletion }
         : {};
-      state.items = data.items.map((item, index) => ({
+      state.items = (Array.isArray(data.items) ? data.items : []).map((item, index) => ({
         ...item,
         order: typeof item.order === 'number' ? item.order : index
       }));
+      state.itemIdSet = new Set(state.items.map(item => item.id));
       state.selectedIds = new Set(state.items.map(item => item.id));
+      state.deferredSeasonInfos = deferredSeasons;
+      const declaredTotal = Number.isFinite(data.totalSeasons) ? Math.max(0, data.totalSeasons) : 0;
+      const declaredLoaded = Number.isFinite(data.loadedSeasons) ? Math.max(0, data.loadedSeasons) : 0;
+      let totalSeasons = declaredTotal;
+      if (!totalSeasons && (declaredLoaded || deferredSeasons.length)) {
+        totalSeasons = declaredLoaded + deferredSeasons.length;
+      }
+      let loadedSeasons = declaredLoaded;
+      if (!loadedSeasons && totalSeasons) {
+        loadedSeasons = Math.max(0, totalSeasons - deferredSeasons.length);
+      }
+      if (loadedSeasons > totalSeasons) {
+        loadedSeasons = totalSeasons;
+      }
+      state.seasonLoadProgress = {
+        total: totalSeasons,
+        loaded: loadedSeasons
+      };
+      state.isSeasonLoading = state.deferredSeasonInfos.length > 0;
       state.lastResult = null;
       state.transferStatus = 'idle';
       state.statusMessage = '准备就绪 ✨';
@@ -2654,6 +2854,11 @@
       setStatus('idle', state.statusMessage);
       renderLogs();
       updateTransferButton();
+      if (state.deferredSeasonInfos.length) {
+        ensureDeferredSeasonLoading().catch(error => {
+          console.error('[Chaospace Transfer] Failed to schedule deferred season loading:', error);
+        });
+      }
     } catch (error) {
       console.error('[Chaospace Transfer] Failed to create floating panel:', error);
       showToast('error', '创建面板失败', error.message);
@@ -2670,6 +2875,10 @@
       }
       floatingPanel.remove();
       floatingPanel = null;
+      state.deferredSeasonInfos = [];
+      state.isSeasonLoading = false;
+      state.seasonLoadProgress = { total: 0, loaded: 0 };
+      deferredSeasonLoaderRunning = false;
       document.body.style.userSelect = '';
       isMinimized = false;
       lastKnownSize = null;
