@@ -179,6 +179,153 @@ function nowTs() {
   return Date.now();
 }
 
+function isDateLikeLabel(text) {
+  if (!text) {
+    return false;
+  }
+  const normalized = text.trim();
+  if (!normalized) {
+    return false;
+  }
+  if (/^\d{4}([\-\/年\.]|$)/.test(normalized)) {
+    return true;
+  }
+  if (/^\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4}$/.test(normalized)) {
+    return true;
+  }
+  return false;
+}
+
+function classifyCompletionState(label) {
+  const text = (label || '').trim();
+  if (!text) {
+    return 'unknown';
+  }
+  if (/(完结|收官|全集|全\d+[集话]|已完)/.test(text)) {
+    return 'completed';
+  }
+  if (/(更新|连载|播出中|热播|第.+[集话]|未完结)/.test(text)) {
+    return 'ongoing';
+  }
+  if (/(未播|敬请期待|即将|待定|预定|未上映)/.test(text)) {
+    return 'upcoming';
+  }
+  return 'unknown';
+}
+
+function createCompletionStatus(label, source = '') {
+  const text = (label || '').trim();
+  if (!text) {
+    return null;
+  }
+  const status = {
+    label: text,
+    state: classifyCompletionState(text)
+  };
+  if (source) {
+    status.source = source;
+  }
+  return status;
+}
+
+function normalizeHistoryCompletion(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+  const label = typeof entry.label === 'string' ? entry.label.trim() : '';
+  const state = typeof entry.state === 'string' && entry.state ? entry.state : classifyCompletionState(label);
+  const normalized = {
+    label,
+    state: state || 'unknown'
+  };
+  if (entry.source && typeof entry.source === 'string' && entry.source.trim()) {
+    normalized.source = entry.source.trim();
+  }
+  if (typeof entry.updatedAt === 'number' && Number.isFinite(entry.updatedAt)) {
+    normalized.updatedAt = entry.updatedAt;
+  }
+  return normalized;
+}
+
+function mergeCompletionStatus(existing, incoming, timestamp, sourceHint = '') {
+  const normalizedIncoming = normalizeHistoryCompletion(incoming);
+  if (!normalizedIncoming) {
+    return existing || null;
+  }
+  const next = { ...normalizedIncoming };
+  if (sourceHint && !next.source) {
+    next.source = sourceHint;
+  }
+  if (existing) {
+    if (!next.label && existing.label) {
+      next.label = existing.label;
+    }
+    if ((!next.state || next.state === 'unknown') && existing.state) {
+      next.state = existing.state;
+    }
+    if (!next.updatedAt && existing.updatedAt) {
+      next.updatedAt = existing.updatedAt;
+    }
+    if (!next.source && existing.source) {
+      next.source = existing.source;
+    }
+  }
+  if (timestamp && Number.isFinite(timestamp)) {
+    next.updatedAt = timestamp;
+  }
+  return next;
+}
+
+function normalizeSeasonCompletionMap(value) {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+  const result = {};
+  Object.entries(value).forEach(([key, entry]) => {
+    const normalized = normalizeHistoryCompletion(entry);
+    if (normalized) {
+      result[key] = normalized;
+    }
+  });
+  return result;
+}
+
+function mergeSeasonCompletionMap(current, updates, timestamp, sourceHint = '') {
+  const target = current && typeof current === 'object' ? current : {};
+  if (!updates || typeof updates !== 'object') {
+    return target;
+  }
+  Object.entries(updates).forEach(([key, entry]) => {
+    const merged = mergeCompletionStatus(target[key], entry, timestamp, sourceHint);
+    if (merged) {
+      target[key] = merged;
+    }
+  });
+  return target;
+}
+
+function summarizeSeasonCompletion(statuses = []) {
+  const valid = statuses.filter(Boolean);
+  if (!valid.length) {
+    return null;
+  }
+  const states = valid.map(status => status.state || 'unknown');
+  if (states.every(state => state === 'completed')) {
+    return { label: '已完结', state: 'completed' };
+  }
+  if (states.some(state => state === 'ongoing')) {
+    return { label: '连载中', state: 'ongoing' };
+  }
+  if (states.some(state => state === 'upcoming')) {
+    return { label: '未开播', state: 'upcoming' };
+  }
+  const fallback = valid.find(status => status.label) || valid[0];
+  return {
+    label: fallback.label || '未知状态',
+    state: fallback.state || 'unknown'
+  };
+}
+
 function createDefaultCacheState() {
   return {
     version: CACHE_VERSION,
@@ -283,7 +430,7 @@ async function ensureHistoryLoaded() {
             if (!Array.isArray(safeRecord.itemOrder)) {
               safeRecord.itemOrder = Object.keys(safeRecord.items);
             }
-            return safeRecord;
+            return ensureHistoryRecordStructure(safeRecord);
           })
         };
       } else {
@@ -1231,6 +1378,8 @@ function ensureHistoryRecordStructure(record) {
   if (!Array.isArray(record.itemOrder)) {
     record.itemOrder = Object.keys(record.items);
   }
+  record.completion = normalizeHistoryCompletion(record.completion);
+  record.seasonCompletion = normalizeSeasonCompletionMap(record.seasonCompletion);
   return record;
 }
 
@@ -1254,6 +1403,8 @@ function upsertHistoryRecord(pageUrl) {
     lastTransferredAt: 0,
     lastCheckedAt: 0,
     totalTransferred: 0,
+    completion: null,
+    seasonCompletion: {},
     items: {},
     itemOrder: [],
     lastResult: null
@@ -1328,6 +1479,12 @@ async function recordTransferHistory(payload, outcome) {
   record.baseDir = normalizeHistoryPath(meta.baseDir || record.baseDir || record.targetDirectory, record.baseDir || '/');
   record.useTitleSubdir = typeof meta.useTitleSubdir === 'boolean' ? meta.useTitleSubdir : Boolean(record.useTitleSubdir);
   record.lastCheckedAt = timestamp;
+  if (meta.completion) {
+    record.completion = mergeCompletionStatus(record.completion, meta.completion, timestamp, meta.completion.source || 'transfer-meta');
+  }
+  if (meta.seasonCompletion && typeof meta.seasonCompletion === 'object') {
+    record.seasonCompletion = mergeSeasonCompletionMap(record.seasonCompletion, meta.seasonCompletion, timestamp, 'transfer-meta');
+  }
 
   const results = Array.isArray(outcome?.results) ? outcome.results : [];
   let successCount = 0;
@@ -1472,6 +1629,101 @@ function extractDownloadTableHtml(html) {
   return tbodyMatches.join('\n');
 }
 
+function isSeasonUrl(url) {
+  return typeof url === 'string' && /\/seasons\/\d+\.html/.test(url);
+}
+
+function isTvShowUrl(url) {
+  return typeof url === 'string' && /\/tvshows\/\d+\.html/.test(url);
+}
+
+function parseCompletionFromHtml(html, source = 'season-meta') {
+  if (!html || typeof html !== 'string') {
+    return null;
+  }
+  const extraMatch = html.match(/<div[^>]*class=['"]extra['"][^>]*>([\s\S]*?)<\/div>/i);
+  if (!extraMatch) {
+    return null;
+  }
+  const spanRegex = /<span[^>]*class=['"]date['"][^>]*>([\s\S]*?)<\/span>/gi;
+  const spans = [];
+  let spanMatch;
+  while ((spanMatch = spanRegex.exec(extraMatch[1]))) {
+    spans.push(spanMatch[1]);
+  }
+  for (let i = spans.length - 1; i >= 0; i -= 1) {
+    const text = stripHtmlTags(spans[i]);
+    if (!text || isDateLikeLabel(text)) {
+      continue;
+    }
+    const completion = createCompletionStatus(text, source);
+    if (completion) {
+      return completion;
+    }
+  }
+  return null;
+}
+
+function parseTvShowSeasonCompletionFromHtml(html) {
+  const map = {};
+  if (!html || typeof html !== 'string') {
+    return map;
+  }
+  const seasonsSection = extractSectionById(html, 'seasons');
+  if (!seasonsSection) {
+    return map;
+  }
+  const seasonRegex = /<div[^>]*class=['"]se-c['"][^>]*>[\s\S]*?<div[^>]*class=['"]se-q['"][^>]*>[\s\S]*?<a[^>]+href=['"]([^'"]+)['"][^>]*>[\s\S]*?<span[^>]*class=['"]title['"][^>]*>([\s\S]*?)<\/span>[\s\S]*?<\/a>[\s\S]*?<\/div>/gi;
+  let match;
+  while ((match = seasonRegex.exec(seasonsSection))) {
+    const href = match[1];
+    const titleHtml = match[2];
+    if (!href || !titleHtml) {
+      continue;
+    }
+    const idMatch = href.match(/\/seasons\/(\d+)\.html/);
+    if (!idMatch) {
+      continue;
+    }
+    const seasonId = idMatch[1];
+    const inlineTexts = [];
+    const inlineRegex = /<i[^>]*>([\s\S]*?)<\/i>/gi;
+    let inlineMatch;
+    while ((inlineMatch = inlineRegex.exec(titleHtml))) {
+      const text = stripHtmlTags(inlineMatch[1]);
+      if (text) {
+        inlineTexts.push(text);
+      }
+    }
+    let statusLabel = null;
+    for (let i = inlineTexts.length - 1; i >= 0; i -= 1) {
+      const text = inlineTexts[i];
+      if (text && !isDateLikeLabel(text)) {
+        statusLabel = text;
+        break;
+      }
+    }
+    if (!statusLabel) {
+      const textContent = stripHtmlTags(titleHtml);
+      const parts = textContent.split(/\s+/).filter(Boolean);
+      for (let i = parts.length - 1; i >= 0; i -= 1) {
+        const part = parts[i];
+        if (part && !isDateLikeLabel(part)) {
+          statusLabel = part;
+          break;
+        }
+      }
+    }
+    if (statusLabel) {
+      const completion = createCompletionStatus(statusLabel, 'season-list');
+      if (completion) {
+        map[seasonId] = completion;
+      }
+    }
+  }
+  return map;
+}
+
 function parseItemsFromHtml(html, historyItems = {}) {
   const sectionHtml = extractDownloadTableHtml(html);
   if (!sectionHtml) {
@@ -1516,13 +1768,33 @@ async function collectPageSnapshot(pageUrl) {
   const items = parseItemsFromHtml(html, recordItems);
   const pageTitle = parsePageTitleFromHtml(html);
   const pageType = items.length > 1 ? 'series' : 'movie';
+  const seasonCompletion = isTvShowUrl(pageUrl) ? parseTvShowSeasonCompletionFromHtml(html) : {};
+  let completion = null;
+  if (isSeasonUrl(pageUrl)) {
+    completion = parseCompletionFromHtml(html, 'season-meta');
+    if (completion) {
+      const seasonIdMatch = pageUrl.match(/\/seasons\/(\d+)\.html/);
+      if (seasonIdMatch) {
+        seasonCompletion[seasonIdMatch[1]] = completion;
+      }
+    }
+  } else if (isTvShowUrl(pageUrl)) {
+    completion = summarizeSeasonCompletion(Object.values(seasonCompletion));
+  } else {
+    completion = parseCompletionFromHtml(html, 'detail-meta');
+  }
+  if (!completion && Object.keys(seasonCompletion).length) {
+    completion = summarizeSeasonCompletion(Object.values(seasonCompletion));
+  }
 
   return {
     pageUrl,
     pageTitle,
     pageType,
     total: items.length,
-    items
+    items,
+    completion,
+    seasonCompletion
   };
 }
 
@@ -1539,10 +1811,29 @@ async function handleCheckUpdatesRequest(payload = {}) {
   const record = ensureHistoryRecordStructure(entry.record);
   const snapshot = await collectPageSnapshot(pageUrl);
   const knownIds = new Set(Object.keys(record.items || {}));
+  const timestamp = nowTs();
+
+  if (snapshot.completion) {
+    record.completion = mergeCompletionStatus(
+      record.completion,
+      snapshot.completion,
+      timestamp,
+      snapshot.completion.source || 'snapshot'
+    );
+  }
+  if (snapshot.seasonCompletion && typeof snapshot.seasonCompletion === 'object') {
+    record.seasonCompletion = mergeSeasonCompletionMap(
+      record.seasonCompletion,
+      snapshot.seasonCompletion,
+      timestamp,
+      'snapshot'
+    );
+  }
+
   const newItems = snapshot.items.filter(item => !knownIds.has(String(item.id)));
 
-  if (!newItems.length) {
-    record.lastCheckedAt = nowTs();
+  if (record.completion && record.completion.state === 'completed') {
+    record.lastCheckedAt = timestamp;
     await persistHistoryNow();
     return {
       ok: true,
@@ -1550,7 +1841,23 @@ async function handleCheckUpdatesRequest(payload = {}) {
       pageUrl,
       pageTitle: snapshot.pageTitle || record.pageTitle || '',
       totalKnown: knownIds.size,
-      latestCount: snapshot.items.length
+      latestCount: snapshot.items.length,
+      reason: 'completed',
+      completion: record.completion
+    };
+  }
+
+  if (!newItems.length) {
+    record.lastCheckedAt = timestamp;
+    await persistHistoryNow();
+    return {
+      ok: true,
+      hasUpdates: false,
+      pageUrl,
+      pageTitle: snapshot.pageTitle || record.pageTitle || '',
+      totalKnown: knownIds.size,
+      latestCount: snapshot.items.length,
+      completion: record.completion
     };
   }
 
@@ -1573,6 +1880,8 @@ async function handleCheckUpdatesRequest(payload = {}) {
     pageUrl,
     pageType: record.pageType || snapshot.pageType || 'series',
     targetDirectory,
+    completion: snapshot.completion || record.completion || null,
+    seasonCompletion: snapshot.seasonCompletion || record.seasonCompletion || {},
     poster: record.poster || null,
     trigger: 'history-update',
     total: newItems.length
@@ -1602,7 +1911,8 @@ async function handleCheckUpdatesRequest(payload = {}) {
     newItems: newItems.length,
     summary: transferResult.summary,
     results: transferResult.results || [],
-    jobId: transferResult.jobId
+    jobId: transferResult.jobId,
+    completion: record.completion
   };
 }
 

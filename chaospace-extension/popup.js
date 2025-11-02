@@ -59,6 +59,8 @@ const state = {
   jobId: null,
   lastResult: null,
   theme: 'dark',
+  completion: null,
+  seasonCompletion: {},
   historyRecords: [],
   currentHistory: null,
   transferredIds: new Set(),
@@ -252,6 +254,39 @@ function normalizePageUrl(input) {
   }
 }
 
+function normalizeHistoryCompletion(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+  const label = typeof entry.label === 'string' ? entry.label.trim() : '';
+  const state = typeof entry.state === 'string' ? entry.state : 'unknown';
+  const normalized = {
+    label,
+    state
+  };
+  if (entry.source && typeof entry.source === 'string') {
+    normalized.source = entry.source;
+  }
+  if (typeof entry.updatedAt === 'number' && Number.isFinite(entry.updatedAt)) {
+    normalized.updatedAt = entry.updatedAt;
+  }
+  return normalized;
+}
+
+function normalizeSeasonCompletionMap(value) {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+  const result = {};
+  Object.entries(value).forEach(([key, entry]) => {
+    const normalized = normalizeHistoryCompletion(entry);
+    if (normalized) {
+      result[key] = normalized;
+    }
+  });
+  return result;
+}
+
 function prepareHistoryRecords(raw) {
   if (!raw || typeof raw !== 'object' || !Array.isArray(raw.records)) {
     return [];
@@ -262,6 +297,8 @@ function prepareHistoryRecords(raw) {
       if (!safe.items || typeof safe.items !== 'object') {
         safe.items = {};
       }
+      safe.completion = normalizeHistoryCompletion(safe.completion);
+      safe.seasonCompletion = normalizeSeasonCompletionMap(safe.seasonCompletion);
       return safe;
     })
     .sort((a, b) => {
@@ -288,6 +325,9 @@ function applyHistoryToCurrentPage() {
 
   state.currentHistory = matched;
   const knownIds = new Set(Object.keys(matched.items || {}));
+  if (!state.completion && matched.completion) {
+    state.completion = matched.completion;
+  }
   state.transferredIds = knownIds;
   state.items.forEach(item => {
     if (item && !knownIds.has(item.id)) {
@@ -337,6 +377,9 @@ function renderHistoryCard() {
     if (total) {
       metaParts.push(`共 ${total} 项`);
     }
+    if (record.completion && record.completion.label) {
+      metaParts.push(record.completion.label);
+    }
     if (timeLabel) {
       metaParts.push(`更新于 ${timeLabel}`);
     }
@@ -361,7 +404,12 @@ function renderHistoryCard() {
       updateBtn.type = 'button';
       updateBtn.dataset.action = 'check';
       updateBtn.dataset.url = record.pageUrl;
-      updateBtn.textContent = '检测更新';
+      const isCompleted = record.completion && record.completion.state === 'completed';
+      updateBtn.textContent = isCompleted ? '已完结' : '检测更新';
+      if (isCompleted) {
+        updateBtn.disabled = true;
+        updateBtn.dataset.reason = 'completed';
+      }
       actions.appendChild(updateBtn);
     }
 
@@ -392,6 +440,7 @@ async function triggerHistoryUpdate(pageUrl, button) {
     return;
   }
   let previous = '';
+  let shouldRestoreButton = true;
   if (button) {
     previous = button.textContent;
     button.disabled = true;
@@ -405,8 +454,17 @@ async function triggerHistoryUpdate(pageUrl, button) {
     if (!response || response.ok === false) {
       throw new Error(response?.error || '检测失败');
     }
+    if (response.completion) {
+      state.completion = response.completion;
+    }
     if (!response.hasUpdates) {
-      showToast('info', '暂无更新', '没有检测到新的剧集。');
+      if (response.reason === 'completed') {
+        shouldRestoreButton = false;
+        const label = response?.completion?.label || '已完结';
+        showToast('success', '剧集已完结', `${label} · 无需继续检测 ✅`);
+      } else {
+        showToast('info', '暂无更新', '没有检测到新的剧集。');
+      }
     } else {
       const transferred = Array.isArray(response.results)
         ? response.results.filter(item => item.status === 'success').length
@@ -427,8 +485,13 @@ async function triggerHistoryUpdate(pageUrl, button) {
     showToast('error', '检测失败', error.message || '无法检测更新');
   } finally {
     if (button) {
-      button.disabled = false;
-      button.textContent = previous || '检测更新';
+      if (shouldRestoreButton) {
+        button.disabled = false;
+        button.textContent = previous || '检测更新';
+      } else {
+        button.disabled = true;
+        button.textContent = '已完结';
+      }
     }
   }
 }
@@ -501,6 +564,9 @@ function renderPageInfo() {
       if (hasItemsArray) {
         infoParts.push(`解析到 ${itemCount} 项资源`);
       }
+      if (state.completion && state.completion.label) {
+        infoParts.push(state.completion.label);
+      }
       dom.pageInfo.textContent = infoParts.length ? infoParts.join(' · ') : state.origin;
     }
   }
@@ -571,6 +637,12 @@ function renderSelectionSummary() {
   if (state.newItemIds.size) {
     parts.push(`新增 ${state.newItemIds.size}`);
   }
+  if (state.completion && state.completion.label) {
+    const stateEmoji = state.completion.state === 'completed'
+      ? '✅'
+      : (state.completion.state === 'ongoing' ? '📡' : (state.completion.state === 'upcoming' ? '🕒' : 'ℹ️'));
+    parts.push(`${stateEmoji} ${state.completion.label}`);
+  }
   dom.selectionSummary.textContent = parts.join(' · ');
   if (dom.itemsTitle) {
     dom.itemsTitle.textContent = `🔍 找到 ${total} 个百度网盘资源`;
@@ -626,6 +698,15 @@ function renderItems() {
       statusBadges.push('<span class="popup-badge popup-badge-pending">待转存</span>');
     }
     const detailBadges = [];
+    if (item.seasonLabel) {
+      detailBadges.push(`<span class="popup-badge">季：${item.seasonLabel}</span>`);
+    }
+    if (item.seasonCompletion && item.seasonCompletion.label) {
+      const badgeClass = item.seasonCompletion.state === 'completed'
+        ? 'popup-badge popup-badge-success'
+        : 'popup-badge';
+      detailBadges.push(`<span class="${badgeClass}">状态：${item.seasonCompletion.label}</span>`);
+    }
     if (item.quality) {
       detailBadges.push(`<span class="popup-badge">画质：${item.quality}</span>`);
     }
@@ -633,13 +714,14 @@ function renderItems() {
       detailBadges.push(`<span class="popup-badge">字幕：${item.subtitle}</span>`);
     }
     const metaBadges = [...statusBadges, ...detailBadges].join('');
+    const displayTitle = item.seasonLabel ? `🔗 [${item.seasonLabel}] ${item.title}` : `🔗 ${item.title}`;
     const row = document.createElement('label');
     row.className = 'popup-item';
     row.dataset.id = item.id;
     row.innerHTML = `
       <input type="checkbox" ${isSelected ? 'checked' : ''} />
       <div class="popup-item-body">
-        <div class="popup-item-title">🔗 ${item.title}</div>
+        <div class="popup-item-title">${displayTitle}</div>
         <div class="popup-item-meta">${metaBadges}</div>
       </div>
     `;
@@ -910,6 +992,10 @@ async function refreshItems() {
 
     const pageUrl = response?.url || tab.url || '';
     state.pageUrl = normalizePageUrl(pageUrl);
+    state.completion = response?.completion || null;
+    state.seasonCompletion = (response?.seasonCompletion && typeof response.seasonCompletion === 'object')
+      ? response.seasonCompletion
+      : {};
 
     if (!response || !Array.isArray(response.items) || !response.items.length) {
       state.items = [];
@@ -948,6 +1034,8 @@ async function refreshItems() {
     state.items = [];
     state.selectedIds = new Set();
     state.poster = null;
+    state.completion = null;
+    state.seasonCompletion = {};
     renderPageInfo();
     renderItems();
     renderHistoryCard();
@@ -1160,6 +1248,7 @@ function registerEventListeners() {
     dom.historyList.addEventListener('click', event => {
       const button = event.target.closest('button[data-action]');
       if (!button) return;
+      if (button.disabled) return;
       const { action, url } = button.dataset;
       if (!url) return;
       if (action === 'open') {

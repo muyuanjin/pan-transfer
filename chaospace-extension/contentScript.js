@@ -25,6 +25,8 @@
     lastResult: null,
     statusMessage: '准备就绪 ✨',
     theme: 'dark',
+    completion: null,
+    seasonCompletion: {},
     historyRecords: [],
     currentHistory: null,
     transferredIds: new Set(),
@@ -73,6 +75,141 @@
     let title = pageTitle.replace(/\s*[–\-_|]\s*CHAOSPACE.*$/i, '');
 
     return extractCleanTitle(title);
+  }
+
+  function isDateLikeLabel(text) {
+    if (!text) {
+      return false;
+    }
+    const normalized = text.trim();
+    if (!normalized) {
+      return false;
+    }
+    if (/^\d{4}([\-\/年\.]|$)/.test(normalized)) {
+      return true;
+    }
+    if (/^\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4}$/.test(normalized)) {
+      return true;
+    }
+    return false;
+  }
+
+  function classifyCompletionState(label) {
+    const text = (label || '').trim();
+    if (!text) {
+      return 'unknown';
+    }
+    if (/(完结|收官|全集|全\d+[集话]|已完)/.test(text)) {
+      return 'completed';
+    }
+    if (/(更新|连载|播出中|热映|第.+[集话]|未完结)/.test(text)) {
+      return 'ongoing';
+    }
+    if (/(未播|敬请期待|即将|待定|预定|未上映)/.test(text)) {
+      return 'upcoming';
+    }
+    return 'unknown';
+  }
+
+  function createCompletionStatus(label, source = '') {
+    const text = (label || '').trim();
+    if (!text) {
+      return null;
+    }
+    const status = {
+      label: text,
+      state: classifyCompletionState(text)
+    };
+    if (source) {
+      status.source = source;
+    }
+    return status;
+  }
+
+  function extractCompletionStatusFromElements(elements, source = '') {
+    if (!elements || typeof elements.length !== 'number') {
+      return null;
+    }
+    for (let i = elements.length - 1; i >= 0; i -= 1) {
+      const el = elements[i];
+      const text = (el?.textContent || '').trim();
+      if (!text || isDateLikeLabel(text)) {
+        continue;
+      }
+      const status = createCompletionStatus(text, source);
+      if (status) {
+        return status;
+      }
+    }
+    return null;
+  }
+
+  function extractSeasonPageCompletion(root = document, source = 'season-meta') {
+    if (!root || typeof root.querySelector !== 'function') {
+      return null;
+    }
+    const extra = root.querySelector('.data .extra');
+    if (!extra) {
+      return null;
+    }
+    const spans = extra.querySelectorAll('.date');
+    return extractCompletionStatusFromElements(spans, source);
+  }
+
+  function extractSeasonListCompletion(block) {
+    if (!block || typeof block.querySelector !== 'function') {
+      return null;
+    }
+    const titleSpan = block.querySelector('.se-q .title');
+    if (!titleSpan) {
+      return null;
+    }
+    const infoTags = titleSpan.querySelectorAll('i');
+    const status = extractCompletionStatusFromElements(infoTags, 'season-list');
+    if (status) {
+      return status;
+    }
+    const textNodes = [];
+    titleSpan.childNodes.forEach(node => {
+      if (node && node.nodeType === Node.TEXT_NODE) {
+        const value = (node.textContent || '').trim();
+        if (value) {
+          textNodes.push(value);
+        }
+      }
+    });
+    for (let i = textNodes.length - 1; i >= 0; i -= 1) {
+      const candidate = textNodes[i];
+      if (candidate && !isDateLikeLabel(candidate)) {
+        const completion = createCompletionStatus(candidate, 'season-list');
+        if (completion) {
+          return completion;
+        }
+      }
+    }
+    return null;
+  }
+
+  function summarizeSeasonCompletion(statuses = []) {
+    const valid = statuses.filter(Boolean);
+    if (!valid.length) {
+      return null;
+    }
+    const states = valid.map(status => status.state || 'unknown');
+    if (states.every(state => state === 'completed')) {
+      return { label: '已完结', state: 'completed' };
+    }
+    if (states.some(state => state === 'ongoing')) {
+      return { label: '连载中', state: 'ongoing' };
+    }
+    if (states.some(state => state === 'upcoming')) {
+      return { label: '未开播', state: 'upcoming' };
+    }
+    const fallback = valid.find(status => status.label) || valid[0];
+    return {
+      label: fallback.label || '未知状态',
+      state: fallback.state || 'unknown'
+    };
   }
 
   // 只查找百度网盘链接（在 #download 区域）
@@ -352,7 +489,11 @@
   async function collectTvShowSeasonItems() {
     const seasonBlocks = Array.from(document.querySelectorAll('#seasons .se-c'));
     if (!seasonBlocks.length) {
-      return [];
+      return {
+        items: [],
+        seasonCompletion: {},
+        completion: null
+      };
     }
 
     const seasonInfos = seasonBlocks
@@ -369,31 +510,46 @@
         const label = deriveSeasonLabel(block, index);
         const seasonIdMatch = url.match(/\/seasons\/(\d+)\.html/);
         const seasonId = seasonIdMatch ? seasonIdMatch[1] : `season-${index + 1}`;
-        return { url, label, index, seasonId };
+        const completion = extractSeasonListCompletion(block);
+        return { url, label, index, seasonId, completion };
       })
       .filter(Boolean);
 
     if (!seasonInfos.length) {
-      return [];
+      return {
+        items: [],
+        seasonCompletion: {},
+        completion: null
+      };
     }
 
     const aggregated = [];
     const seen = new Set();
+    const seasonCompletionMap = new Map();
 
     const seasonResults = await Promise.all(
       seasonInfos.map(async info => {
         try {
           const doc = await fetchHtmlDocument(info.url);
           const seasonItems = extractItemsFromDocument(doc, { baseUrl: info.url });
-          return { info, seasonItems };
+          const completion =
+            extractSeasonPageCompletion(doc, 'season-detail') ||
+            info.completion ||
+            null;
+          return { info, seasonItems, completion };
         } catch (error) {
           console.error('[Chaospace Transfer] Failed to load season page', info.url, error);
-          return { info, seasonItems: [] };
+          return { info, seasonItems: [], completion: info.completion || null };
         }
       })
     );
 
-    seasonResults.forEach(({ info, seasonItems }) => {
+    seasonResults.forEach(({ info, seasonItems, completion }) => {
+      if (completion) {
+        seasonCompletionMap.set(info.seasonId, completion);
+      } else if (info.completion) {
+        seasonCompletionMap.set(info.seasonId, info.completion);
+      }
       if (!seasonItems || !seasonItems.length) {
         return;
       }
@@ -408,12 +564,25 @@
           order: info.index * 10000 + (typeof item.order === 'number' ? item.order : itemIndex),
           seasonLabel: info.label,
           seasonId: info.seasonId,
-          seasonUrl: info.url
+          seasonUrl: info.url,
+          seasonCompletion: completion || info.completion || null
         });
       });
     });
 
-    return aggregated;
+    const seasonCompletion = {};
+    seasonCompletionMap.forEach((value, key) => {
+      if (value) {
+        seasonCompletion[key] = value;
+      }
+    });
+    const completionSummary = summarizeSeasonCompletion(Array.from(seasonCompletionMap.values()));
+
+    return {
+      items: aggregated,
+      seasonCompletion,
+      completion: completionSummary
+    };
   }
 
   async function collectLinks() {
@@ -422,20 +591,46 @@
       url: window.location.href || '',
       origin: window.location.origin || '',
       title: getPageCleanTitle(),
-      poster: extractPosterDetails()
+      poster: extractPosterDetails(),
+      completion: null,
+      seasonCompletion: {}
     };
 
     try {
+      let completion = null;
+      let seasonCompletion = {};
       let items = extractItemsFromDocument(document);
+      if (isSeasonPage()) {
+        completion = extractSeasonPageCompletion(document);
+      }
       if (isTvShowPage()) {
-        const seasonItems = await collectTvShowSeasonItems();
-        if (seasonItems.length > 0) {
-          items = seasonItems;
+        const seasonData = await collectTvShowSeasonItems();
+        if (seasonData.items && seasonData.items.length > 0) {
+          items = seasonData.items;
         }
+        if (seasonData.seasonCompletion) {
+          seasonCompletion = seasonData.seasonCompletion;
+        }
+        if (seasonData.completion) {
+          completion = seasonData.completion;
+        } else if (seasonData.seasonCompletion) {
+          const statuses = Object.values(seasonData.seasonCompletion);
+          if (statuses.length) {
+            completion = summarizeSeasonCompletion(statuses);
+          }
+        }
+      }
+      if (!completion && isSeasonPage()) {
+        completion = extractSeasonPageCompletion(document);
+      }
+      if (!completion && items.length === 0) {
+        completion = null;
       }
       return {
         ...baseResult,
-        items
+        items,
+        completion,
+        seasonCompletion
       };
     } catch (error) {
       console.error('[Chaospace Transfer] Failed to collect links', error);
@@ -508,6 +703,10 @@
       }
       if (hasItemsArray) {
         infoParts.push(`解析到 ${itemCount} 项资源`);
+      }
+      if (state.completion && state.completion.label) {
+        const statusLabel = state.completion.label;
+        infoParts.push(statusLabel);
       }
       panelDom.showSubtitle.textContent = infoParts.length ? infoParts.join(' · ') : '未检测到页面来源';
     }
@@ -642,6 +841,39 @@
     showToast('info', '已移除路径', `${preset} 已从收藏中移除`);
   }
 
+  function normalizeHistoryCompletion(entry) {
+    if (!entry || typeof entry !== 'object') {
+      return null;
+    }
+    const label = typeof entry.label === 'string' ? entry.label.trim() : '';
+    const state = typeof entry.state === 'string' ? entry.state : 'unknown';
+    const normalized = {
+      label,
+      state
+    };
+    if (entry.source && typeof entry.source === 'string') {
+      normalized.source = entry.source;
+    }
+    if (typeof entry.updatedAt === 'number' && Number.isFinite(entry.updatedAt)) {
+      normalized.updatedAt = entry.updatedAt;
+    }
+    return normalized;
+  }
+
+  function normalizeSeasonCompletionMap(value) {
+    if (!value || typeof value !== 'object') {
+      return {};
+    }
+    const result = {};
+    Object.entries(value).forEach(([key, entry]) => {
+      const normalized = normalizeHistoryCompletion(entry);
+      if (normalized) {
+        result[key] = normalized;
+      }
+    });
+    return result;
+  }
+
   function prepareHistoryRecords(raw) {
     if (!raw || typeof raw !== 'object' || !Array.isArray(raw.records)) {
       return [];
@@ -652,6 +884,8 @@
         if (!safe.items || typeof safe.items !== 'object') {
           safe.items = {};
         }
+        safe.completion = normalizeHistoryCompletion(safe.completion);
+        safe.seasonCompletion = normalizeSeasonCompletionMap(safe.seasonCompletion);
         return safe;
       })
       .sort((a, b) => {
@@ -678,6 +912,9 @@
 
     state.currentHistory = matched;
     const knownIds = new Set(Object.keys(matched.items || {}));
+    if (!state.completion && matched.completion) {
+      state.completion = matched.completion;
+    }
     state.transferredIds = knownIds;
     state.items.forEach(item => {
       if (item && !knownIds.has(item.id)) {
@@ -755,6 +992,9 @@
         typeLabel,
         total ? `共 ${total} 项` : ''
       ].filter(Boolean);
+      if (record.completion && record.completion.label) {
+        metaParts.push(record.completion.label);
+      }
       if (timeLabel) {
         metaParts.push(`更新于 ${timeLabel}`);
       }
@@ -782,7 +1022,13 @@
         checkBtn.dataset.action = 'check';
         checkBtn.dataset.url = record.pageUrl;
         checkBtn.className = 'chaospace-history-action chaospace-history-action-check';
-        checkBtn.textContent = '检测新篇';
+        const isCompleted = record.completion && record.completion.state === 'completed';
+        checkBtn.textContent = isCompleted ? '已完结' : '检测更新';
+        if (isCompleted) {
+          checkBtn.disabled = true;
+          checkBtn.classList.add('is-disabled');
+          checkBtn.dataset.reason = 'completed';
+        }
         actions.appendChild(checkBtn);
       }
 
@@ -825,6 +1071,9 @@
       summary.appendChild(title);
 
       const metaParts = [];
+      if (summaryRecord.completion && summaryRecord.completion.label) {
+        metaParts.push(summaryRecord.completion.label);
+      }
       if (timeLabel) metaParts.push(timeLabel);
       if (total) metaParts.push(`${total} 项`);
       if (summaryRecord.targetDirectory) metaParts.push(summaryRecord.targetDirectory);
@@ -935,6 +1184,7 @@
       return;
     }
     let previousText = '';
+    let shouldRestoreButton = true;
     if (button) {
       previousText = button.textContent;
       button.disabled = true;
@@ -951,7 +1201,14 @@
         return;
       }
       if (!response.hasUpdates) {
-        showToast('success', '无需转存', '所有剧集都已同步 ✅');
+        const completionLabel = response?.completion?.label || response?.completionLabel || '';
+        if (response.reason === 'completed') {
+          shouldRestoreButton = false;
+          const message = completionLabel ? `${completionLabel} · 无需继续转存 ✅` : '该剧集已完结 · 不再检测更新';
+          showToast('success', '剧集已完结', message);
+        } else {
+          showToast('success', '无需转存', '所有剧集都已同步 ✅');
+        }
       } else {
         const transferred = Array.isArray(response.results)
           ? response.results.filter(item => item.status === 'success').length
@@ -982,8 +1239,13 @@
       showToast('error', '检测失败', error.message || '无法检测更新');
     } finally {
       if (button) {
-        button.disabled = false;
-        button.textContent = previousText || '检测更新';
+        if (shouldRestoreButton) {
+          button.disabled = false;
+          button.textContent = previousText || '检测更新';
+        } else {
+          button.disabled = true;
+          button.textContent = '已完结';
+        }
       }
     }
   }
@@ -1294,6 +1556,12 @@
     if (seasonIds.size > 1) {
       parts.push(`涵盖 ${seasonIds.size} 季`);
     }
+    if (state.completion && state.completion.label) {
+      const stateEmoji = state.completion.state === 'completed'
+        ? '✅'
+        : (state.completion.state === 'ongoing' ? '📡' : (state.completion.state === 'upcoming' ? '🕒' : 'ℹ️'));
+      parts.push(`${stateEmoji} ${state.completion.label}`);
+    }
     panelDom.resourceSummary.textContent = parts.join(' · ');
     if (panelDom.resourceTitle) {
       panelDom.resourceTitle.textContent = `🔍 找到 ${total} 个百度网盘资源`;
@@ -1352,6 +1620,12 @@
       const detailBadges = [];
       if (item.seasonLabel) {
         detailBadges.push(`<span class="chaospace-badge">季：${item.seasonLabel}</span>`);
+      }
+      if (item.seasonCompletion && item.seasonCompletion.label) {
+        const badgeClass = item.seasonCompletion.state === 'completed'
+          ? 'chaospace-badge chaospace-badge-success'
+          : 'chaospace-badge';
+        detailBadges.push(`<span class="${badgeClass}">状态：${item.seasonCompletion.label}</span>`);
       }
       if (item.quality) {
         detailBadges.push(`<span class="chaospace-badge">画质：${item.quality}</span>`);
@@ -1528,6 +1802,8 @@
           pageUrl: state.pageUrl || normalizePageUrl(window.location.href),
           pageType: state.items.length > 1 ? 'series' : 'movie',
           targetDirectory,
+          completion: state.completion || null,
+          seasonCompletion: state.seasonCompletion || {},
           poster: state.poster && state.poster.src
             ? { src: state.poster.src, alt: state.poster.alt || '' }
             : null
@@ -1615,6 +1891,10 @@
       state.pageUrl = normalizePageUrl(data.url || window.location.href);
       state.poster = data.poster || null;
       state.origin = data.origin || window.location.origin;
+      state.completion = data.completion || null;
+      state.seasonCompletion = (data.seasonCompletion && typeof data.seasonCompletion === 'object')
+        ? data.seasonCompletion
+        : {};
       state.items = data.items.map((item, index) => ({
         ...item,
         order: typeof item.order === 'number' ? item.order : index
@@ -2020,6 +2300,9 @@
         panelDom.historyList.addEventListener('click', event => {
           const actionButton = event.target.closest('button[data-action]');
           if (!actionButton) {
+            return;
+          }
+          if (actionButton.disabled) {
             return;
           }
           const url = actionButton.dataset.url;
