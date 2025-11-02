@@ -256,33 +256,40 @@
 }
 
 .chaospace-float-body {
-  padding: 20px 26px 34px;
+  padding: 20px 26px 26px;
   display: flex;
+  flex-direction: column;
   flex: 1;
+  gap: 20px;
+  overflow: hidden;
+}
+
+.chaospace-float-main {
+  flex: 1 1 auto;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
 }
 
-.chaospace-float-body::-webkit-scrollbar {
+.chaospace-float-main::-webkit-scrollbar {
   width: 10px;
 }
 
-.chaospace-float-body::-webkit-scrollbar-thumb {
+.chaospace-float-main::-webkit-scrollbar-thumb {
   background: rgba(148, 163, 184, 0.35);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
-.chaospace-float-body::-webkit-scrollbar-thumb:hover {
+.chaospace-float-main::-webkit-scrollbar-thumb:hover {
   background: rgba(148, 163, 184, 0.5);
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
-.chaospace-float-body::-webkit-scrollbar-track {
+.chaospace-float-main::-webkit-scrollbar-track {
   background: transparent;
 }
 
@@ -614,6 +621,50 @@
 
 .chaospace-card.chaospace-history-card {
   gap: 12px;
+}
+
+.chaospace-float-footer {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--cp-overlay);
+  border: 1px solid var(--cp-border);
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.chaospace-float-footer .chaospace-history-card {
+  padding: 18px 20px;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+}
+
+.chaospace-footer-bar {
+  padding: 14px 20px 18px;
+  border-top: 1px solid var(--cp-border);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.chaospace-footer-status {
+  flex: 1 1 240px;
+  min-height: 32px;
+}
+
+.chaospace-footer-actions {
+  flex: 0 0 auto;
+  width: min(240px, 100%);
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+}
+
+.chaospace-footer-actions .chaospace-float-btn {
+  width: 100%;
 }
 
 .chaospace-history-empty {
@@ -1355,7 +1406,18 @@
 }
 
 .chaospace-float-panel.is-narrow .chaospace-float-body {
-  padding: 18px 22px 28px;
+  padding: 18px 22px 24px;
+}
+
+.chaospace-float-panel.is-narrow .chaospace-footer-bar {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.chaospace-float-panel.is-narrow .chaospace-footer-status,
+.chaospace-float-panel.is-narrow .chaospace-footer-actions {
+  width: 100%;
+  flex: 1 1 auto;
 }
 
 .chaospace-float-panel.is-compact .chaospace-sort-group {

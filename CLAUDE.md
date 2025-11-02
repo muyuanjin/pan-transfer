@@ -4,128 +4,256 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-这是一个用于从 CHAOSPACE 视频资源网站批量提取百度网盘分享链接并自动转存的 Chrome 浏览器扩展工具。
+这是一个 Chrome/Edge 浏览器扩展程序,用于自动化从 CHAOSPACE 网站(chaospace.xyz、chaospace.cc)批量转存百度网盘资源到个人网盘目录。
 
-## 核心架构
+**核心功能**:
+- 自动解析 CHAOSPACE 剧集页面中的资源链接
+- 批量提取百度网盘分享链接与提取码
+- 调用百度网盘 Web API 完成转存(基于浏览器登录态)
+- 智能去重:利用历史记录缓存减少重复抓取
+- 持久化缓存:目录文件缓存、已转存分享链接缓存
 
-### Chrome 扩展架构
+## 架构设计
 
-扩展采用标准的 Manifest V3 架构:
+### 核心组件
 
-- **contentScript.js** - 内容脚本,注入到 CHAOSPACE 页面
-  - 定位资源表格 (`table tbody tr[id^="link-"]`)
-  - 提取资源基础信息 (ID, 标题, 质量, 字幕等)
-  - 响应 `chaospace:collect-links` 消息
+1. **background.js** (Service Worker)
+   - 负责所有后台业务逻辑
+   - 百度网盘 API 交互:获取 bdstoken、验证分享密码、列出目录、创建目录、转存文件
+   - 持久化缓存管理:`chrome.storage.local` 存储目录缓存和已转存分享链接
+   - 历史记录管理:记录每个页面的转存历史,支持增量更新检测
+   - 错误处理与重试机制
 
-- **background.js** - Service Worker 后台脚本
-  - 抓取链接详情页 (`/links/{id}.html`) 获取百度网盘链接和提取码
-  - 调用百度网盘 API 完成转存流程:
-    1. `ensureBdstoken()` - 获取 bdstoken (缓存 10 分钟)
-    2. `verifySharePassword()` - 验证提取码,设置 BDCLND Cookie
-    3. `fetchShareMetadata()` - 解析分享页面的 `locals.mset()` 获取 shareid/uk/fsid
-    4. `ensureDirectoryExists()` - 递归创建目标目录
-    5. `transferShare()` - 调用 `/share/transfer` API 转存
-  - 包含完整的错误处理和重试逻辑
+2. **contentScript.js** (内容脚本)
+   - 注入到 CHAOSPACE 页面(`/seasons/*.html`)
+   - 解析页面 DOM 结构,提取资源链接、标题、海报等信息
+   - 渲染浮动面板 UI
+   - 资源选择、排序、路径配置等用户交互
+   - 监听后台转存进度并实时更新 UI
 
-- **popup.js + popup.html** - 扩展弹窗界面
-  - 展示解析到的资源列表
-  - 配置目标目录和子目录命名
-  - 触发批量转存并展示结果统计
+3. **popup.js** (弹窗脚本)
+   - 扩展工具栏图标点击后的弹窗界面
+   - 功能与 contentScript 类似,但用于独立弹窗环境
+   - 通过 `chrome.tabs.sendMessage` 与当前标签页通信获取资源列表
 
-## 百度网盘 API 关键流程
+### 数据流
 
-扩展遵循以下百度网盘 API 调用流程:
+```
+CHAOSPACE 页面
+    ↓ (DOM 解析)
+contentScript.js → 提取资源列表
+    ↓ (用户选择)
+background.js → 抓取分享链接详情
+    ↓ (验证提取码)
+百度网盘 API → 验证分享密码
+    ↓ (获取文件元数据)
+百度网盘 API → 列出分享文件
+    ↓ (检查目录/缓存去重)
+百度网盘 API → 转存到指定目录
+    ↓ (记录历史)
+chrome.storage.local → 持久化缓存
+```
 
-1. **获取 bdstoken**: `GET /api/gettemplatevariable?fields=["bdstoken",...]`
-2. **验证提取码** (如有): `POST /share/verify?surl={surl}` → 获取 randsk 写入 BDCLND Cookie
-3. **获取分享元数据**: 访问分享链接,从 HTML 中提取 `locals.mset({...})` JSON 对象
-   - 关键字段: `shareid`, `share_uk`, `file_list[].fs_id`
-4. **创建目录**: `POST /api/create?a=commit`
-5. **转存文件**: `POST /share/transfer?shareid={}&from={}&bdstoken={}`
-   - Body: `fsidlist=[...]&path=/目标路径`
+## 关键技术点
 
-## 开发和调试
+### 百度网盘 API 调用流程
 
-### Chrome 扩展
+1. **获取 bdstoken**:
+   - 请求 `https://pan.baidu.com/api/gettemplatevariable`
+   - 缓存 10 分钟(TOKEN_TTL)
 
-**加载扩展**:
-1. 打开 `chrome://extensions/` 并启用开发者模式
-2. 点击「加载已解压的扩展程序」,选择 `chaospace-extension` 文件夹
+2. **验证分享密码**:
+   - 从链接提取 `surl`(去掉开头的 '1')
+   - POST `https://pan.baidu.com/share/verify` 并设置 BDCLND Cookie
 
-**调试方法**:
-- 内容脚本: 在 CHAOSPACE 页面按 F12 查看控制台
-- 后台脚本: 在 `chrome://extensions/` 中点击扩展的「Service Worker」查看日志
-- 弹窗界面: 右键点击扩展图标 → 检查弹出内容
+3. **获取分享文件列表**:
+   - 直接 fetch 分享页面 HTML
+   - 正则提取 `locals.mset({...})` 中的 JSON 数据
+   - 解析 `shareid`、`share_uk`、`file_list` 等字段
 
-**关键日志标记**: 所有日志以 `[Chaospace Transfer]` 为前缀
+4. **转存文件**:
+   - POST `https://pan.baidu.com/share/transfer`
+   - 参数:`fsidlist`(文件 ID 数组)、`path`(目标路径)
+   - 支持最多 3 次重试(MAX_TRANSFER_ATTEMPTS)
 
-## 关键代码位置
+### 缓存策略
 
-### Chrome 扩展核心函数
-- **background.js**:
-  - `ensureBdstoken()` (background.js:95) - bdstoken 获取和缓存
-  - `verifySharePassword()` (background.js:149) - 提取码验证
-  - `fetchShareMetadata()` (background.js:227) - 解析分享元数据
-  - `ensureDirectoryExists()` (background.js:311) - 递归目录创建
-  - `transferShare()` (background.js:354) - 转存 API 调用
-  - `handleTransfer()` (background.js:451) - 主转存流程编排
+**目录文件缓存** (`directoryFileCache`):
+- 缓存每个目录下的文件名集合
+- 用于跳过已存在的文件,避免重复转存
+- 上限 10 万条(MAX_DIRECTORY_CACHE_ENTRIES)
 
-- **contentScript.js**:
-  - `locateResourceRows()` (contentScript.js:2) - 定位资源行
-  - `extractLinkInfo()` (contentScript.js:11) - 提取链接信息
-  - `collectLinks()` (contentScript.js:53) - 收集所有链接
+**已转存分享链接缓存** (`completedShareCache`):
+- 记录已成功转存的 `surl` 和时间戳
+- 避免重复抓取同一分享链接
+- 上限 40 万条(MAX_SHARE_CACHE_ENTRIES)
 
-- **popup.js**:
-  - `sanitizeSubdir()` (popup.js:28) - 清理子目录名称
-  - `normalizeDir()` (popup.js:47) - 规范化路径
-  - `refreshItems()` (popup.js:276) - 刷新资源列表
-  - `handleTransfer()` (popup.js:335) - 触发转存
+**历史记录** (`historyState`):
+- 按页面 URL 索引,记录每个资源的转存状态
+- 支持增量更新检测:比对页面当前资源与历史记录,识别新增项
+- 上限 20 万条记录(MAX_HISTORY_RECORDS)
 
-### 消息传递机制
-- `chaospace:collect-links` - popup → contentScript,获取页面资源列表
-- `chaospace:transfer` - popup → background,执行批量转存
+### 请求头修改
 
-## 重要注意事项
+使用 `chrome.declarativeNetRequest` API 在运行时修改所有发往 `pan.baidu.com` 的 XHR 请求头:
+- 添加 `Referer: https://pan.baidu.com`
+- 添加 `Origin: https://pan.baidu.com`
 
-### 安全性
-- Cookie 和 access_token 属于敏感凭证,切勿提交到代码库
-- 扩展需要 `cookies` 权限来读写百度网盘 Cookie
-- 使用 `declarativeNetRequest` API 在运行时修改请求头 (Referer/Origin)
+这确保请求能通过百度网盘的防盗链检查。
 
-### API 限制
-- 单次转存链接数不超过 1000 条
-- bdstoken 有时效性,扩展中缓存 10 分钟 (TOKEN_TTL 常量)
-- 频繁验证错误提取码会触发限流 (errno: -62)
+### UI 组件
+
+**浮动面板** (contentScript.js):
+- 可拖拽、可调整大小、可最小化
+- 支持深色/浅色主题切换
+- 实时日志显示(最多 80 条)
+- 历史记录卡片(显示最近 6-8 条)
+- 资源列表:支持排序(默认顺序/标题)、全选/反选/仅选新增
+
+**路径管理**:
+- 预设路径快捷选择(收藏/删除)
+- 自动为剧集创建子目录(使用页面标题)
+- 路径归一化:`normalizeDir()` 统一处理路径格式
+
+## 开发流程
+
+### 调试扩展
+
+1. 打开 `chrome://extensions/` 或 `edge://extensions/`
+2. 启用"开发者模式"
+3. 点击"加载已解压的扩展程序",选择 `chaospace-extension` 目录
+4. 修改代码后,点击扩展卡片上的"刷新"按钮
+
+### 调试 Service Worker (background.js)
+
+1. 在扩展管理页面,点击扩展卡片上的"Service Worker"链接
+2. 打开 DevTools 控制台查看日志
+3. 所有日志以 `[Chaospace Transfer]` 前缀
+
+### 调试内容脚本 (contentScript.js)
+
+1. 打开 CHAOSPACE 页面(如 `https://www.chaospace.cc/seasons/123456.html`)
+2. F12 打开 DevTools,查看控制台日志
+3. 检查浮动面板 DOM 结构和样式
+
+### 测试网络请求
+
+1. DevTools → Network 标签
+2. 筛选 `pan.baidu.com` 域名
+3. 查看请求头、响应体、errno 错误码
+
+### 查看存储数据
+
+1. DevTools → Application → Storage → Local Storage
+2. 查看 `chaospace-transfer-cache`(目录缓存和分享链接缓存)
+3. 查看 `chaospace-transfer-history`(转存历史记录)
+
+## 常见问题与解决方案
+
+### 转存失败错误码
+
+参考 `ERROR_MESSAGES` 对象(background.js:1-22):
+- `-9`: 提取码错误或验证过期
+- `-8`: 文件已存在
+- `-10`/`20`: 容量不足
+- `-4`: 登录失效(需要在浏览器重新登录百度网盘)
+
+### 页面解析失败
+
+检查 CHAOSPACE 页面结构是否变化:
+- `#download` 区域是否存在
+- `table tbody tr[id^="link-"]` 选择器是否匹配
+- `/links/*.html` 详情页格式是否变化
+
+相关函数:
+- `locateBaiduPanRows()` (contentScript.js:77-87)
+- `extractLinkInfo()` (contentScript.js:89-116)
+- `parseLinkPage()` (background.js:1027-1071)
+
+### 缓存不生效
+
+检查:
+- `ensureCacheLoaded()` 是否正常加载
+- `persistCacheNow()` 是否正常保存
+- 存储配额是否超限(chrome.storage.local 默认 10MB)
+
+### 历史记录丢失
+
+检查:
+- `ensureHistoryLoaded()` 加载逻辑
+- `persistHistoryNow()` 保存时机
+- `MAX_HISTORY_RECORDS` 是否过小导致旧记录被清理
+
+## 代码规范
+
+### 命名约定
+
+- 常量:大写蛇形命名法(如 `MAX_TRANSFER_ATTEMPTS`)
+- 函数:驼峰命名法(如 `normalizePath`)
+- DOM 相关:以 `render`、`update`、`set` 为前缀
+- 异步函数:使用 `async`/`await` 而非 Promise 链
+
+### 日志规范
+
+统一使用 `[Chaospace Transfer]` 前缀:
+```javascript
+console.log('[Chaospace Transfer] bdstoken response', data);
+console.warn('[Chaospace Transfer] Failed to load persistent cache', error);
+```
 
 ### 错误处理
-- 所有错误码映射在 `ERROR_MESSAGES` 对象 (background.js:1-22)
-- 关键错误:
-  - `-1/-2/-3`: 链接元数据提取失败
-  - `-9`: 提取码错误或已过期
-  - `-8/4/31039`: 文件名冲突
-  - `-10/20`: 容量不足
-  - `666`: 文件已存在 (跳过)
-- `mapErrorMessage()` 函数负责错误码到消息的转换
 
-### 链接格式支持
-- Chrome 扩展仅支持 `/s/` 格式分享链接
-- `buildSurl()` 函数处理 surl 提取: `/s/1XXX` → `XXX` (去掉开头的 `1`)
+- 网络请求失败:记录详细错误信息,抛出 Error 对象
+- 用户操作错误:使用 `showToast()` 显示友好提示
+- 后台任务失败:通过 `emitProgress()` 发送进度事件
 
-## 文件和目录处理
+### 消息通信
 
-- 所有路径会被规范化: 反斜杠转正斜杠,多斜杠合并,确保以 `/` 开头
-- 子目录名称会移除非法字符: `\/:*?"<>|` (popup.js `sanitizeSubdir()`)
-- 目录创建是递归的,会自动创建多级父目录 (`ensureDirectoryExists()`)
-- 扩展中目录创建状态会缓存在 `ensuredDirectories` Set 中,避免重复请求
+**contentScript ↔ background**:
+```javascript
+chrome.runtime.sendMessage({
+  type: 'chaospace:transfer',
+  payload: { jobId, origin, items, targetDirectory, meta }
+});
+```
 
-## 常见开发任务
+**background → contentScript** (进度推送):
+```javascript
+chrome.tabs.sendMessage(tabId, {
+  type: 'chaospace:transfer-progress',
+  jobId,
+  stage,
+  message,
+  level
+});
+```
 
-### 修改扩展后重新加载
-1. 在 `chrome://extensions/` 页面点击扩展的「重新加载」按钮
-2. 如果修改了 `manifest.json` 的 `declarativeNetRequest` 规则,需要完全移除并重新加载扩展
+## 性能优化
 
-### 添加新的错误码支持
-在 `background.js` 的 `ERROR_MESSAGES` 对象中添加对应的错误码和消息
+1. **分页查询目录**:每次最多查询 200 条(DIRECTORY_LIST_PAGE_SIZE)
+2. **缓存目录结果**:避免重复请求同一目录
+3. **批量转存**:单次请求可转存多个文件(fsidlist 数组)
+4. **LRU 淘汰**:缓存条目超限时按时间戳排序淘汰最旧的
 
-### 调整 bdstoken 缓存时间
-修改 `background.js` 中的 `TOKEN_TTL` 常量 (当前为 10 分钟)
+## 安全注意事项
+
+- 不要在代码或日志中暴露用户的百度网盘 Cookie
+- 使用 `credentials: 'include'` 依赖浏览器自动管理 Cookie
+- 避免在公共仓库中提交包含个人凭证的测试数据
+- BDCLND Cookie 设置时使用 `secure: true` 和 `sameSite: 'no_restriction'`
+
+## 扩展功能建议
+
+如需添加新功能,建议遵循以下模式:
+
+1. **新增 API 交互**:在 background.js 中实现,使用 `fetchJson()` 辅助函数
+2. **新增 UI 组件**:在 contentScript.js/popup.js 中实现,使用现有的 `render*()` 函数模式
+3. **新增配置项**:添加到 `STORAGE_KEY` 存储对象,在 `loadSettings()`/`saveSettings()` 中处理
+4. **新增缓存数据**:添加到 `persistentCacheState` 或 `historyState`,注意设置合理的上限
+
+## 相关文档
+
+- [Chrome Extensions API](https://developer.chrome.com/docs/extensions/)
+- [chrome.storage API](https://developer.chrome.com/docs/extensions/reference/api/storage)
+- [chrome.declarativeNetRequest API](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest)
+- 百度网盘 Web API 无官方文档,通过浏览器 DevTools 抓包分析

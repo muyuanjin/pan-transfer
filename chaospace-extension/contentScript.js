@@ -1295,69 +1295,78 @@
           </div>
         </div>
         <div class="chaospace-float-body">
-          <div class="chaospace-float-columns">
-            <section class="chaospace-column chaospace-column-left">
-              <div class="chaospace-section-heading">
-                <div class="chaospace-section-title" data-role="resource-title"></div>
-                <div class="chaospace-section-caption" data-role="resource-summary"></div>
-              </div>
-              <div class="chaospace-toolbar">
-                <div class="chaospace-sort-group">
-                  <label class="chaospace-sort-label">
-                    <span>排序</span>
-                    <select data-role="sort-key">
-                      <option value="page">默认顺序</option>
-                      <option value="title">标题</option>
-                    </select>
-                  </label>
-                  <button type="button" class="chaospace-order-btn" data-role="sort-order">正序</button>
+          <div class="chaospace-float-main">
+            <div class="chaospace-float-columns">
+              <section class="chaospace-column chaospace-column-left">
+                <div class="chaospace-section-heading">
+                  <div class="chaospace-section-title" data-role="resource-title"></div>
+                  <div class="chaospace-section-caption" data-role="resource-summary"></div>
                 </div>
-                <div class="chaospace-select-group">
-                  <button type="button" data-action="select-all">全选</button>
-                  <button type="button" data-action="select-invert">反选</button>
-                  <button type="button" data-action="select-new">仅选新增</button>
-                </div>
-              </div>
-              <div class="chaospace-items-scroll" data-role="items"></div>
-              <div class="chaospace-card chaospace-history-card" data-role="history-card">
-                <div class="chaospace-card-title">🔖 转存历史</div>
-                <div class="chaospace-history-empty" data-role="history-empty">还没有转存记录</div>
-                <div class="chaospace-history-list" data-role="history-list"></div>
-              </div>
-            </section>
-            <section class="chaospace-column chaospace-column-right">
-              <div class="chaospace-card chaospace-path-card">
-                <div class="chaospace-card-title">📁 转存目录</div>
-                <div class="chaospace-card-body">
-                  <div class="chaospace-preset-list" data-role="preset-list"></div>
-                  <div class="chaospace-input-row">
-                    <input type="text" placeholder="/视频/番剧" data-role="base-dir" />
-                    <button type="button" data-role="add-preset">收藏路径</button>
+                <div class="chaospace-toolbar">
+                  <div class="chaospace-sort-group">
+                    <label class="chaospace-sort-label">
+                      <span>排序</span>
+                      <select data-role="sort-key">
+                        <option value="page">默认顺序</option>
+                        <option value="title">标题</option>
+                      </select>
+                    </label>
+                    <button type="button" class="chaospace-order-btn" data-role="sort-order">正序</button>
                   </div>
-                  <label class="chaospace-checkbox">
-                    <input type="checkbox" data-role="use-title" />
-                    <span>为本页创建子目录（推荐）</span>
-                  </label>
-                  <div class="chaospace-path-preview" data-role="path-preview"></div>
+                  <div class="chaospace-select-group">
+                    <button type="button" data-action="select-all">全选</button>
+                    <button type="button" data-action="select-invert">反选</button>
+                    <button type="button" data-action="select-new">仅选新增</button>
+                  </div>
                 </div>
+                <div class="chaospace-items-scroll" data-role="items"></div>
+              </section>
+              <section class="chaospace-column chaospace-column-right">
+                <div class="chaospace-card chaospace-path-card">
+                  <div class="chaospace-card-title">📁 转存目录</div>
+                  <div class="chaospace-card-body">
+                    <div class="chaospace-preset-list" data-role="preset-list"></div>
+                    <div class="chaospace-input-row">
+                      <input type="text" placeholder="/视频/番剧" data-role="base-dir" />
+                      <button type="button" data-role="add-preset">收藏路径</button>
+                    </div>
+                    <label class="chaospace-checkbox">
+                      <input type="checkbox" data-role="use-title" />
+                      <span>为本页创建子目录（推荐）</span>
+                    </label>
+                    <div class="chaospace-path-preview" data-role="path-preview"></div>
+                  </div>
+                </div>
+                <div class="chaospace-card chaospace-status-card">
+                  <div class="chaospace-card-title chaospace-log-header">
+                    <span class="chaospace-log-title">📜 日志</span>
+                    <div class="chaospace-log-summary is-empty" data-role="result-summary"></div>
+                  </div>
+                  <div class="chaospace-log-container" data-role="log-container">
+                    <ul class="chaospace-log-list" data-role="log-list"></ul>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+          <div class="chaospace-float-footer">
+            <div class="chaospace-card chaospace-history-card" data-role="history-card">
+              <div class="chaospace-card-title">🔖 转存历史</div>
+              <div class="chaospace-history-empty" data-role="history-empty">还没有转存记录</div>
+              <div class="chaospace-history-list" data-role="history-list"></div>
+            </div>
+            <div class="chaospace-footer-bar">
+              <div class="chaospace-footer-status chaospace-status-line" data-role="status">
+                <span class="chaospace-status-emoji">🌙</span>${state.statusMessage}
               </div>
-              <div class="chaospace-card chaospace-status-card">
-                <div class="chaospace-card-title chaospace-log-header">
-                  <span class="chaospace-log-title">📜 日志</span>
-                  <div class="chaospace-log-summary is-empty" data-role="result-summary"></div>
-                </div>
-                <div class="chaospace-log-container" data-role="log-container">
-                  <ul class="chaospace-log-list" data-role="log-list"></ul>
-                </div>
-              </div>
-              <div class="chaospace-card chaospace-transfer-card">
+              <div class="chaospace-transfer-card chaospace-footer-actions">
                 <button class="chaospace-float-btn" data-role="transfer-btn">
                   <span class="chaospace-btn-spinner" data-role="transfer-spinner"></span>
                   <span data-role="transfer-label">开始转存</span>
                   <span class="chaospace-btn-icon">🚀</span>
                 </button>
               </div>
-            </section>
+            </div>
           </div>
         </div>
         <div
