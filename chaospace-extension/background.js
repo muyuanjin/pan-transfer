@@ -30,6 +30,7 @@ const MAX_TRANSFER_ATTEMPTS = 3;
 const TRANSFER_RETRYABLE_ERRNOS = new Set([4]);
 const DIRECTORY_LIST_PAGE_SIZE = 200;
 const directoryFileCache = new Map();
+const completedShareCache = new Map();
 const jobContexts = new Map();
 
 const STORAGE_KEYS = {
@@ -38,8 +39,9 @@ const STORAGE_KEYS = {
 };
 const CACHE_VERSION = 1;
 const HISTORY_VERSION = 1;
-const MAX_DIRECTORY_CACHE_ENTRIES = 100;
-const MAX_HISTORY_RECORDS = 200;
+const MAX_DIRECTORY_CACHE_ENTRIES = 100000;
+const MAX_SHARE_CACHE_ENTRIES = 400000;
+const MAX_HISTORY_RECORDS = 200000;
 
 let persistentCacheState = null;
 let historyState = null;
@@ -81,7 +83,8 @@ function createDefaultCacheState() {
   return {
     version: CACHE_VERSION,
     directories: {},
-    ensured: { '/': nowTs() }
+    ensured: { '/': nowTs() },
+    completedShares: {}
   };
 }
 
@@ -105,7 +108,8 @@ async function ensureCacheLoaded() {
         persistentCacheState = {
           version: CACHE_VERSION,
           directories: raw.directories || {},
-          ensured: { ...raw.ensured }
+          ensured: { ...raw.ensured },
+          completedShares: raw.completedShares || {}
         };
       } else {
         persistentCacheState = createDefaultCacheState();
@@ -132,6 +136,15 @@ async function ensureCacheLoaded() {
           return;
         }
         directoryFileCache.set(path, new Set(entry.files));
+      });
+    }
+
+    completedShareCache.clear();
+    if (persistentCacheState && persistentCacheState.completedShares) {
+      Object.entries(persistentCacheState.completedShares).forEach(([surl, ts]) => {
+        if (surl) {
+          completedShareCache.set(surl, ts || 0);
+        }
       });
     }
   })();
@@ -195,7 +208,8 @@ async function persistCacheNow() {
       [STORAGE_KEYS.cache]: {
         version: CACHE_VERSION,
         directories: persistentCacheState.directories,
-        ensured: persistentCacheState.ensured
+        ensured: persistentCacheState.ensured,
+        completedShares: persistentCacheState.completedShares || {}
       }
     });
   } catch (error) {
@@ -262,6 +276,50 @@ function recordDirectoryCache(path, names) {
     updatedAt: nowTs()
   };
   pruneDirectoryCacheIfNeeded();
+}
+
+function pruneCompletedShareCacheIfNeeded() {
+  if (!persistentCacheState || !persistentCacheState.completedShares) {
+    return;
+  }
+  const entries = Object.entries(persistentCacheState.completedShares);
+  if (entries.length <= MAX_SHARE_CACHE_ENTRIES) {
+    return;
+  }
+  entries
+    .sort((a, b) => {
+      const tsA = a[1] || 0;
+      const tsB = b[1] || 0;
+      return tsA - tsB;
+    })
+    .slice(0, Math.max(0, entries.length - MAX_SHARE_CACHE_ENTRIES))
+    .forEach(([surl]) => {
+      delete persistentCacheState.completedShares[surl];
+      completedShareCache.delete(surl);
+    });
+}
+
+function hasCompletedShare(surl) {
+  if (!surl) {
+    return false;
+  }
+  return completedShareCache.has(surl);
+}
+
+function recordCompletedShare(surl) {
+  if (!surl) {
+    return;
+  }
+  const timestamp = nowTs();
+  completedShareCache.set(surl, timestamp);
+  if (!persistentCacheState) {
+    persistentCacheState = createDefaultCacheState();
+  }
+  if (!persistentCacheState.completedShares) {
+    persistentCacheState.completedShares = {};
+  }
+  persistentCacheState.completedShares[surl] = timestamp;
+  pruneCompletedShareCacheIfNeeded();
 }
 
 ensureCacheLoaded();
@@ -1397,6 +1455,7 @@ async function handleTransfer(payload) {
       logStage(jobId, 'bstToken', `bdstoken 获取失败：${error.message || '未知错误'}`, { level: 'error' });
       throw error;
     }
+    await ensureCacheLoaded();
     const normalizedBaseDir = normalizePath(targetDirectory || '/');
 
     emitProgress(jobId, {
@@ -1438,6 +1497,29 @@ async function handleTransfer(payload) {
           title: item.title,
           status: 'failed',
           message
+        });
+        continue;
+      }
+
+      const surl = buildSurl(detail.linkUrl);
+      if (surl && hasCompletedShare(surl)) {
+        const message = '已跳过：历史记录显示已转存';
+        emitProgress(jobId, {
+          stage: 'item:skip',
+          message: `《${item.title}》${message}`,
+          current: index,
+          total,
+          level: 'warning'
+        });
+        results.push({
+          id: item.id,
+          title: item.title,
+          status: 'skipped',
+          message,
+          files: [],
+          skippedFiles: [],
+          linkUrl: detail.linkUrl,
+          passCode: detail.passCode
         });
         continue;
       }
@@ -1498,6 +1580,9 @@ async function handleTransfer(payload) {
             total,
             level: 'warning'
           });
+          if (surl) {
+            recordCompletedShare(surl);
+          }
           results.push({
             id: item.id,
             title: item.title,
@@ -1532,6 +1617,9 @@ async function handleTransfer(payload) {
         });
 
         if (errno === 0 || errno === 666) {
+          if (surl) {
+            recordCompletedShare(surl);
+          }
           let message = mapErrorMessage(errno, '操作成功');
           if (errno === 0 && attempts > 1) {
             message = `${message}（第 ${attempts} 次尝试成功）`;
