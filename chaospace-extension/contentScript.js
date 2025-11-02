@@ -3639,6 +3639,17 @@
       const PANEL_MIN_WIDTH = 360;
       const PANEL_MIN_HEIGHT = 380;
       let lastKnownPosition = { left: PANEL_MARGIN, top: PANEL_MARGIN };
+      let isDragging = false;
+      let isResizing = false;
+      let currentX = 0;
+      let currentY = 0;
+      let initialX = 0;
+      let initialY = 0;
+      let resizeStartX = 0;
+      let resizeStartY = 0;
+      let resizeStartWidth = 0;
+      let resizeStartHeight = 0;
+      let resizeAnchorRight = 0;
 
       const computeEdgePeek = () => {
         const width = panel.offsetWidth || PANEL_MIN_WIDTH;
@@ -3764,7 +3775,7 @@
       };
 
       const hidePanelToEdge = () => {
-        if (!floatingPanel || isPanelPinned || posterPreviewActive) {
+        if (!floatingPanel || isPanelPinned || posterPreviewActive || isDragging || isResizing) {
           return;
         }
         panel.classList.remove('is-hovering');
@@ -3776,7 +3787,7 @@
       };
 
       const scheduleEdgeHide = (delay = EDGE_HIDE_DELAY) => {
-        if (!floatingPanel || isPanelPinned || posterPreviewActive) {
+        if (!floatingPanel || isPanelPinned || posterPreviewActive || isDragging || isResizing) {
           return;
         }
         if (panelHideTimer) {
@@ -3936,6 +3947,13 @@
 
       panel.addEventListener('pointerleave', () => {
         const verifyHoverState = () => {
+          if (isDragging || isResizing) {
+            pointerInsidePanel = true;
+            panel.classList.add('is-hovering');
+            panel.classList.remove('is-leaving');
+            cancelEdgeHide({ show: true });
+            return;
+          }
           if (!panel || !panel.isConnected) {
             return;
           }
@@ -4231,17 +4249,6 @@
       }
 
       const header = panel.querySelector('.chaospace-float-header');
-      let isDragging = false;
-      let isResizing = false;
-      let currentX = 0;
-      let currentY = 0;
-      let initialX = 0;
-      let initialY = 0;
-      let resizeStartX = 0;
-      let resizeStartY = 0;
-      let resizeStartWidth = 0;
-      let resizeStartHeight = 0;
-      let resizeAnchorRight = 0;
 
       // 拖拽功能 - 适用于标题栏
       const startDrag = (e) => {
@@ -4352,6 +4359,22 @@
         }
         if (shouldRestoreSelection) {
           document.body.style.userSelect = '';
+          window.requestAnimationFrame(() => {
+            if (!panel || !panel.isConnected) {
+              return;
+            }
+            const hovering = panel.matches(':hover');
+            pointerInsidePanel = hovering;
+            if (hovering) {
+              panel.classList.add('is-hovering');
+              panel.classList.remove('is-leaving');
+              cancelEdgeHide({ show: true });
+            } else {
+              panel.classList.remove('is-hovering');
+              panel.classList.add('is-leaving');
+              scheduleEdgeHide();
+            }
+          });
         }
       });
 
