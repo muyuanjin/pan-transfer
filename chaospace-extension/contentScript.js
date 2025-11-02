@@ -3502,6 +3502,7 @@
         if (!shouldHide) {
           panelEdgeState.isHidden = false;
           panel.classList.remove('is-edge-hidden');
+          panel.classList.remove('is-leaving');
           panel.style.left = `${lastKnownPosition.left}px`;
           panel.style.top = `${lastKnownPosition.top}px`;
           panel.style.right = 'auto';
@@ -3527,6 +3528,7 @@
         }
         panel.style.left = `${targetLeft}px`;
         panel.style.right = 'auto';
+        panel.classList.remove('is-hovering');
         panel.classList.add('is-edge-hidden');
       };
 
@@ -3535,6 +3537,7 @@
           return;
         }
         panelEdgeState.isHidden = false;
+        panel.classList.remove('is-leaving');
         applyEdgeHiddenPosition();
       };
 
@@ -3542,9 +3545,11 @@
         if (!floatingPanel || isPanelPinned) {
           return;
         }
+        panel.classList.remove('is-hovering');
         panelEdgeState.side = determineDockSide();
         panelEdgeState.isHidden = true;
         applyEdgeHiddenPosition();
+        panel.classList.remove('is-leaving');
       };
 
       const scheduleEdgeHide = (delay = EDGE_HIDE_DELAY) => {
@@ -3567,6 +3572,7 @@
           clearTimeout(panelHideTimer);
           panelHideTimer = null;
         }
+        panel.classList.remove('is-leaving');
         if (show) {
           showPanelFromEdge();
         }
@@ -3697,20 +3703,28 @@
 
       panel.addEventListener('pointerenter', () => {
         pointerInsidePanel = true;
+        panel.classList.add('is-hovering');
+        panel.classList.remove('is-leaving');
         cancelEdgeHide({ show: true });
       });
 
       panel.addEventListener('pointerleave', () => {
         pointerInsidePanel = false;
+        panel.classList.remove('is-hovering');
+        panel.classList.add('is-leaving');
         scheduleEdgeHide();
       });
 
       panel.addEventListener('focusin', () => {
+        panel.classList.add('is-hovering');
+        panel.classList.remove('is-leaving');
         cancelEdgeHide({ show: true });
       });
 
       panel.addEventListener('focusout', (event) => {
         if (!panel.contains(event.relatedTarget)) {
+          panel.classList.remove('is-hovering');
+          panel.classList.add('is-leaving');
           scheduleEdgeHide();
         }
       });
@@ -4069,7 +4083,7 @@
         panel.style.top = currentY + 'px';
         panel.style.right = 'auto';
         panel.style.bottom = 'auto';
-        panel.style.transform = 'none';
+        panel.style.transform = 'translate3d(0, 0, 0)';
         lastKnownPosition = { left: currentX, top: currentY };
       });
 
