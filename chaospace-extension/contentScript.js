@@ -28,7 +28,8 @@
     historyRecords: [],
     currentHistory: null,
     transferredIds: new Set(),
-    newItemIds: new Set()
+    newItemIds: new Set(),
+    historyExpanded: false
   };
 
   const panelDom = {};
@@ -493,20 +494,38 @@
   }
 
   function renderHistoryCard() {
-    if (!panelDom.historyList || !panelDom.historyEmpty) {
+    if (!panelDom.historyList || !panelDom.historyEmpty || !panelDom.historySummaryBody) {
       return;
     }
 
-    const entries = state.historyRecords.slice(0, HISTORY_DISPLAY_LIMIT);
+    const limit = state.historyExpanded ? state.historyRecords.length : HISTORY_DISPLAY_LIMIT;
+    const entries = state.historyRecords.slice(0, limit);
     panelDom.historyList.innerHTML = '';
+    panelDom.historySummaryBody.innerHTML = '';
     const currentUrl = normalizePageUrl(state.pageUrl || window.location.href);
+    const hasEntries = entries.length > 0;
 
-    if (!entries.length) {
+    if (Array.isArray(panelDom.historyToggleButtons)) {
+      panelDom.historyToggleButtons.forEach(btn => {
+        btn.disabled = !hasEntries;
+      });
+    }
+
+    if (!hasEntries) {
       panelDom.historyEmpty.classList.remove('is-hidden');
+      if (state.historyExpanded) {
+        state.historyExpanded = false;
+      }
+      if (panelDom.historySummary) {
+        panelDom.historySummary.classList.add('is-empty');
+      }
+      panelDom.historySummaryBody.innerHTML = '<span class="chaospace-history-summary-empty">暂无转存记录</span>';
+      updateHistoryExpansion();
       return;
     }
 
     panelDom.historyEmpty.classList.add('is-hidden');
+    panelDom.historySummary?.classList.remove('is-empty');
 
     entries.forEach(record => {
       const item = document.createElement('div');
@@ -571,6 +590,67 @@
       item.appendChild(actions);
       panelDom.historyList.appendChild(item);
     });
+
+    const summaryRecord = entries.find(record => normalizePageUrl(record.pageUrl) !== currentUrl);
+    if (summaryRecord) {
+      const timeLabel = formatHistoryTimestamp(summaryRecord.lastTransferredAt || summaryRecord.lastCheckedAt);
+      const total = summaryRecord.totalTransferred || Object.keys(summaryRecord.items || {}).length || 0;
+      const summary = document.createElement('div');
+      summary.className = 'chaospace-history-summary-item';
+
+      const title = document.createElement('div');
+      title.className = 'chaospace-history-summary-title';
+      title.textContent = summaryRecord.pageTitle || '未命名资源';
+      summary.appendChild(title);
+
+      const metaParts = [];
+      if (timeLabel) metaParts.push(timeLabel);
+      if (total) metaParts.push(`${total} 项`);
+      if (summaryRecord.targetDirectory) metaParts.push(summaryRecord.targetDirectory);
+
+      if (metaParts.length) {
+        const meta = document.createElement('div');
+        meta.className = 'chaospace-history-summary-meta';
+        metaParts.forEach(part => {
+          const span = document.createElement('span');
+          span.textContent = part;
+          meta.appendChild(span);
+        });
+        summary.appendChild(meta);
+      }
+
+      panelDom.historySummaryBody.appendChild(summary);
+    } else {
+      panelDom.historySummary?.classList.add('is-empty');
+      panelDom.historySummaryBody.innerHTML = '<span class="chaospace-history-summary-empty">暂无其他转存记录</span>';
+    }
+
+    updateHistoryExpansion();
+  }
+
+  function updateHistoryExpansion() {
+    if (!floatingPanel) {
+      return;
+    }
+
+    if (!state.historyRecords.length && state.historyExpanded) {
+      state.historyExpanded = false;
+    }
+
+    const expanded = Boolean(state.historyExpanded && state.historyRecords.length);
+    floatingPanel.classList.toggle('is-history-expanded', expanded);
+
+    if (panelDom.historyOverlay) {
+      panelDom.historyOverlay.setAttribute('aria-hidden', expanded ? 'false' : 'true');
+    }
+
+    if (Array.isArray(panelDom.historyToggleButtons)) {
+      panelDom.historyToggleButtons.forEach(button => {
+        button.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        button.textContent = expanded ? '收起' : '展开';
+        button.setAttribute('aria-label', expanded ? '收起转存历史' : '展开转存历史');
+      });
+    }
   }
 
   async function loadHistory(options = {}) {
@@ -1295,6 +1375,22 @@
           </div>
         </div>
         <div class="chaospace-float-body">
+          <div class="chaospace-history-overlay" data-role="history-overlay" aria-hidden="true">
+            <div class="chaospace-history-overlay-header">
+              <div class="chaospace-history-overlay-title">🔖 转存历史</div>
+              <button
+                type="button"
+                class="chaospace-history-toggle"
+                data-role="history-toggle"
+                aria-expanded="false"
+                aria-label="收起转存历史"
+              >收起</button>
+            </div>
+            <div class="chaospace-history-overlay-scroll">
+              <div class="chaospace-history-empty" data-role="history-empty">还没有转存记录</div>
+              <div class="chaospace-history-list" data-role="history-list"></div>
+            </div>
+          </div>
           <div class="chaospace-float-main">
             <div class="chaospace-float-columns">
               <section class="chaospace-column chaospace-column-left">
@@ -1350,22 +1446,25 @@
             </div>
           </div>
           <div class="chaospace-float-footer">
-            <div class="chaospace-card chaospace-history-card" data-role="history-card">
-              <div class="chaospace-card-title">🔖 转存历史</div>
-              <div class="chaospace-history-empty" data-role="history-empty">还没有转存记录</div>
-              <div class="chaospace-history-list" data-role="history-list"></div>
+            <div class="chaospace-history-summary" data-role="history-summary">
+              <div class="chaospace-history-summary-header">
+                <div class="chaospace-card-title">🔖 转存历史</div>
+                <button
+                  type="button"
+                  class="chaospace-history-toggle"
+                  data-role="history-toggle"
+                  aria-expanded="false"
+                  aria-label="展开转存历史"
+                >展开</button>
+              </div>
+              <div class="chaospace-history-summary-body" data-role="history-summary-body"></div>
             </div>
-            <div class="chaospace-footer-bar">
-              <div class="chaospace-footer-status chaospace-status-line" data-role="status">
-                <span class="chaospace-status-emoji">🌙</span>${state.statusMessage}
-              </div>
-              <div class="chaospace-transfer-card chaospace-footer-actions">
-                <button class="chaospace-float-btn" data-role="transfer-btn">
-                  <span class="chaospace-btn-spinner" data-role="transfer-spinner"></span>
-                  <span data-role="transfer-label">开始转存</span>
-                  <span class="chaospace-btn-icon">🚀</span>
-                </button>
-              </div>
+            <div class="chaospace-transfer-card chaospace-footer-actions">
+              <button class="chaospace-float-btn chaospace-float-btn-compact" data-role="transfer-btn">
+                <span class="chaospace-btn-spinner" data-role="transfer-spinner"></span>
+                <span data-role="transfer-label">开始转存</span>
+                <span class="chaospace-btn-icon">🚀</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1483,15 +1582,17 @@
       panelDom.itemsContainer = panel.querySelector('[data-role="items"]');
       panelDom.sortKeySelect = panel.querySelector('[data-role="sort-key"]');
       panelDom.sortOrderButton = panel.querySelector('[data-role="sort-order"]');
-      panelDom.historyCard = panel.querySelector('[data-role="history-card"]');
+      panelDom.historyOverlay = panel.querySelector('[data-role="history-overlay"]');
       panelDom.historyList = panel.querySelector('[data-role="history-list"]');
       panelDom.historyEmpty = panel.querySelector('[data-role="history-empty"]');
+      panelDom.historySummary = panel.querySelector('[data-role="history-summary"]');
+      panelDom.historySummaryBody = panel.querySelector('[data-role="history-summary-body"]');
+      panelDom.historyToggleButtons = Array.from(panel.querySelectorAll('[data-role="history-toggle"]'));
       panelDom.resourceSummary = panel.querySelector('[data-role="resource-summary"]');
       panelDom.resourceTitle = panel.querySelector('[data-role="resource-title"]');
       panelDom.transferBtn = panel.querySelector('[data-role="transfer-btn"]');
       panelDom.transferLabel = panel.querySelector('[data-role="transfer-label"]');
       panelDom.transferSpinner = panel.querySelector('[data-role="transfer-spinner"]');
-      panelDom.statusText = panel.querySelector('[data-role="status"]');
       panelDom.resizeHandle = panel.querySelector('[data-role="resize-handle"]');
 
       updatePanelHeader();
@@ -1611,6 +1712,18 @@
           } else if (action === 'check') {
             triggerHistoryUpdate(url, actionButton);
           }
+        });
+      }
+
+      if (Array.isArray(panelDom.historyToggleButtons)) {
+        panelDom.historyToggleButtons.forEach(toggleBtn => {
+          toggleBtn.addEventListener('click', () => {
+            if (!state.historyRecords.length) {
+              return;
+            }
+            state.historyExpanded = !state.historyExpanded;
+            renderHistoryCard();
+          });
         });
       }
 
@@ -1897,6 +2010,7 @@
       renderPathPreview();
       applyHistoryToCurrentPage();
       renderHistoryCard();
+      updateHistoryExpansion();
       renderResourceList();
       setStatus('idle', state.statusMessage);
       renderLogs();
