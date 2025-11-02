@@ -2577,7 +2577,17 @@
 
       let lastKnownPosition = { left: PANEL_MARGIN, top: PANEL_MARGIN };
 
-      const savedState = await chrome.storage.local.get([POSITION_KEY, SIZE_KEY]);
+      let savedState = {};
+      try {
+        savedState = await chrome.storage.local.get([POSITION_KEY, SIZE_KEY]);
+      } catch (error) {
+        if (isExtensionContextInvalidated(error)) {
+          warnStorageInvalidation('Storage read');
+        } else {
+          console.error('[Chaospace Transfer] Failed to restore panel geometry', error);
+        }
+        savedState = {};
+      }
       const savedSize = savedState[SIZE_KEY];
       if (savedSize && Number.isFinite(savedSize.width) && Number.isFinite(savedSize.height)) {
         applyPanelSize(savedSize.width, savedSize.height);
