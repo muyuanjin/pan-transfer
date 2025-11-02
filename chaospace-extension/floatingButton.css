@@ -153,7 +153,7 @@
 
 .chaospace-float-header {
   position: relative;
-  padding: 16px 72px 16px 26px;
+  padding: 22px 134px 20px 26px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -246,15 +246,11 @@
   backdrop-filter: blur(10px);
   box-shadow: 0 8px 18px rgba(8, 13, 24, 0.18);
   padding: 0;
+  flex-shrink: 0;
 }
 
 .chaospace-float-pin {
-  position: absolute;
-  top: 18px;
-  right: 28px;
-  left: auto;
   font-size: 22px;
-  z-index: 2;
 }
 
 .chaospace-float-pin:hover,
@@ -287,16 +283,16 @@
 
 .chaospace-float-panel.theme-light .chaospace-float-pin,
 .chaospace-float-panel.theme-light .chaospace-theme-toggle {
-  background: rgba(255, 255, 255, 0.88);
+  background: #fff;
   color: var(--cp-text-primary);
-  border-color: rgba(148, 163, 184, 0.32);
-  box-shadow: 0 10px 24px rgba(148, 163, 184, 0.22);
+  border-color: rgba(148, 163, 184, 0.36);
+  box-shadow: 0 10px 26px rgba(148, 163, 184, 0.24);
 }
 
 .chaospace-float-panel.theme-light .chaospace-float-pin:hover,
 .chaospace-float-panel.theme-light .chaospace-theme-toggle:hover:not(:disabled) {
-  background: rgba(241, 245, 255, 0.95);
-  border-color: rgba(148, 163, 184, 0.38);
+  background: #eef2ff;
+  border-color: rgba(148, 163, 184, 0.42);
 }
 
 .chaospace-float-panel.theme-light .chaospace-float-pin.is-active {
@@ -331,13 +327,13 @@
 }
 
 .chaospace-header-actions {
+  position: absolute;
+  top: 18px;
+  right: 24px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 16px;
-  flex: 0 0 auto;
-  margin-left: auto;
-  padding-right: 6px;
+  gap: 12px;
+  z-index: 3;
 }
 
 .chaospace-header-poster {
@@ -410,14 +406,9 @@
   color: rgba(248, 250, 252, 0.85);
 }
 
+/* legacy wrapper kept for backwards compatibility */
 .chaospace-float-controls {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: flex-start;
-  gap: 10px;
-  align-self: flex-start;
-  margin-top: 2px;
+  display: contents;
 }
 
 .chaospace-float-body {
@@ -1952,6 +1943,15 @@ button.chaospace-history-season-poster:hover {
   min-height: 172px;
 }
 
+.chaospace-float-panel.is-narrow .chaospace-header-actions {
+  position: static;
+  width: 100%;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 14px;
+}
+
 .chaospace-float-panel.is-narrow .chaospace-float-body {
   padding: 18px 22px 24px;
 }
@@ -1986,16 +1986,17 @@ button.chaospace-history-season-poster:hover {
   gap: 12px;
 }
 
-.chaospace-float-panel.is-compact .chaospace-header-actions {
-  width: 100%;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-left: 0;
+.chaospace-float-panel.is-compact .chaospace-float-header {
+  padding-right: 28px;
 }
 
-.chaospace-float-panel.is-compact .chaospace-float-controls {
-  align-items: flex-end;
+.chaospace-float-panel.is-compact .chaospace-header-actions {
+  position: static;
+  width: 100%;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 12px;
 }
 
 .chaospace-float-panel.is-compact .chaospace-show-title {
@@ -2029,10 +2030,6 @@ button.chaospace-history-season-poster:hover {
   width: 100%;
 }
 
-.chaospace-float-panel.is-compact .chaospace-float-controls {
-  width: auto;
-  justify-content: flex-end;
-}
 
 .chaospace-chip-button,
 .chaospace-chip-remove,

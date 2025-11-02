@@ -3482,13 +3482,22 @@
       panel.innerHTML = `
         <div class="chaospace-float-header">
           <div class="chaospace-header-art is-empty" data-role="header-art"></div>
-          <button
-            type="button"
-            class="chaospace-float-pin"
-            data-role="pin-toggle"
-            title="固定面板"
-            aria-pressed="false"
-          >📌</button>
+          <div class="chaospace-header-actions">
+            <button
+              type="button"
+              class="chaospace-theme-toggle"
+              data-role="theme-toggle"
+              aria-label="切换主题"
+              title="切换主题"
+            >☀️</button>
+            <button
+              type="button"
+              class="chaospace-float-pin"
+              data-role="pin-toggle"
+              title="固定面板"
+              aria-pressed="false"
+            >📌</button>
+          </div>
           <div class="chaospace-header-content">
             <img
               class="chaospace-header-poster"
@@ -3504,17 +3513,6 @@
               </div>
               <h2 class="chaospace-show-title" data-role="show-title">${state.pageTitle || '等待选择剧集'}</h2>
               <p class="chaospace-show-subtitle" data-role="show-subtitle">${originLabel ? `来源 ${originLabel}` : '未检测到页面来源'}</p>
-            </div>
-            <div class="chaospace-header-actions">
-              <div class="chaospace-float-controls">
-                <button
-                  type="button"
-                  class="chaospace-theme-toggle"
-                  data-role="theme-toggle"
-                  aria-label="切换主题"
-                  title="切换主题"
-                >☀️</button>
-              </div>
             </div>
           </div>
         </div>
