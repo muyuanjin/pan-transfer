@@ -1552,12 +1552,12 @@
       const PANEL_MARGIN = 16;
       const PANEL_MIN_WIDTH = 360;
       const PANEL_MIN_HEIGHT = 380;
-      const PANEL_MAX_WIDTH = 960;
-      const PANEL_MAX_HEIGHT = 840;
 
       const getPanelBounds = () => {
-        const maxWidth = Math.max(PANEL_MIN_WIDTH, Math.min(PANEL_MAX_WIDTH, window.innerWidth - PANEL_MARGIN * 2));
-        const maxHeight = Math.max(PANEL_MIN_HEIGHT, Math.min(PANEL_MAX_HEIGHT, window.innerHeight - PANEL_MARGIN * 2));
+        const availableWidth = window.innerWidth - PANEL_MARGIN * 2;
+        const availableHeight = window.innerHeight - PANEL_MARGIN * 2;
+        const maxWidth = Math.max(PANEL_MIN_WIDTH, availableWidth);
+        const maxHeight = Math.max(PANEL_MIN_HEIGHT, availableHeight);
         return {
           minWidth: PANEL_MIN_WIDTH,
           minHeight: PANEL_MIN_HEIGHT,
@@ -1909,6 +1909,7 @@
       let resizeStartY = 0;
       let resizeStartWidth = 0;
       let resizeStartHeight = 0;
+      let resizeAnchorRight = 0;
 
       // 拖拽功能 - 适用于标题栏和迷你栏
       const startDrag = (e) => {
@@ -1946,6 +1947,8 @@
         resizeStartHeight = panel.offsetHeight;
         resizeStartX = event.clientX;
         resizeStartY = event.clientY;
+        const rect = panel.getBoundingClientRect();
+        resizeAnchorRight = rect.right;
         panel.classList.add('is-resizing');
         panel.style.transition = 'none';
         document.body.style.userSelect = 'none';
@@ -1967,10 +1970,11 @@
       document.addEventListener('mousemove', (e) => {
         if (isResizing) {
           e.preventDefault();
-          const deltaX = e.clientX - resizeStartX;
+          const deltaX = resizeStartX - e.clientX;
           const deltaY = e.clientY - resizeStartY;
-          applyPanelSize(resizeStartWidth + deltaX, resizeStartHeight + deltaY);
-          const clampedPosition = applyPanelPosition(lastKnownPosition.left, lastKnownPosition.top);
+          const nextSize = applyPanelSize(resizeStartWidth + deltaX, resizeStartHeight + deltaY);
+          const targetLeft = resizeAnchorRight - nextSize.width;
+          const clampedPosition = applyPanelPosition(targetLeft, lastKnownPosition.top);
           lastKnownPosition = clampedPosition;
           return;
         }
