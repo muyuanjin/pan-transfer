@@ -59,9 +59,14 @@
     const cleanBase = normalizeDir(defaultPath || state.baseDir || '/');
     const seasonId = item.seasonId;
     let dirName = state.seasonDirMap[seasonId];
-    if (!dirName) {
+    if (!dirName || !sanitizeSeasonDirSegment(dirName)) {
       dirName = deriveSeasonDirectory(item.seasonLabel, item.seasonIndex);
+      if (!dirName) {
+        dirName = `第${Number.isFinite(item.seasonIndex) ? item.seasonIndex + 1 : 1}季`;
+      }
       state.seasonDirMap[seasonId] = dirName;
+      dedupeSeasonDirMap();
+      dirName = state.seasonDirMap[seasonId];
     }
     const safeDir = sanitizeSeasonDirSegment(dirName);
     if (!safeDir) {
@@ -149,7 +154,7 @@
         return;
       }
       let candidate = preserveExisting ? existing[item.seasonId] : '';
-      if (!candidate) {
+      if (!candidate || !String(candidate).trim()) {
         candidate = deriveSeasonDirectory(item.seasonLabel, item.seasonIndex);
       }
       if (!candidate) {
