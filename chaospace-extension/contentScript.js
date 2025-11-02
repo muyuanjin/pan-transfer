@@ -342,6 +342,17 @@
         panelDom.headerArt.classList.add('is-empty');
       }
     }
+    if (panelDom.headerPoster) {
+      if (hasPoster) {
+        panelDom.headerPoster.src = state.poster.src;
+        panelDom.headerPoster.alt = state.poster.alt || '';
+        panelDom.headerPoster.style.display = 'block';
+      } else {
+        panelDom.headerPoster.removeAttribute('src');
+        panelDom.headerPoster.alt = '';
+        panelDom.headerPoster.style.display = 'none';
+      }
+    }
   }
 
   function normalizeDir(value) {
@@ -812,7 +823,10 @@
       floatingPanel.classList.toggle('theme-light', isLight);
     }
     if (panelDom.themeToggle) {
-      panelDom.themeToggle.textContent = isLight ? '切换深色 🌙' : '切换浅色 ☀️';
+      const label = isLight ? '切换到深色主题' : '切换到浅色主题';
+      panelDom.themeToggle.textContent = isLight ? '🌙' : '🌞';
+      panelDom.themeToggle.setAttribute('aria-label', label);
+      panelDom.themeToggle.title = label;
     }
   }
 
@@ -1428,15 +1442,38 @@
         <div class="chaospace-float-header">
           <div class="chaospace-header-art is-empty" data-role="header-art"></div>
           <div class="chaospace-header-content">
-            <div class="chaospace-header-topline">
-              <span class="chaospace-assistant-badge">🚀 CHAOSPACE 转存助手</span>
+            <div class="chaospace-header-body">
+              <div class="chaospace-header-topline">
+                <span class="chaospace-assistant-badge">🚀 CHAOSPACE 转存助手</span>
+              </div>
+              <h2 class="chaospace-show-title" data-role="show-title">${state.pageTitle || '等待选择剧集'}</h2>
+              <p class="chaospace-show-subtitle" data-role="show-subtitle">${originLabel ? `来源 ${originLabel}` : '未检测到页面来源'}</p>
+            </div>
+            <div class="chaospace-header-actions">
+              <img
+                class="chaospace-header-poster"
+                data-role="header-poster"
+                alt=""
+                loading="lazy"
+                decoding="async"
+                style="display: none;"
+              />
               <div class="chaospace-float-controls">
-                <button type="button" class="chaospace-theme-toggle" data-role="theme-toggle">切换浅色 ☀️</button>
-                <button type="button" class="chaospace-float-minimize" data-role="minimize" title="折叠">折叠</button>
+                <button
+                  type="button"
+                  class="chaospace-float-minimize"
+                  data-role="minimize"
+                  title="折叠"
+                >折叠</button>
+                <button
+                  type="button"
+                  class="chaospace-theme-toggle"
+                  data-role="theme-toggle"
+                  aria-label="切换主题"
+                  title="切换主题"
+                >☀️</button>
               </div>
             </div>
-            <h2 class="chaospace-show-title" data-role="show-title">${state.pageTitle || '等待选择剧集'}</h2>
-            <p class="chaospace-show-subtitle" data-role="show-subtitle">${originLabel ? `来源 ${originLabel}` : '未检测到页面来源'}</p>
           </div>
         </div>
         <div class="chaospace-float-body">
@@ -1622,6 +1659,7 @@
 
       panelDom.header = panel.querySelector('.chaospace-float-header');
       panelDom.headerArt = panel.querySelector('[data-role="header-art"]');
+      panelDom.headerPoster = panel.querySelector('[data-role="header-poster"]');
       panelDom.showTitle = panel.querySelector('[data-role="show-title"]');
       panelDom.showSubtitle = panel.querySelector('[data-role="show-subtitle"]');
       panelDom.baseDirInput = panel.querySelector('[data-role="base-dir"]');
