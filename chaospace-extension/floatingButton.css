@@ -218,6 +218,10 @@
   transition: transform 0.25s ease, box-shadow 0.25s ease, opacity 0.25s ease;
 }
 
+.chaospace-header-poster.is-clickable {
+  cursor: zoom-in;
+}
+
 .chaospace-header-poster:hover {
   transform: translateY(-2px);
   box-shadow: 0 22px 44px rgba(8, 13, 24, 0.52);
@@ -1049,9 +1053,8 @@
 
 .chaospace-history-item {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
+  flex-direction: column;
+  gap: 14px;
   padding: 12px 14px;
   border-radius: 14px;
   background: var(--cp-surface-soft);
@@ -1067,6 +1070,70 @@
 .chaospace-history-item.is-current {
   border-color: var(--cp-accent);
   box-shadow: 0 12px 28px rgba(99, 102, 241, 0.18);
+}
+
+.chaospace-history-item-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.chaospace-history-poster,
+.chaospace-history-season-poster {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: radial-gradient(circle at 50% 40%, rgba(241, 245, 249, 0.18), rgba(15, 23, 42, 0.08));
+  position: relative;
+}
+
+.chaospace-history-poster {
+  width: 68px;
+  height: 96px;
+  flex-shrink: 0;
+}
+
+.chaospace-history-season-poster {
+  width: 56px;
+  height: 80px;
+  flex-shrink: 0;
+  border-radius: 10px;
+}
+
+.chaospace-history-poster img,
+.chaospace-history-season-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+button.chaospace-history-poster,
+button.chaospace-history-season-poster {
+  padding: 0;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  background: rgba(99, 102, 241, 0.12);
+  cursor: zoom-in;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+button.chaospace-history-poster:hover,
+button.chaospace-history-season-poster:hover {
+  border-color: rgba(99, 102, 241, 0.7);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.24);
+  transform: translateY(-1px);
+}
+
+.chaospace-history-poster.is-placeholder,
+.chaospace-history-season-poster.is-placeholder {
+  border: 1px dashed rgba(148, 163, 184, 0.4);
+  background: rgba(15, 23, 42, 0.06);
+  color: rgba(148, 163, 184, 0.8);
+  font-size: 11px;
+  letter-spacing: 0.3px;
 }
 
 .chaospace-history-main {
@@ -1099,6 +1166,72 @@
   min-width: 96px;
 }
 
+.chaospace-history-season-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-left: 1px dashed rgba(148, 163, 184, 0.35);
+  margin-left: 0;
+  padding-left: calc(68px + 18px);
+  margin-top: -2px;
+}
+
+.chaospace-history-season-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.chaospace-history-season-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chaospace-history-season-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cp-text-primary);
+  letter-spacing: 0.2px;
+}
+
+.chaospace-history-season-meta {
+  font-size: 11px;
+  color: var(--cp-text-muted);
+  letter-spacing: 0.15px;
+}
+
+.chaospace-history-season-item .chaospace-history-actions {
+  min-width: 88px;
+  gap: 6px;
+}
+
+.chaospace-history-season-toggle {
+  margin-left: auto;
+  height: 28px;
+  padding: 0 14px;
+  border-radius: 9px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(14, 165, 233, 0.12);
+  color: var(--cp-text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  letter-spacing: 0.25px;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.chaospace-history-season-toggle:hover {
+  background: rgba(14, 165, 233, 0.22);
+  border-color: rgba(14, 165, 233, 0.5);
+  color: var(--cp-text-primary);
+  transform: translateY(-1px);
+}
+
+.chaospace-history-item.is-season-expanded .chaospace-history-season-list {
+  animation: cp-fade-in 0.18s ease;
+}
+
 .chaospace-history-action {
   padding: 0 10px;
   height: 28px;
@@ -1126,7 +1259,7 @@
 
 .chaospace-history-action:disabled {
   opacity: 0.5;
-  cursor: wait;
+  cursor: not-allowed;
   transform: none;
 }
 
@@ -2008,6 +2141,17 @@
   }
 }
 
+@keyframes cp-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .chaospace-toast::before {
   content: '';
   position: absolute;
@@ -2030,6 +2174,60 @@
 
 .chaospace-toast.error {
   border-color: rgba(248, 113, 113, 0.42);
+}
+
+.chaospace-poster-preview {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.78);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2147483646;
+  padding: 32px;
+  animation: cp-fade-in 0.18s ease;
+}
+
+.chaospace-poster-preview-inner {
+  position: relative;
+  max-width: min(80vw, 480px);
+  max-height: min(82vh, 720px);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 28px 68px rgba(8, 13, 24, 0.55);
+  background: radial-gradient(circle at 50% 20%, rgba(14, 165, 233, 0.12), rgba(15, 23, 42, 0.9));
+}
+
+.chaospace-poster-preview-inner img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.chaospace-poster-preview-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(15, 23, 42, 0.6);
+  color: #f8fafc;
+  font-size: 20px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.chaospace-poster-preview-close:hover {
+  background: rgba(99, 102, 241, 0.95);
+  transform: scale(1.05);
 }
 
 .chaospace-toast-title {

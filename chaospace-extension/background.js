@@ -337,6 +337,53 @@ function mergeSeasonDirectoryMap(current, updates) {
   return { ...base, ...incoming };
 }
 
+function sanitizeSeasonEntry(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+  const seasonId = typeof entry.seasonId === 'string' && entry.seasonId
+    ? entry.seasonId
+    : (typeof entry.id === 'string' ? entry.id : '');
+  const url = typeof entry.url === 'string' ? entry.url.trim() : '';
+  if (!seasonId && !url) {
+    return null;
+  }
+  const sanitized = {
+    seasonId,
+    url,
+    label: typeof entry.label === 'string' ? entry.label.trim() : '',
+    seasonIndex: Number.isFinite(entry.seasonIndex) ? entry.seasonIndex : 0,
+    completion: entry.completion ? normalizeHistoryCompletion(entry.completion) : null,
+    loaded: Boolean(entry.loaded),
+    hasItems: Boolean(entry.hasItems)
+  };
+  if (entry.poster) {
+    const poster = sanitizePosterInfo(entry.poster);
+    if (poster) {
+      sanitized.poster = poster;
+    }
+  }
+  if (entry.updatedAt && Number.isFinite(entry.updatedAt)) {
+    sanitized.updatedAt = entry.updatedAt;
+  }
+  return sanitized;
+}
+
+function normalizeSeasonEntries(entries) {
+  if (!Array.isArray(entries)) {
+    return [];
+  }
+  return entries
+    .map(sanitizeSeasonEntry)
+    .filter(Boolean)
+    .sort((a, b) => {
+      if (a.seasonIndex === b.seasonIndex) {
+        return a.seasonId.localeCompare(b.seasonId, 'zh-CN');
+      }
+      return a.seasonIndex - b.seasonIndex;
+    });
+}
+
 function summarizeSeasonCompletion(statuses = []) {
   const valid = statuses.filter(Boolean);
   if (!valid.length) {
@@ -1415,6 +1462,7 @@ function ensureHistoryRecordStructure(record) {
   record.seasonCompletion = normalizeSeasonCompletionMap(record.seasonCompletion);
   record.seasonDirectory = normalizeSeasonDirectoryMap(record.seasonDirectory);
   record.useSeasonSubdir = Boolean(record.useSeasonSubdir);
+  record.seasonEntries = normalizeSeasonEntries(record.seasonEntries);
   return record;
 }
 
@@ -1442,6 +1490,7 @@ function upsertHistoryRecord(pageUrl) {
     completion: null,
     seasonCompletion: {},
     seasonDirectory: {},
+    seasonEntries: [],
     items: {},
     itemOrder: [],
     lastResult: null
@@ -1518,6 +1567,12 @@ async function recordTransferHistory(payload, outcome) {
   record.useSeasonSubdir = typeof meta.useSeasonSubdir === 'boolean' ? meta.useSeasonSubdir : Boolean(record.useSeasonSubdir);
   if (meta.seasonDirectory && typeof meta.seasonDirectory === 'object') {
     record.seasonDirectory = mergeSeasonDirectoryMap(record.seasonDirectory, meta.seasonDirectory);
+  }
+  if (Array.isArray(meta.seasonEntries)) {
+    const normalizedEntries = normalizeSeasonEntries(meta.seasonEntries);
+    if (normalizedEntries.length) {
+      record.seasonEntries = normalizedEntries;
+    }
   }
   record.lastCheckedAt = timestamp;
   if (meta.completion) {
@@ -1765,6 +1820,110 @@ function parseTvShowSeasonCompletionFromHtml(html) {
   return map;
 }
 
+function resolveSeasonUrl(href, baseUrl) {
+  if (!href) {
+    return '';
+  }
+  try {
+    const url = new URL(href, baseUrl);
+    url.hash = '';
+    return url.toString();
+  } catch (_error) {
+    return '';
+  }
+}
+
+function extractPosterFromBlockHtml(blockHtml, baseUrl) {
+  if (!blockHtml) {
+    return null;
+  }
+  const imgMatch = blockHtml.match(/<img[^>]*>/i);
+  if (!imgMatch) {
+    return null;
+  }
+  const imgTag = imgMatch[0];
+  const srcsetMatch = imgTag.match(/(?:data-srcset|srcset)=['"]([^'"]+)['"]/i);
+  let src = '';
+  if (srcsetMatch) {
+    const candidates = srcsetMatch[1]
+      .split(',')
+      .map(entry => entry.trim())
+      .map(entry => entry.split(/\s+/)[0])
+      .filter(Boolean);
+    for (let i = candidates.length - 1; i >= 0; i -= 1) {
+      const candidate = resolveSeasonUrl(candidates[i], baseUrl);
+      if (candidate) {
+        src = candidate;
+        break;
+      }
+    }
+  }
+  if (!src) {
+    const attrRegex = /(data-original|data-src|data-lazy-src|data-medium-file|data-large-file|src)=['"]([^'"]+)['"]/gi;
+    let attrMatch;
+    while ((attrMatch = attrRegex.exec(imgTag))) {
+      const candidate = resolveSeasonUrl(attrMatch[2], baseUrl);
+      if (candidate) {
+        src = candidate;
+        break;
+      }
+    }
+  }
+  if (!src) {
+    return null;
+  }
+  const altMatch = imgTag.match(/alt=['"]([^'"]*)['"]/i);
+  const alt = altMatch ? altMatch[1].trim() : '';
+  return {
+    src,
+    alt
+  };
+}
+
+function parseTvShowSeasonEntriesFromHtml(html, baseUrl) {
+  const entries = [];
+  if (!html || typeof html !== 'string') {
+    return entries;
+  }
+  const seasonsSection = extractSectionById(html, 'seasons');
+  if (!seasonsSection) {
+    return entries;
+  }
+  const blockRegex = /<div[^>]*class=['"]se-c['"][^>]*>([\s\S]*?)<\/div>/gi;
+  let blockMatch;
+  let index = 0;
+  while ((blockMatch = blockRegex.exec(seasonsSection))) {
+    const blockHtml = blockMatch[1];
+    if (!blockHtml) {
+      continue;
+    }
+    const anchorMatch = blockHtml.match(/<a[^>]+href=['"]([^'"]+)['"][^>]*>[\s\S]*?<span[^>]*class=['"]title['"][^>]*>([\s\S]*?)<\/span>[\s\S]*?<\/a>/i);
+    if (!anchorMatch) {
+      continue;
+    }
+    const href = anchorMatch[1];
+    const url = resolveSeasonUrl(href, baseUrl);
+    if (!url) {
+      continue;
+    }
+    const idMatch = url.match(/\/seasons\/(\d+)\.html/);
+    const seasonId = idMatch ? idMatch[1] : `season-${index + 1}`;
+    const titleHtml = anchorMatch[2] || '';
+    const textContent = stripHtmlTags(titleHtml);
+    const label = extractCleanTitle(textContent) || `季 ${index + 1}`;
+    const poster = extractPosterFromBlockHtml(blockHtml, baseUrl);
+    entries.push({
+      seasonId,
+      url,
+      label,
+      seasonIndex: index,
+      poster
+    });
+    index += 1;
+  }
+  return entries;
+}
+
 function parseItemsFromHtml(html, historyItems = {}) {
   const sectionHtml = extractDownloadTableHtml(html);
   if (!sectionHtml) {
@@ -1828,6 +1987,17 @@ async function collectPageSnapshot(pageUrl) {
     completion = summarizeSeasonCompletion(Object.values(seasonCompletion));
   }
 
+  const seasonEntries = isTvShowUrl(pageUrl)
+    ? parseTvShowSeasonEntriesFromHtml(html, pageUrl).map((entry, idx) => ({
+      seasonId: entry.seasonId,
+      url: entry.url,
+      label: entry.label,
+      seasonIndex: Number.isFinite(entry.seasonIndex) ? entry.seasonIndex : idx,
+      poster: entry.poster || null,
+      completion: seasonCompletion[entry.seasonId] || null
+    }))
+    : [];
+
   return {
     pageUrl,
     pageTitle,
@@ -1835,7 +2005,8 @@ async function collectPageSnapshot(pageUrl) {
     total: items.length,
     items,
     completion,
-    seasonCompletion
+    seasonCompletion,
+    seasonEntries
   };
 }
 
@@ -1869,6 +2040,12 @@ async function handleCheckUpdatesRequest(payload = {}) {
       timestamp,
       'snapshot'
     );
+  }
+  if (Array.isArray(snapshot.seasonEntries) && snapshot.seasonEntries.length) {
+    const normalizedEntries = normalizeSeasonEntries(snapshot.seasonEntries);
+    if (normalizedEntries.length) {
+      record.seasonEntries = normalizedEntries;
+    }
   }
 
   const newItems = snapshot.items.filter(item => !knownIds.has(String(item.id)));
