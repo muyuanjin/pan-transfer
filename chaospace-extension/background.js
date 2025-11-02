@@ -1338,12 +1338,27 @@ async function collectPageSnapshot(pageUrl) {
   const items = parseItemsFromHtml(html);
   const pageTitle = parsePageTitleFromHtml(html);
   const pageType = items.length > 1 ? 'series' : 'movie';
+
+  await ensureHistoryLoaded();
+  const existing = historyIndexByUrl.get(pageUrl);
+  const recordItems = existing?.record?.items || {};
+
+  const normalizedItems = items.map(item => {
+    const id = String(item.id);
+    const historyItem = recordItems[id];
+    return {
+      ...item,
+      linkUrl: historyItem?.linkUrl || '',
+      passCode: historyItem?.passCode || ''
+    };
+  });
+
   return {
     pageUrl,
     pageTitle,
     pageType,
-    total: items.length,
-    items
+    total: normalizedItems.length,
+    items: normalizedItems
   };
 }
 
@@ -1405,7 +1420,9 @@ async function handleCheckUpdatesRequest(payload = {}) {
     items: newItems.map(item => ({
       id: item.id,
       title: item.title,
-      targetPath: targetDirectory
+      targetPath: targetDirectory,
+      linkUrl: item.linkUrl || record.items[String(item.id)]?.linkUrl || '',
+      passCode: item.passCode || record.items[String(item.id)]?.passCode || ''
     })),
     targetDirectory,
     meta
@@ -1482,23 +1499,40 @@ async function handleTransfer(payload) {
         total
       });
 
-      const detail = await fetchLinkDetail(origin, item.id, { jobId, context: item.title });
-      if (detail.error) {
-        const message = detail.error || '获取链接失败';
-        emitProgress(jobId, {
-          stage: 'item:error',
-          message: `《${item.title}》链接解析失败：${message}`,
-          current: index,
-          total,
-          level: 'error'
-        });
-        results.push({
-          id: item.id,
-          title: item.title,
-          status: 'failed',
-          message
-        });
-        continue;
+      let detail = null;
+      let usedCachedDetail = false;
+
+      if (item.linkUrl) {
+        detail = {
+          linkUrl: sanitizeLink(item.linkUrl),
+          passCode: item.passCode || ''
+        };
+        if (detail.linkUrl) {
+          usedCachedDetail = true;
+        } else {
+          detail = null;
+        }
+      }
+
+      if (!detail) {
+        detail = await fetchLinkDetail(origin, item.id, { jobId, context: item.title });
+        if (detail.error) {
+          const message = detail.error || '获取链接失败';
+          emitProgress(jobId, {
+            stage: 'item:error',
+            message: `《${item.title}》链接解析失败：${message}`,
+            current: index,
+            total,
+            level: 'error'
+          });
+          results.push({
+            id: item.id,
+            title: item.title,
+            status: 'failed',
+            message
+          });
+          continue;
+        }
       }
 
       const surl = buildSurl(detail.linkUrl);
@@ -1532,7 +1566,14 @@ async function handleTransfer(payload) {
           total
         });
 
-        const meta = await fetchShareMetadata(detail.linkUrl, detail.passCode, bdstoken, { jobId, context: item.title });
+        let meta = await fetchShareMetadata(detail.linkUrl, detail.passCode, bdstoken, { jobId, context: item.title });
+        if (usedCachedDetail && meta.error) {
+          const refreshedDetail = await fetchLinkDetail(origin, item.id, { jobId, context: item.title });
+          if (!refreshedDetail.error) {
+            detail = refreshedDetail;
+            meta = await fetchShareMetadata(detail.linkUrl, detail.passCode, bdstoken, { jobId, context: item.title });
+          }
+        }
         if (meta.error) {
           const errno = typeof meta.error === 'number' ? meta.error : -9999;
           const message = mapErrorMessage(errno, typeof meta.error === 'string' ? meta.error : '');

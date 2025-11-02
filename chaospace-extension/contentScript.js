@@ -1320,7 +1320,7 @@
               </div>
               <div class="chaospace-items-scroll" data-role="items"></div>
               <div class="chaospace-card chaospace-history-card" data-role="history-card">
-                <div class="chaospace-card-title">📚 转存历史</div>
+                <div class="chaospace-card-title">🔖 转存历史</div>
                 <div class="chaospace-history-empty" data-role="history-empty">还没有转存记录</div>
                 <div class="chaospace-history-list" data-role="history-list"></div>
               </div>
