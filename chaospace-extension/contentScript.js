@@ -9,7 +9,7 @@
   const TV_SHOW_INITIAL_SEASON_BATCH = 2;
   const ALL_SEASON_TAB_ID = '__all__';
   const NO_SEASON_TAB_ID = '__no-season__';
-  const EDGE_HIDE_DELAY = 480;
+  const EDGE_HIDE_DELAY = 640;
   const EDGE_HIDE_MIN_PEEK = 44;
   const EDGE_HIDE_MAX_PEEK = 128;
   const EDGE_HIDE_DEFAULT_PEEK = 64;
@@ -65,6 +65,8 @@
   let panelEdgeState = { isHidden: false, side: 'right', peek: EDGE_HIDE_DEFAULT_PEEK };
   let pointerInsidePanel = false;
   let isPanelPinned = false;
+  let edgeAnimationTimer = null;
+  let edgeTransitionUnbind = null;
 
   function computeItemTargetPath(item, defaultPath) {
     if (!state.useSeasonSubdir || !item || !item.seasonId) {
@@ -3539,12 +3541,50 @@
         panel.classList.add('is-edge-hidden');
       };
 
+      const beginEdgeAnimation = () => {
+        if (!panel) {
+          return;
+        }
+        if (edgeTransitionUnbind) {
+          edgeTransitionUnbind();
+          edgeTransitionUnbind = null;
+        }
+        panel.classList.add('is-edge-animating');
+        if (edgeAnimationTimer) {
+          clearTimeout(edgeAnimationTimer);
+          edgeAnimationTimer = null;
+        }
+        function cleanup() {
+          panel.classList.remove('is-edge-animating');
+          panel.removeEventListener('transitionend', handleTransitionEnd);
+          if (edgeAnimationTimer) {
+            clearTimeout(edgeAnimationTimer);
+            edgeAnimationTimer = null;
+          }
+          edgeTransitionUnbind = null;
+        }
+        function handleTransitionEnd(event) {
+          if (event.target !== panel) {
+            return;
+          }
+          if (event.propertyName === 'left' || event.propertyName === 'transform') {
+            cleanup();
+          }
+        }
+        panel.addEventListener('transitionend', handleTransitionEnd);
+        edgeAnimationTimer = window.setTimeout(() => {
+          cleanup();
+        }, 760);
+        edgeTransitionUnbind = cleanup;
+      };
+
       const showPanelFromEdge = () => {
         if (!panelEdgeState.isHidden) {
           return;
         }
         panelEdgeState.isHidden = false;
         panel.classList.remove('is-leaving');
+        beginEdgeAnimation();
         applyEdgeHiddenPosition();
       };
 
@@ -3555,6 +3595,7 @@
         panel.classList.remove('is-hovering');
         panelEdgeState.side = determineDockSide();
         panelEdgeState.isHidden = true;
+        beginEdgeAnimation();
         applyEdgeHiddenPosition();
         panel.classList.remove('is-leaving');
       };
@@ -4179,6 +4220,14 @@
         detachWindowResize = null;
       }
       closePosterPreview();
+      if (edgeTransitionUnbind) {
+        edgeTransitionUnbind();
+        edgeTransitionUnbind = null;
+      }
+      if (edgeAnimationTimer) {
+        clearTimeout(edgeAnimationTimer);
+        edgeAnimationTimer = null;
+      }
       floatingPanel.remove();
       floatingPanel = null;
       if (panelHideTimer) {
