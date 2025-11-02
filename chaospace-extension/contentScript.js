@@ -505,11 +505,11 @@
     const currentUrl = normalizePageUrl(state.pageUrl || window.location.href);
     const hasEntries = entries.length > 0;
 
-    if (Array.isArray(panelDom.historyToggleButtons)) {
-      panelDom.historyToggleButtons.forEach(btn => {
-        btn.disabled = !hasEntries;
-      });
-    }
+    const refreshToggleCache = () => {
+      panelDom.historyToggleButtons = Array.from(
+        floatingPanel ? floatingPanel.querySelectorAll('[data-role="history-toggle"]') : []
+      );
+    };
 
     if (!hasEntries) {
       panelDom.historyEmpty.classList.remove('is-hidden');
@@ -520,6 +520,12 @@
         panelDom.historySummary.classList.add('is-empty');
       }
       panelDom.historySummaryBody.innerHTML = '<span class="chaospace-history-summary-empty">暂无转存记录</span>';
+      refreshToggleCache();
+      if (Array.isArray(panelDom.historyToggleButtons)) {
+        panelDom.historyToggleButtons.forEach(btn => {
+          btn.disabled = true;
+        });
+      }
       updateHistoryExpansion();
       return;
     }
@@ -597,6 +603,28 @@
       const total = summaryRecord.totalTransferred || Object.keys(summaryRecord.items || {}).length || 0;
       const summary = document.createElement('div');
       summary.className = 'chaospace-history-summary-item';
+      summary.dataset.role = 'history-summary-entry';
+      summary.setAttribute('role', 'button');
+      summary.tabIndex = 0;
+
+      const topRow = document.createElement('div');
+      topRow.className = 'chaospace-history-summary-topline';
+
+      const label = document.createElement('span');
+      label.className = 'chaospace-history-summary-label';
+      label.textContent = '🔖 转存历史';
+      topRow.appendChild(label);
+
+      const toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button';
+      toggleBtn.className = 'chaospace-history-toggle';
+      toggleBtn.dataset.role = 'history-toggle';
+      toggleBtn.setAttribute('aria-expanded', state.historyExpanded ? 'true' : 'false');
+      toggleBtn.setAttribute('aria-label', state.historyExpanded ? '收起转存历史' : '展开转存历史');
+      toggleBtn.textContent = state.historyExpanded ? '收起' : '展开';
+      topRow.appendChild(toggleBtn);
+
+      summary.appendChild(topRow);
 
       const title = document.createElement('div');
       title.className = 'chaospace-history-summary-title';
@@ -622,7 +650,44 @@
       panelDom.historySummaryBody.appendChild(summary);
     } else {
       panelDom.historySummary?.classList.add('is-empty');
-      panelDom.historySummaryBody.innerHTML = '<span class="chaospace-history-summary-empty">暂无其他转存记录</span>';
+      const placeholder = document.createElement('div');
+      placeholder.className = 'chaospace-history-summary-item is-placeholder';
+      placeholder.dataset.role = 'history-summary-entry';
+      placeholder.setAttribute('role', 'button');
+      placeholder.tabIndex = 0;
+
+      const topRow = document.createElement('div');
+      topRow.className = 'chaospace-history-summary-topline';
+
+      const label = document.createElement('span');
+      label.className = 'chaospace-history-summary-label';
+      label.textContent = '🔖 转存历史';
+      topRow.appendChild(label);
+
+      const toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button';
+      toggleBtn.className = 'chaospace-history-toggle';
+      toggleBtn.dataset.role = 'history-toggle';
+      toggleBtn.setAttribute('aria-expanded', state.historyExpanded ? 'true' : 'false');
+      toggleBtn.setAttribute('aria-label', state.historyExpanded ? '收起转存历史' : '展开转存历史');
+      toggleBtn.textContent = state.historyExpanded ? '收起' : '展开';
+      topRow.appendChild(toggleBtn);
+
+      placeholder.appendChild(topRow);
+
+      const emptyText = document.createElement('div');
+      emptyText.className = 'chaospace-history-summary-empty';
+      emptyText.textContent = '暂无其他转存记录';
+      placeholder.appendChild(emptyText);
+
+      panelDom.historySummaryBody.appendChild(placeholder);
+    }
+
+    refreshToggleCache();
+    if (Array.isArray(panelDom.historyToggleButtons)) {
+      panelDom.historyToggleButtons.forEach(btn => {
+        btn.disabled = false;
+      });
     }
 
     updateHistoryExpansion();
@@ -1447,16 +1512,6 @@
           </div>
           <div class="chaospace-float-footer">
             <div class="chaospace-history-summary" data-role="history-summary">
-              <div class="chaospace-history-summary-header">
-                <div class="chaospace-card-title">🔖 转存历史</div>
-                <button
-                  type="button"
-                  class="chaospace-history-toggle"
-                  data-role="history-toggle"
-                  aria-expanded="false"
-                  aria-label="展开转存历史"
-                >展开</button>
-              </div>
               <div class="chaospace-history-summary-body" data-role="history-summary-body"></div>
             </div>
             <div class="chaospace-transfer-card chaospace-footer-actions">
@@ -1646,6 +1701,42 @@
         });
       }
 
+      if (panelDom.historySummaryBody) {
+        const toggleHistoryFromSummary = () => {
+          if (!state.historyRecords.length) {
+            return;
+          }
+          state.historyExpanded = !state.historyExpanded;
+          renderHistoryCard();
+        };
+
+        panelDom.historySummaryBody.addEventListener('click', event => {
+          const summaryEntry = event.target.closest('[data-role="history-summary-entry"]');
+          if (!summaryEntry) {
+            return;
+          }
+          if (event.target.closest('[data-role="history-toggle"]')) {
+            return;
+          }
+          toggleHistoryFromSummary();
+        });
+
+        panelDom.historySummaryBody.addEventListener('keydown', event => {
+          if (event.key !== 'Enter' && event.key !== ' ') {
+            return;
+          }
+          const summaryEntry = event.target.closest('[data-role="history-summary-entry"]');
+          if (!summaryEntry) {
+            return;
+          }
+          if (event.target.closest('[data-role="history-toggle"]')) {
+            return;
+          }
+          event.preventDefault();
+          toggleHistoryFromSummary();
+        });
+      }
+
       if (panelDom.presetList) {
         panelDom.presetList.addEventListener('click', (event) => {
           if (state.transferStatus === 'running') {
@@ -1715,17 +1806,17 @@
         });
       }
 
-      if (Array.isArray(panelDom.historyToggleButtons)) {
-        panelDom.historyToggleButtons.forEach(toggleBtn => {
-          toggleBtn.addEventListener('click', () => {
-            if (!state.historyRecords.length) {
-              return;
-            }
-            state.historyExpanded = !state.historyExpanded;
-            renderHistoryCard();
-          });
-        });
-      }
+      panel.addEventListener('click', event => {
+        const toggleBtn = event.target.closest('[data-role="history-toggle"]');
+        if (!toggleBtn || !panel.contains(toggleBtn)) {
+          return;
+        }
+        if (!state.historyRecords.length) {
+          return;
+        }
+        state.historyExpanded = !state.historyExpanded;
+        renderHistoryCard();
+      });
 
       if (panelDom.sortKeySelect) {
         panelDom.sortKeySelect.value = state.sortKey;

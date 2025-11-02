@@ -267,10 +267,13 @@
 
 .chaospace-float-main {
   flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+  transition: opacity 0.25s ease, transform 0.3s ease, max-height 0.35s ease;
+  max-height: 100%;
 }
 
 .chaospace-float-main::-webkit-scrollbar {
@@ -295,15 +298,30 @@
 }
 
 .chaospace-history-overlay {
-  display: none;
+  display: flex;
   flex-direction: column;
   flex: 1 1 auto;
+  min-height: 0;
   gap: 16px;
-  padding: 18px 20px;
+  padding: 0 20px;
   border-radius: 20px;
   background: var(--cp-overlay);
   border: 1px solid var(--cp-border);
+  border-color: transparent;
+  border-width: 0;
   overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(22px);
+  transform-origin: bottom;
+  pointer-events: none;
+  transition:
+    max-height 0.35s ease,
+    opacity 0.25s ease,
+    transform 0.35s ease,
+    padding 0.35s ease,
+    border-color 0.3s ease,
+    border-width 0.3s ease;
 }
 
 .chaospace-history-overlay-header {
@@ -731,11 +749,21 @@
   gap: 8px;
 }
 
-.chaospace-history-summary-header {
+.chaospace-history-summary-topline {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin-bottom: 4px;
+}
+
+.chaospace-history-summary-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cp-text-muted);
 }
 
 .chaospace-history-summary-body {
@@ -755,6 +783,20 @@
   border-radius: 12px;
   background: var(--cp-surface-soft);
   border: 1px solid var(--cp-border);
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.chaospace-history-summary-item:hover {
+  border-color: var(--cp-accent);
+  transform: translateY(-1px);
+  background: rgba(99, 102, 241, 0.12);
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.18);
+}
+
+.chaospace-history-summary-item:focus-visible {
+  outline: 2px solid rgba(99, 102, 241, 0.4);
+  outline-offset: 2px;
 }
 
 .chaospace-history-summary-title {
@@ -1514,11 +1556,21 @@
 }
 
 .chaospace-float-panel.is-history-expanded .chaospace-history-overlay {
-  display: flex;
+  max-height: calc(100% - 60px);
+  opacity: 1;
+  transform: translateY(0);
+  padding: 18px 20px;
+  pointer-events: auto;
+  border-color: var(--cp-border);
+  border-width: 1px;
 }
 
 .chaospace-float-panel.is-history-expanded .chaospace-float-main {
-  display: none;
+  opacity: 0;
+  transform: translateY(16px);
+  pointer-events: none;
+  max-height: 0;
+  overflow: hidden;
 }
 
 .chaospace-float-panel.is-history-expanded .chaospace-history-summary {
@@ -1526,7 +1578,7 @@
 }
 
 .chaospace-float-panel.is-history-expanded .chaospace-history-summary-body {
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .chaospace-float-panel.is-narrow .chaospace-float-columns {
