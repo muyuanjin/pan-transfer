@@ -13,6 +13,14 @@
   const EDGE_HIDE_MIN_PEEK = 44;
   const EDGE_HIDE_MAX_PEEK = 128;
   const EDGE_HIDE_DEFAULT_PEEK = 64;
+  const POSTER_PREVIEW_MIN_SCALE = 0.4;
+  const POSTER_PREVIEW_MAX_SCALE = 5;
+  const POSTER_PREVIEW_ZOOM_STEP = 0.12;
+  const POSTER_PREVIEW_MAX_VIEW_WIDTH = 560;
+  const POSTER_PREVIEW_MAX_VIEW_HEIGHT = 820;
+  const POSTER_PREVIEW_VIEWPORT_MARGIN = 64;
+  const POSTER_PREVIEW_BASE_MIN_WIDTH = 260;
+  const POSTER_PREVIEW_BASE_MIN_HEIGHT = 390;
 
   const state = {
     baseDir: '/',
@@ -58,6 +66,10 @@
   let floatingPanel = null;
   let currentToast = null;
   let posterPreviewOverlay = null;
+  let posterPreviewInner = null;
+  let posterPreviewImage = null;
+  let posterPreviewScale = 1;
+  let posterPreviewMetrics = null;
   let lastKnownSize = null;
   let detachWindowResize = null;
   let panelCreationInProgress = false;
@@ -67,6 +79,9 @@
   let isPanelPinned = false;
   let edgeAnimationTimer = null;
   let edgeTransitionUnbind = null;
+  let posterPreviewActive = false;
+  let scheduleEdgeHideRef = null;
+  let cancelEdgeHideRef = null;
 
   function computeItemTargetPath(item, defaultPath) {
     if (!state.useSeasonSubdir || !item || !item.seasonId) {
@@ -1906,12 +1921,117 @@
     return rows;
   }
 
+  function computePosterPreviewBaseMetrics(image) {
+    const naturalWidth = Math.max(1, image?.naturalWidth || 0);
+    const naturalHeight = Math.max(1, image?.naturalHeight || 0);
+    const aspect = naturalWidth / naturalHeight;
+    const availableWidth = Math.max(
+      POSTER_PREVIEW_BASE_MIN_WIDTH,
+      Math.min(window.innerWidth - POSTER_PREVIEW_VIEWPORT_MARGIN, POSTER_PREVIEW_MAX_VIEW_WIDTH)
+    );
+    const availableHeight = Math.max(
+      POSTER_PREVIEW_BASE_MIN_HEIGHT,
+      Math.min(window.innerHeight - POSTER_PREVIEW_VIEWPORT_MARGIN, POSTER_PREVIEW_MAX_VIEW_HEIGHT)
+    );
+    let width = Math.min(availableWidth, naturalWidth);
+    let height = width / aspect;
+    if (height > availableHeight) {
+      height = availableHeight;
+      width = height * aspect;
+    }
+    width = Math.max(POSTER_PREVIEW_BASE_MIN_WIDTH, width);
+    height = Math.max(POSTER_PREVIEW_BASE_MIN_HEIGHT, height);
+    return { aspect, baseWidth: width, baseHeight: height };
+  }
+
+  function applyPosterPreviewScale(requestedScale, { immediate = false } = {}) {
+    if (!posterPreviewInner || !posterPreviewImage || !posterPreviewMetrics) {
+      posterPreviewScale = 1;
+      return;
+    }
+    const limitedScale = Math.min(POSTER_PREVIEW_MAX_SCALE, Math.max(POSTER_PREVIEW_MIN_SCALE, requestedScale));
+    const availableWidth = Math.max(
+      POSTER_PREVIEW_BASE_MIN_WIDTH,
+      Math.min(window.innerWidth - POSTER_PREVIEW_VIEWPORT_MARGIN, POSTER_PREVIEW_MAX_VIEW_WIDTH)
+    );
+    const availableHeight = Math.max(
+      POSTER_PREVIEW_BASE_MIN_HEIGHT,
+      Math.min(window.innerHeight - POSTER_PREVIEW_VIEWPORT_MARGIN, POSTER_PREVIEW_MAX_VIEW_HEIGHT)
+    );
+    let targetWidth = posterPreviewMetrics.baseWidth * limitedScale;
+    let targetHeight = posterPreviewMetrics.baseHeight * limitedScale;
+    const widthRatio = targetWidth / availableWidth;
+    const heightRatio = targetHeight / availableHeight;
+    if (widthRatio > 1 || heightRatio > 1) {
+      const ratio = Math.max(widthRatio, heightRatio);
+      targetWidth /= ratio;
+      targetHeight /= ratio;
+    }
+    posterPreviewScale = targetWidth / posterPreviewMetrics.baseWidth;
+    if (immediate) {
+      posterPreviewInner.style.transition = 'none';
+    }
+    posterPreviewInner.style.width = `${targetWidth}px`;
+    posterPreviewInner.style.height = `${targetHeight}px`;
+    if (immediate) {
+      void posterPreviewInner.offsetWidth;
+      posterPreviewInner.style.transition = '';
+    }
+  }
+
+  function handlePosterPreviewWheel(event) {
+    if (!posterPreviewImage) {
+      return;
+    }
+    event.preventDefault();
+    if (event.deltaY === 0) {
+      return;
+    }
+    const zoomFactor = 1 + POSTER_PREVIEW_ZOOM_STEP;
+    const nextScale = event.deltaY < 0
+      ? posterPreviewScale * zoomFactor
+      : posterPreviewScale / zoomFactor;
+    applyPosterPreviewScale(nextScale);
+  }
+
+  function handlePosterPreviewDoubleClick(event) {
+    if (!posterPreviewImage) {
+      return;
+    }
+    if (event.target !== posterPreviewImage && event.target !== posterPreviewInner) {
+      return;
+    }
+    applyPosterPreviewScale(1);
+  }
+
+  function handlePosterPreviewResize() {
+    if (!posterPreviewActive || !posterPreviewImage) {
+      return;
+    }
+    const currentScale = posterPreviewScale || 1;
+    posterPreviewMetrics = computePosterPreviewBaseMetrics(posterPreviewImage);
+    applyPosterPreviewScale(currentScale, { immediate: true });
+  }
+
   function closePosterPreview() {
+    if (posterPreviewInner) {
+      posterPreviewInner.removeEventListener('wheel', handlePosterPreviewWheel);
+      posterPreviewInner.removeEventListener('dblclick', handlePosterPreviewDoubleClick);
+    }
     if (posterPreviewOverlay && posterPreviewOverlay.parentNode) {
       posterPreviewOverlay.parentNode.removeChild(posterPreviewOverlay);
     }
     posterPreviewOverlay = null;
+    posterPreviewInner = null;
+    posterPreviewImage = null;
+    posterPreviewScale = 1;
+    posterPreviewMetrics = null;
+    posterPreviewActive = false;
+    if (!pointerInsidePanel && !isPanelPinned && scheduleEdgeHideRef) {
+      scheduleEdgeHideRef();
+    }
     document.removeEventListener('keydown', handlePosterPreviewKeydown, true);
+    window.removeEventListener('resize', handlePosterPreviewResize);
   }
 
   function handlePosterPreviewKeydown(event) {
@@ -1946,8 +2066,35 @@
         closePosterPreview();
       }
     });
+    posterPreviewInner = inner;
+    posterPreviewImage = img;
+    posterPreviewScale = 1;
+    posterPreviewMetrics = null;
+    posterPreviewImage.draggable = false;
+    posterPreviewImage.style.transform = '';
+    posterPreviewInner.style.width = `${POSTER_PREVIEW_BASE_MIN_WIDTH}px`;
+    posterPreviewInner.style.height = `${POSTER_PREVIEW_BASE_MIN_HEIGHT}px`;
+    posterPreviewInner.addEventListener('wheel', handlePosterPreviewWheel, { passive: false });
+    posterPreviewInner.addEventListener('dblclick', handlePosterPreviewDoubleClick);
+    const initializePreview = () => {
+      posterPreviewMetrics = computePosterPreviewBaseMetrics(posterPreviewImage);
+      applyPosterPreviewScale(1, { immediate: true });
+    };
+    if (posterPreviewImage.complete && (posterPreviewImage.naturalWidth || posterPreviewImage.naturalHeight)) {
+      initializePreview();
+    } else {
+      posterPreviewImage.addEventListener('load', initializePreview, { once: true });
+    }
+    posterPreviewActive = true;
+    if (floatingPanel) {
+      floatingPanel.classList.remove('is-leaving');
+    }
+    if (cancelEdgeHideRef) {
+      cancelEdgeHideRef({ show: true });
+    }
     document.body.appendChild(posterPreviewOverlay);
     document.addEventListener('keydown', handlePosterPreviewKeydown, true);
+    window.addEventListener('resize', handlePosterPreviewResize);
   }
 
   function applyHistoryToCurrentPage() {
@@ -3313,6 +3460,14 @@
             aria-pressed="false"
           >📌</button>
           <div class="chaospace-header-content">
+            <img
+              class="chaospace-header-poster"
+              data-role="header-poster"
+              alt=""
+              loading="lazy"
+              decoding="async"
+              style="display: none;"
+            />
             <div class="chaospace-header-body">
               <div class="chaospace-header-topline">
                 <span class="chaospace-assistant-badge">🚀 CHAOSPACE 转存助手</span>
@@ -3321,14 +3476,6 @@
               <p class="chaospace-show-subtitle" data-role="show-subtitle">${originLabel ? `来源 ${originLabel}` : '未检测到页面来源'}</p>
             </div>
             <div class="chaospace-header-actions">
-              <img
-                class="chaospace-header-poster"
-                data-role="header-poster"
-                alt=""
-                loading="lazy"
-                decoding="async"
-                style="display: none;"
-              />
               <div class="chaospace-float-controls">
                 <button
                   type="button"
@@ -3589,7 +3736,7 @@
       };
 
       const hidePanelToEdge = () => {
-        if (!floatingPanel || isPanelPinned) {
+        if (!floatingPanel || isPanelPinned || posterPreviewActive) {
           return;
         }
         panel.classList.remove('is-hovering');
@@ -3601,7 +3748,7 @@
       };
 
       const scheduleEdgeHide = (delay = EDGE_HIDE_DELAY) => {
-        if (!floatingPanel || isPanelPinned) {
+        if (!floatingPanel || isPanelPinned || posterPreviewActive) {
           return;
         }
         if (panelHideTimer) {
@@ -3625,6 +3772,9 @@
           showPanelFromEdge();
         }
       };
+
+      scheduleEdgeHideRef = scheduleEdgeHide;
+      cancelEdgeHideRef = cancelEdgeHide;
 
       const applyPanelSize = (width, height) => {
         const bounds = getPanelBounds();
@@ -4234,6 +4384,8 @@
         clearTimeout(panelHideTimer);
         panelHideTimer = null;
       }
+      scheduleEdgeHideRef = null;
+      cancelEdgeHideRef = null;
       state.deferredSeasonInfos = [];
       state.isSeasonLoading = false;
       state.seasonLoadProgress = { total: 0, loaded: 0 };
