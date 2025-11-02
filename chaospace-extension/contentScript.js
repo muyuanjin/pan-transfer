@@ -7,6 +7,8 @@
   const HISTORY_KEY = 'chaospace-transfer-history';
   const HISTORY_DISPLAY_LIMIT = 6;
   const TV_SHOW_INITIAL_SEASON_BATCH = 2;
+  const ALL_SEASON_TAB_ID = '__all__';
+  const NO_SEASON_TAB_ID = '__no-season__';
 
   const state = {
     baseDir: '/',
@@ -40,7 +42,8 @@
     newItemIds: new Set(),
     historyExpanded: false,
     seasonDirMap: {},
-    seasonResolvedPaths: []
+    seasonResolvedPaths: [],
+    activeSeasonId: null
   };
 
   const panelDom = {};
@@ -170,6 +173,142 @@
     return new Set(getAvailableSeasonIds()).size;
   }
 
+  function buildSeasonTabItems() {
+    const seasonMap = new Map();
+    let miscCount = 0;
+    let total = 0;
+
+    state.items.forEach(item => {
+      if (!item) {
+        return;
+      }
+      total += 1;
+      if (item.seasonId) {
+        const key = item.seasonId;
+        const normalizedLabel = typeof item.seasonLabel === 'string' ? item.seasonLabel.trim() : '';
+        const numericSuffix = String(key).match(/\d+$/);
+        const fallbackLabel = Number.isFinite(item.seasonIndex)
+          ? `第${item.seasonIndex + 1}季`
+          : (numericSuffix ? `第${numericSuffix[0]}季` : `季 ${seasonMap.size + 1}`);
+        const label = normalizedLabel || fallbackLabel || '未知季';
+        const index = Number.isFinite(item.seasonIndex) ? item.seasonIndex : Number.MAX_SAFE_INTEGER;
+        const existing = seasonMap.get(key);
+        if (existing) {
+          existing.count += 1;
+          existing.index = Math.min(existing.index, index);
+          if (!existing.name && label) {
+            existing.name = label;
+          }
+        } else {
+          seasonMap.set(key, {
+            id: key,
+            name: label,
+            count: 1,
+            index
+          });
+        }
+      } else {
+        miscCount += 1;
+      }
+    });
+
+    const seasons = Array.from(seasonMap.values()).map(entry => ({
+      ...entry,
+      name: entry.name || '未知季',
+      index: Number.isFinite(entry.index) ? entry.index : Number.MAX_SAFE_INTEGER
+    }));
+
+    seasons.sort((a, b) => {
+      const indexDiff = a.index - b.index;
+      if (indexDiff !== 0) {
+        return indexDiff;
+      }
+      return a.name.localeCompare(b.name, 'zh-CN');
+    });
+
+    const hasMultipleSeasons = seasons.length > 1;
+    if (!hasMultipleSeasons && miscCount === 0) {
+      return [];
+    }
+
+    const tabs = [];
+    if (hasMultipleSeasons || (miscCount > 0 && seasons.length)) {
+      tabs.push({
+        id: ALL_SEASON_TAB_ID,
+        name: '全部',
+        count: total,
+        type: 'all',
+        index: -1
+      });
+    }
+
+    seasons.forEach(entry => {
+      tabs.push({
+        id: entry.id,
+        name: entry.name,
+        count: entry.count,
+        type: 'season',
+        index: entry.index
+      });
+    });
+
+    if (miscCount > 0) {
+      tabs.push({
+        id: NO_SEASON_TAB_ID,
+        name: '未分季',
+        count: miscCount,
+        type: 'misc',
+        index: Number.MAX_SAFE_INTEGER
+      });
+    }
+
+    return tabs;
+  }
+
+  function resolveActiveSeasonId(tabItems) {
+    if (!tabItems || !tabItems.length) {
+      return null;
+    }
+    const availableIds = tabItems.map(tab => tab.id);
+    if (state.activeSeasonId && availableIds.includes(state.activeSeasonId)) {
+      return state.activeSeasonId;
+    }
+    const firstSeasonTab = tabItems.find(tab => tab.type === 'season');
+    if (firstSeasonTab) {
+      return firstSeasonTab.id;
+    }
+    return tabItems[0].id;
+  }
+
+  function computeSeasonTabState({ syncState = false } = {}) {
+    const tabItems = buildSeasonTabItems();
+    if (!tabItems.length) {
+      if (syncState && state.activeSeasonId) {
+        state.activeSeasonId = null;
+      }
+      return { tabItems, activeId: null, activeTab: null };
+    }
+    const activeId = resolveActiveSeasonId(tabItems);
+    if (syncState && state.activeSeasonId !== activeId) {
+      state.activeSeasonId = activeId;
+    }
+    const activeTab = tabItems.find(tab => tab.id === activeId) || null;
+    return { tabItems, activeId, activeTab };
+  }
+
+  function filterItemsForActiveSeason(items, activeId) {
+    if (!Array.isArray(items) || !items.length) {
+      return [];
+    }
+    if (!activeId || activeId === ALL_SEASON_TAB_ID) {
+      return items;
+    }
+    if (activeId === NO_SEASON_TAB_ID) {
+      return items.filter(item => item && !item.seasonId);
+    }
+    return items.filter(item => item && item.seasonId === activeId);
+  }
+
   function rebuildSeasonDirMap({ preserveExisting = true } = {}) {
     const existing = preserveExisting && state.seasonDirMap ? { ...state.seasonDirMap } : {};
     const next = {};
@@ -254,6 +393,52 @@
       updateSeasonExampleDir();
     }
     renderSeasonHint();
+  }
+
+  function renderSeasonTabs() {
+    if (!panelDom.seasonTabs) {
+      return computeSeasonTabState({ syncState: true });
+    }
+
+    const tabState = computeSeasonTabState({ syncState: true });
+    const { tabItems, activeId } = tabState;
+
+    if (!tabItems.length) {
+      panelDom.seasonTabs.innerHTML = '';
+      panelDom.seasonTabs.hidden = true;
+      panelDom.seasonTabs.setAttribute('aria-hidden', 'true');
+      return tabState;
+    }
+
+    panelDom.seasonTabs.hidden = false;
+    panelDom.seasonTabs.removeAttribute('aria-hidden');
+    panelDom.seasonTabs.innerHTML = '';
+
+    const fragment = document.createDocumentFragment();
+    tabItems.forEach(tab => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `chaospace-season-tab${tab.id === activeId ? ' is-active' : ''}`;
+      button.dataset.seasonId = tab.id;
+      button.dataset.seasonType = tab.type;
+      button.setAttribute('aria-pressed', tab.id === activeId ? 'true' : 'false');
+
+      const labelSpan = document.createElement('span');
+      labelSpan.className = 'chaospace-season-tab-label';
+      labelSpan.textContent = tab.name;
+      button.appendChild(labelSpan);
+
+      const countSpan = document.createElement('span');
+      countSpan.className = 'chaospace-season-tab-count';
+      countSpan.textContent = String(tab.count);
+      button.appendChild(countSpan);
+
+      fragment.appendChild(button);
+    });
+
+    panelDom.seasonTabs.appendChild(fragment);
+    panelDom.seasonTabs.scrollLeft = 0;
+    return tabState;
   }
 
   // 智能提取剧集标题
@@ -2006,13 +2191,40 @@
     });
   }
 
-  function renderResourceSummary() {
+  function renderResourceSummary(context = {}) {
     if (!panelDom.resourceSummary) {
       return;
     }
     const total = state.items.length;
     const selected = state.selectedIds.size;
+    const { tabState, visibleCount, visibleSelected } = context || {};
+    const computedTabState = tabState || computeSeasonTabState({ syncState: false });
+    const hasTabs = Array.isArray(computedTabState.tabItems) && computedTabState.tabItems.length > 0;
+
+    let currentVisibleCount = typeof visibleCount === 'number' ? visibleCount : total;
+    let currentVisibleSelected = typeof visibleSelected === 'number' ? visibleSelected : selected;
+    if (hasTabs) {
+      const filtered = filterItemsForActiveSeason(state.items, computedTabState.activeId);
+      if (typeof visibleCount !== 'number') {
+        currentVisibleCount = filtered.length;
+      }
+      if (typeof visibleSelected !== 'number') {
+        currentVisibleSelected = filtered.filter(item => state.selectedIds.has(item.id)).length;
+      }
+    }
+
     const parts = [`🧾 已选 ${selected} / ${total}`];
+    if (hasTabs) {
+      const activeTab = computedTabState.activeTab;
+      if (activeTab && activeTab.type === 'all') {
+        parts.push(`显示全部 ${currentVisibleCount}`);
+      } else if (activeTab) {
+        parts.push(`${activeTab.name} ${currentVisibleSelected}/${activeTab.count}`);
+      } else {
+        parts.push(`当前显示 ${currentVisibleCount}`);
+      }
+    }
+
     if (state.newItemIds.size) {
       parts.push(`新增 ${state.newItemIds.size}`);
     }
@@ -2055,32 +2267,61 @@
     if (!panelDom.itemsContainer) {
       return;
     }
+    const tabState = renderSeasonTabs();
     const container = panelDom.itemsContainer;
     container.innerHTML = '';
 
-    if (!state.items.length) {
+    const hasAnyItems = state.items.length > 0;
+    const hasTabs = Array.isArray(tabState.tabItems) && tabState.tabItems.length > 0;
+    const filteredItems = hasTabs
+      ? filterItemsForActiveSeason(state.items, tabState.activeId)
+      : [...state.items];
+
+    let visibleSelected = 0;
+
+    if (!filteredItems.length) {
       const empty = document.createElement('div');
       empty.className = 'chaospace-empty';
-      if (state.isSeasonLoading) {
+
+      if (!hasAnyItems) {
+        if (state.isSeasonLoading) {
+          const { loaded, total } = state.seasonLoadProgress;
+          const progress = total > 0 ? ` (${loaded}/${total})` : '';
+          empty.textContent = `⏳ 正在加载多季资源${progress}...`;
+        } else {
+          empty.textContent = '😅 没有解析到百度网盘资源';
+        }
+      } else if (state.isSeasonLoading && tabState.activeTab && tabState.activeTab.type === 'season') {
         const { loaded, total } = state.seasonLoadProgress;
         const progress = total > 0 ? ` (${loaded}/${total})` : '';
-        empty.textContent = `⏳ 正在加载多季资源${progress}...`;
+        empty.textContent = `⏳ ${tabState.activeTab.name} 正在加载${progress}...`;
       } else {
-        empty.textContent = '😅 没有解析到百度网盘资源';
+        const label = tabState.activeTab ? tabState.activeTab.name : '当前标签';
+        empty.textContent = `😴 ${label} 暂无资源`;
       }
+
       container.appendChild(empty);
-      renderResourceSummary();
+      renderResourceSummary({
+        tabState,
+        visibleCount: filteredItems.length,
+        visibleSelected
+      });
       updateTransferButton();
       updatePanelHeader();
       renderSeasonControls();
       return;
     }
 
-    const sortedItems = sortItems(state.items);
+    const sortedItems = sortItems(filteredItems);
+    const fragment = document.createDocumentFragment();
+
     sortedItems.forEach(item => {
       const isSelected = state.selectedIds.has(item.id);
       const isTransferred = state.transferredIds.has(item.id);
       const isNew = state.currentHistory && state.newItemIds.has(item.id);
+      if (isSelected) {
+        visibleSelected += 1;
+      }
       const statusBadges = [];
       if (isTransferred) {
         statusBadges.push('<span class="chaospace-badge chaospace-badge-success">已转存</span>');
@@ -2119,7 +2360,7 @@
           <div class="chaospace-item-meta">${metaBadges}</div>
         </div>
       `;
-      container.appendChild(row);
+      fragment.appendChild(row);
       requestAnimationFrame(() => {
         row.classList.add('is-visible');
         row.classList.toggle('is-muted', !isSelected);
@@ -2128,7 +2369,13 @@
       });
     });
 
-    renderResourceSummary();
+    container.appendChild(fragment);
+
+    renderResourceSummary({
+      tabState,
+      visibleCount: sortedItems.length,
+      visibleSelected
+    });
     updateTransferButton();
     updatePanelHeader();
     renderSeasonControls();
@@ -2164,14 +2411,43 @@
   }
 
   function setSelectionAll(selected) {
-    state.selectedIds = selected ? new Set(state.items.map(item => item.id)) : new Set();
+    const { tabItems, activeId } = computeSeasonTabState({ syncState: true });
+    const hasTabs = Array.isArray(tabItems) && tabItems.length > 0;
+    const visibleItems = hasTabs ? filterItemsForActiveSeason(state.items, activeId) : state.items;
+    const visibleIds = visibleItems
+      .map(item => item && item.id)
+      .filter(Boolean);
+
+    if (selected) {
+      visibleIds.forEach(id => {
+        state.selectedIds.add(id);
+      });
+    } else if (visibleIds.length) {
+      visibleIds.forEach(id => {
+        state.selectedIds.delete(id);
+      });
+    } else if (!hasTabs) {
+      state.selectedIds.clear();
+    }
     renderResourceList();
   }
 
   function invertSelection() {
-    const next = new Set();
-    state.items.forEach(item => {
-      if (!state.selectedIds.has(item.id)) {
+    const { tabItems, activeId } = computeSeasonTabState({ syncState: true });
+    const hasTabs = Array.isArray(tabItems) && tabItems.length > 0;
+    const visibleItems = hasTabs ? filterItemsForActiveSeason(state.items, activeId) : state.items;
+    if (!visibleItems.length) {
+      renderResourceList();
+      return;
+    }
+    const next = new Set(state.selectedIds);
+    visibleItems.forEach(item => {
+      if (!item || !item.id) {
+        return;
+      }
+      if (next.has(item.id)) {
+        next.delete(item.id);
+      } else {
         next.add(item.id);
       }
     });
@@ -2422,6 +2698,7 @@
       state.statusMessage = '准备就绪 ✨';
       resetLogs();
       applyHistoryToCurrentPage();
+      state.activeSeasonId = null;
 
       const panel = document.createElement('div');
       panel.className = `chaospace-float-panel chaospace-theme${state.theme === 'light' ? ' theme-light' : ''}`;
@@ -2488,6 +2765,7 @@
                   <div class="chaospace-section-title" data-role="resource-title"></div>
                   <div class="chaospace-section-caption" data-role="resource-summary"></div>
                 </div>
+                <div class="chaospace-season-tabs" data-role="season-tabs" hidden></div>
                 <div class="chaospace-toolbar">
                   <div class="chaospace-sort-group">
                     <label class="chaospace-sort-label">
@@ -2689,6 +2967,7 @@
       panelDom.historyToggleButtons = Array.from(panel.querySelectorAll('[data-role="history-toggle"]'));
       panelDom.resourceSummary = panel.querySelector('[data-role="resource-summary"]');
       panelDom.resourceTitle = panel.querySelector('[data-role="resource-title"]');
+      panelDom.seasonTabs = panel.querySelector('[data-role="season-tabs"]');
       panelDom.transferBtn = panel.querySelector('[data-role="transfer-btn"]');
       panelDom.transferLabel = panel.querySelector('[data-role="transfer-label"]');
       panelDom.transferSpinner = panel.querySelector('[data-role="transfer-spinner"]');
@@ -2825,6 +3104,24 @@
           row.classList.toggle('is-muted', !checkbox.checked);
           renderResourceSummary();
           updateTransferButton();
+        });
+      }
+
+      if (panelDom.seasonTabs) {
+        panelDom.seasonTabs.addEventListener('click', event => {
+          const button = event.target.closest('button[data-season-id]');
+          if (!button || button.disabled) {
+            return;
+          }
+          const nextId = button.dataset.seasonId;
+          if (!nextId || nextId === state.activeSeasonId) {
+            return;
+          }
+          state.activeSeasonId = nextId;
+          renderResourceList();
+          if (panelDom.itemsContainer) {
+            panelDom.itemsContainer.scrollTop = 0;
+          }
         });
       }
 

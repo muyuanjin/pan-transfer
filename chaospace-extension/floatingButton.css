@@ -509,6 +509,73 @@
   padding: 4px 10px;
 }
 
+.chaospace-season-tabs {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 6px;
+}
+
+.chaospace-season-tabs[hidden] {
+  display: none;
+}
+
+.chaospace-season-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--cp-border);
+  background: var(--cp-surface);
+  color: var(--cp-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  flex: 0 0 auto;
+}
+
+.chaospace-season-tab:hover {
+  background: rgba(99, 102, 241, 0.16);
+  border-color: var(--cp-accent);
+  transform: translateY(-1px);
+}
+
+.chaospace-season-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.35);
+}
+
+.chaospace-season-tab.is-active {
+  border-color: var(--cp-accent);
+  background: rgba(79, 70, 229, 0.2);
+  color: var(--cp-text-primary);
+  box-shadow: inset 0 0 0 1px rgba(79, 70, 229, 0.35);
+}
+
+.chaospace-season-tab-label {
+  line-height: 1.1;
+}
+
+.chaospace-season-tab-count {
+  min-width: 22px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.16);
+  color: var(--cp-text-secondary);
+  font-size: 11px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.chaospace-season-tab.is-active .chaospace-season-tab-count {
+  background: rgba(79, 70, 229, 0.28);
+  color: var(--cp-text-primary);
+}
+
 .chaospace-toolbar {
   display: flex;
   align-items: center;
