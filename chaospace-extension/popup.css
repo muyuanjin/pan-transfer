@@ -4,6 +4,9 @@ body {
 }
 
 body.popup-theme {
+  --font-sans: 'Inter', 'HarmonyOS Sans SC', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Source Han Sans SC', 'Heiti SC', sans-serif;
+  --font-heading: 'Inter', 'HarmonyOS Sans SC', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Source Han Sans SC', 'Heiti SC', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Mono', 'SFMono-Regular', 'Fira Code', 'Consolas', 'Microsoft YaHei Mono', 'DengXian', monospace;
   --pp-bg: linear-gradient(145deg, rgba(17, 24, 39, 0.95), rgba(8, 13, 24, 0.92));
   --pp-surface: rgba(24, 32, 45, 0.92);
   --pp-border: rgba(148, 163, 184, 0.26);
@@ -37,7 +40,12 @@ body.popup-theme {
   background: var(--pp-bg);
   backdrop-filter: blur(22px);
   color: var(--pp-text-primary);
-  font-family: 'Inter', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'kern' 1, 'liga' 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   box-sizing: border-box;
   overflow: auto;
   scrollbar-width: thin;
@@ -180,7 +188,8 @@ body.popup-theme.theme-light .popup-header-art {
   margin: 0;
   font-size: 28px;
   font-weight: 700;
-  letter-spacing: 0.4px;
+  font-family: var(--font-heading);
+  letter-spacing: 0.2px;
   line-height: 1.2;
   color: inherit;
   text-shadow: none;
@@ -296,6 +305,8 @@ body.popup-theme.theme-light .popup-ghost-btn:focus-visible {
 .popup-section-title {
   font-size: 15px;
   font-weight: 600;
+  font-family: var(--font-heading);
+  letter-spacing: 0.2px;
 }
 
 .popup-section-caption {
@@ -388,17 +399,17 @@ body.popup-theme.theme-light .popup-sort-label select {
   background: var(--pp-surface);
   color: var(--pp-text-primary);
   border-color: var(--pp-border);
-  box-shadow: 0 2px 8px rgba(148, 163, 184, 0.24);
+  box-shadow: 0 1px 4px rgba(148, 163, 184, 0.18);
 }
 
 body.popup-theme.theme-light .popup-sort-label select:hover {
   border-color: var(--pp-accent);
-  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.18);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.16);
 }
 
 body.popup-theme.theme-light .popup-sort-label select:focus {
   border-color: var(--pp-accent);
-  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.28), 0 8px 18px rgba(99, 102, 241, 0.16);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.24), 0 3px 10px rgba(99, 102, 241, 0.18);
 }
 
 body.popup-theme.theme-light .popup-sort-label select option {
@@ -691,6 +702,8 @@ body.popup-theme.theme-light .popup-sort-label select option {
 .popup-card-title {
   font-size: 14px;
   font-weight: 600;
+  font-family: var(--font-heading);
+  letter-spacing: 0.15px;
   color: var(--pp-text-secondary);
 }
 
@@ -771,6 +784,8 @@ body.popup-theme.theme-light .popup-sort-label select option {
   color: var(--pp-text-primary);
   padding: 0 14px;
   font-size: 13px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.15px;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -817,8 +832,11 @@ body.popup-theme.theme-light .popup-sort-label select option {
   border-radius: 12px;
   border: 1px solid rgba(99, 102, 241, 0.34);
   background: rgba(99, 102, 241, 0.16);
-  color: var(--pp-text-secondary);
-  font-size: 12px;
+  color: var(--pp-text-primary);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  letter-spacing: 0.15px;
+  line-height: 1.45;
   word-break: break-all;
 }
 
@@ -916,7 +934,7 @@ body.popup-theme.theme-light .popup-sort-label select option {
 
 .popup-log-time {
   grid-area: time;
-  font-family: 'SFMono-Regular', 'Cascadia Code', monospace;
+  font-family: var(--font-mono);
   color: var(--pp-text-muted);
   white-space: nowrap;
 }
@@ -1030,7 +1048,7 @@ body.popup-theme.theme-light .popup-transfer-button {
   border-color: rgba(148, 163, 184, 0.36);
   background: linear-gradient(135deg, rgba(247, 250, 255, 0.98) 0%, rgba(224, 231, 255, 0.94) 100%);
   color: #1f2a61;
-  box-shadow: 0 16px 32px rgba(148, 163, 184, 0.42);
+  box-shadow: 0 10px 24px rgba(148, 163, 184, 0.28);
   filter: none;
 }
 
@@ -1042,13 +1060,13 @@ body.popup-theme.theme-light .popup-transfer-button {
 
 body.popup-theme.theme-light .popup-transfer-button:hover {
   background: linear-gradient(135deg, rgba(240, 247, 255, 0.98) 0%, rgba(210, 220, 255, 0.96) 100%);
-  box-shadow: 0 20px 40px rgba(148, 163, 184, 0.48);
+  box-shadow: 0 12px 28px rgba(148, 163, 184, 0.32);
   filter: none;
 }
 
 body.popup-theme.theme-light .popup-transfer-button:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.26), 0 18px 38px rgba(148, 163, 184, 0.46);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.24), 0 8px 20px rgba(148, 163, 184, 0.3);
 }
 
 .popup-transfer-button:disabled {
