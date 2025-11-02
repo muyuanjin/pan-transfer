@@ -3935,10 +3935,23 @@
       });
 
       panel.addEventListener('pointerleave', () => {
-        pointerInsidePanel = false;
-        panel.classList.remove('is-hovering');
-        panel.classList.add('is-leaving');
-        scheduleEdgeHide();
+        const verifyHoverState = () => {
+          if (!panel || !panel.isConnected) {
+            return;
+          }
+          if (panel.matches(':hover')) {
+            pointerInsidePanel = true;
+            panel.classList.add('is-hovering');
+            panel.classList.remove('is-leaving');
+            cancelEdgeHide({ show: true });
+            return;
+          }
+          pointerInsidePanel = false;
+          panel.classList.remove('is-hovering');
+          panel.classList.add('is-leaving');
+          scheduleEdgeHide();
+        };
+        window.requestAnimationFrame(verifyHoverState);
       });
 
       panel.addEventListener('focusin', () => {
