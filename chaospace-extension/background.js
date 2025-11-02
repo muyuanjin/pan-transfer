@@ -32,6 +32,106 @@ const DIRECTORY_LIST_PAGE_SIZE = 200;
 const directoryFileCache = new Map();
 const completedShareCache = new Map();
 const jobContexts = new Map();
+const LOGIN_REQUIRED_ERRNOS = new Set([-4, -6, 9019, 20010]);
+const LOGIN_REDIRECT_COOLDOWN = 60 * 1000;
+let lastLoginRedirectAt = 0;
+
+function createLoginRequiredError() {
+  const error = new Error('检测到百度网盘未登录或会话已过期，请先登录后重试');
+  error.code = 'PAN_LOGIN_REQUIRED';
+  return error;
+}
+
+function redirectToBaiduLogin(reason = '') {
+  const now = Date.now();
+  if (lastLoginRedirectAt && now - lastLoginRedirectAt < LOGIN_REDIRECT_COOLDOWN) {
+    console.log('[Chaospace Transfer] Skip login redirect due to cooldown', {
+      reason,
+      lastLoginRedirectAt
+    });
+    return;
+  }
+  lastLoginRedirectAt = now;
+  const loginUrl = 'https://pan.baidu.com/';
+  if (!chrome.tabs || typeof chrome.tabs.create !== 'function') {
+    console.warn('[Chaospace Transfer] chrome.tabs API unavailable, cannot open login page');
+    return;
+  }
+  const openLoginTab = () => {
+    chrome.tabs.create({ url: loginUrl }, () => {
+      if (chrome.runtime.lastError) {
+        console.warn('[Chaospace Transfer] Failed to open login tab', chrome.runtime.lastError.message);
+      }
+    });
+  };
+  try {
+    if (typeof chrome.tabs.query !== 'function') {
+      openLoginTab();
+      return;
+    }
+    chrome.tabs.query({ url: 'https://pan.baidu.com/*' }, tabs => {
+      if (chrome.runtime.lastError) {
+        console.warn('[Chaospace Transfer] tabs.query failed', chrome.runtime.lastError.message);
+        openLoginTab();
+        return;
+      }
+      const targetTab = Array.isArray(tabs) && tabs.length ? tabs[0] : null;
+      if (!targetTab || typeof chrome.tabs.update !== 'function') {
+        openLoginTab();
+        return;
+      }
+      chrome.tabs.update(targetTab.id, { url: loginUrl, active: true }, () => {
+        if (chrome.runtime.lastError) {
+          console.warn('[Chaospace Transfer] tabs.update failed', chrome.runtime.lastError.message);
+          openLoginTab();
+        }
+      });
+    });
+  } catch (error) {
+    console.warn('[Chaospace Transfer] redirectToBaiduLogin threw error', error);
+    openLoginTab();
+  }
+}
+
+function maybeHandleLoginRequired(errno, context = '') {
+  const numericErrno = Number(errno);
+  if (!Number.isFinite(numericErrno) || !LOGIN_REQUIRED_ERRNOS.has(numericErrno)) {
+    return false;
+  }
+  redirectToBaiduLogin(context);
+  return true;
+}
+
+function getCookie(details) {
+  return new Promise(resolve => {
+    try {
+      chrome.cookies.get(details, cookie => {
+        if (chrome.runtime.lastError) {
+          console.warn('[Chaospace Transfer] cookies.get failed', chrome.runtime.lastError.message);
+          resolve(null);
+          return;
+        }
+        resolve(cookie || null);
+      });
+    } catch (error) {
+      console.warn('[Chaospace Transfer] cookies.get threw error', error);
+      resolve(null);
+    }
+  });
+}
+
+async function hasPanLoginCookie() {
+  const cookie = await getCookie({ url: 'https://pan.baidu.com/', name: 'BDUSS' });
+  return Boolean(cookie && typeof cookie.value === 'string' && cookie.value);
+}
+
+async function ensurePanSessionAvailable(context = '') {
+  const hasLogin = await hasPanLoginCookie();
+  if (!hasLogin) {
+    redirectToBaiduLogin(context);
+    throw createLoginRequiredError();
+  }
+}
 
 const STORAGE_KEYS = {
   cache: 'chaospace-transfer-cache',
@@ -475,6 +575,8 @@ async function ensureBdstoken(force = false) {
     return cachedBdstoken;
   }
 
+  await ensurePanSessionAvailable('bdstoken');
+
   chrome.cookies.getAll({ domain: 'pan.baidu.com' }, (cookies) => {
     const names = cookies ? cookies.map(cookie => cookie.name) : [];
     console.log('[Chaospace Transfer] cookies before bdstoken', names);
@@ -484,6 +586,9 @@ async function ensureBdstoken(force = false) {
   const data = await fetchJson(url);
   console.log('[Chaospace Transfer] bdstoken response', data);
   if (data.errno !== 0) {
+    if (maybeHandleLoginRequired(data.errno, 'bdstoken')) {
+      throw createLoginRequiredError();
+    }
     throw new Error(`获取 bdstoken 失败：${data.errno}`);
   }
   cachedBdstoken = data.result.bdstoken;
@@ -569,6 +674,7 @@ async function verifySharePassword(linkUrl, passCode, bdstoken, options = {}) {
 
   const data = await response.json();
   if (typeof data.errno === 'number' && data.errno !== 0) {
+    maybeHandleLoginRequired(data.errno, 'verify-share');
     const message = data.show_msg || data.msg || data.tip || '';
     logStage(jobId, 'verify', `${titleLabel}提取码验证失败（errno ${data.errno}）${message ? `：${message}` : ''}`, {
       level: 'error',
@@ -748,6 +854,10 @@ async function checkDirectoryExists(path, bdstoken, options = {}) {
     return false;
   }
 
+  if (maybeHandleLoginRequired(data.errno, 'list-directory')) {
+    throw createLoginRequiredError();
+  }
+
   console.warn('[Chaospace Transfer] directory existence check failed', {
     path: normalized,
     errno: data.errno,
@@ -795,6 +905,9 @@ async function fetchDirectoryFileNames(path, bdstoken, options = {}) {
     logStage(jobId, 'list', `拉取目录条目：${normalized}${contextLabel} · 起始 ${start}`);
     const data = await fetchJson(url, {}, 'https://pan.baidu.com/disk/home');
     if (data.errno !== 0) {
+      if (maybeHandleLoginRequired(data.errno, 'list-directory')) {
+        throw createLoginRequiredError();
+      }
       logStage(jobId, 'list', `目录枚举失败：${normalized}${contextLabel}（errno ${data.errno}）`, { level: 'error' });
       throw new Error(`查询目录内容失败(${normalized})：${data.errno}`);
     }
@@ -870,6 +983,9 @@ async function ensureDirectoryExists(path, bdstoken, options = {}) {
 
     logStage(jobId, 'list', `创建目录：${current}${contextLabel}`);
     const data = await response.json();
+    if (maybeHandleLoginRequired(data.errno, 'create-directory')) {
+      throw createLoginRequiredError();
+    }
     if (data.errno !== 0 && data.errno !== -8 && data.errno !== 31039) {
       logStage(jobId, 'list', `创建目录失败：${current}${contextLabel}（errno ${data.errno}）`, { level: 'error' });
       throw new Error(`创建目录失败(${current})：${data.errno}`);
@@ -928,6 +1044,9 @@ async function filterAlreadyTransferred(meta, targetPath, bdstoken, options = {}
 
     return { fsIds: filteredFsIds, fileNames: filteredFileNames, skippedFiles };
   } catch (error) {
+    if (error && error.code === 'PAN_LOGIN_REQUIRED') {
+      throw error;
+    }
     console.warn('[Chaospace Transfer] directory listing failed, proceeding without skip filter', {
       path: targetPath,
       error: error.message
@@ -961,6 +1080,7 @@ async function transferShare(meta, targetPath, bdstoken, referer) {
   });
 
   const data = await response.json();
+  maybeHandleLoginRequired(data.errno, 'transfer-share');
   return typeof data.errno === 'number' ? data.errno : -999;
 }
 
@@ -1008,6 +1128,7 @@ async function transferWithRetry(meta, targetPath, bdstoken, referer, maxAttempt
 }
 
 function mapErrorMessage(errno, fallback) {
+  maybeHandleLoginRequired(errno, 'map-error');
   if (errno in ERROR_MESSAGES) {
     return ERROR_MESSAGES[errno];
   }

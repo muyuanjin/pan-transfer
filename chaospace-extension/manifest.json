@@ -17,6 +17,7 @@
     "unlimitedStorage",
     "scripting",
     "activeTab",
+    "tabs",
     "cookies",
     "declarativeNetRequest"
   ],
