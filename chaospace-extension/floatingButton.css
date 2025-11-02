@@ -95,17 +95,17 @@
 
 .chaospace-float-header {
   position: relative;
-  padding: 28px 32px 32px;
+  padding: 16px 26px 16px;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  gap: 18px;
+  gap: 14px;
   background: var(--cp-header-bg);
   border-bottom: 1px solid var(--cp-border);
   cursor: move;
   user-select: none;
-  overflow: hidden;
-  min-height: 188px;
+  overflow: visible;
+  min-height: 160px;
 }
 
 .chaospace-float-header.has-poster {
@@ -193,7 +193,7 @@
   display: none;
   height: 100%;
   width: auto;
-  max-height: 240px;
+  max-height: 160px;
   aspect-ratio: 2 / 3;
   border-radius: 12px;
   border: 1px solid rgba(248, 250, 252, 0.22);
@@ -1199,6 +1199,19 @@
   background: rgba(99, 102, 241, 0.16);
   color: var(--cp-text-secondary);
   word-break: break-all;
+  line-height: 1.5;
+}
+
+.chaospace-path-label {
+  color: var(--cp-text-muted);
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.chaospace-path-value {
+  color: var(--cp-text-primary);
+  font-weight: 600;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
 }
 
 .chaospace-status-line {
@@ -1409,8 +1422,11 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
+  padding: 0 20px;
   box-shadow: 0 18px 38px rgba(99, 102, 241, 0.35);
   transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .chaospace-float-btn:hover {

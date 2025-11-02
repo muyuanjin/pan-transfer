@@ -1061,7 +1061,7 @@
       return;
     }
     const targetPath = getTargetPath(state.baseDir, state.useTitleSubdir, state.pageTitle);
-    panelDom.pathPreview.textContent = `📂 当前将保存到：${targetPath}`;
+    panelDom.pathPreview.innerHTML = `<span class="chaospace-path-label">📂 当前将保存到：</span><span class="chaospace-path-value">${targetPath}</span>`;
   }
 
   function renderPresets() {
