@@ -95,19 +95,27 @@
   }
 
   function classifyCompletionState(label) {
-    const text = (label || '').trim();
-    if (!text) {
-      return 'unknown';
-    }
-    if (/(完结|收官|全集|全\d+[集话]|已完)/.test(text)) {
-      return 'completed';
-    }
-    if (/(更新|连载|播出中|热映|第.+[集话]|未完结)/.test(text)) {
-      return 'ongoing';
-    }
-    if (/(未播|敬请期待|即将|待定|预定|未上映)/.test(text)) {
+    // 1. 增强类型安全
+    if (label == null) return 'unknown';
+    const text = String(label || '').trim();
+    if (!text) return 'unknown';
+
+    // 2. 使用更精确的正则表达式
+    const completedRegex = /^(完结|收官|全集|已完)$|^全\d+[集话]$|已完结|全集完结/;
+    const ongoingRegex = /^(更新|连载|播出中|热播|未完结)$|更新至|连载中|第\d+[集话]/;
+    const upcomingRegex = /^(未播|敬请期待|即将|待定|预定|未上映)$|即将上映|预计/;
+
+    // 3. 调整匹配优先级（根据业务逻辑）
+    if (upcomingRegex.test(text)) {
       return 'upcoming';
     }
+    if (ongoingRegex.test(text)) {
+      return 'ongoing';
+    }
+    if (completedRegex.test(text)) {
+      return 'completed';
+    }
+
     return 'unknown';
   }
 
@@ -796,17 +804,41 @@
   }
 
   async function saveSettings() {
+    await safeStorageSet({
+      [STORAGE_KEY]: {
+        baseDir: state.baseDir,
+        useTitleSubdir: state.useTitleSubdir,
+        presets: state.presets,
+        theme: state.theme
+      }
+    }, 'settings');
+  }
+
+  let storageInvalidationWarned = false;
+
+  function isExtensionContextInvalidated(error) {
+    if (!error) {
+      return false;
+    }
+    const message = typeof error === 'string' ? error : error.message;
+    if (!message) {
+      return false;
+    }
+    return message.toLowerCase().includes('context invalidated');
+  }
+
+  async function safeStorageSet(entries, contextLabel = 'storage') {
     try {
-      await chrome.storage.local.set({
-        [STORAGE_KEY]: {
-          baseDir: state.baseDir,
-          useTitleSubdir: state.useTitleSubdir,
-          presets: state.presets,
-          theme: state.theme
-        }
-      });
+      await chrome.storage.local.set(entries);
     } catch (error) {
-      console.error('[Chaospace Transfer] Failed to persist settings', error);
+      if (isExtensionContextInvalidated(error)) {
+        if (!storageInvalidationWarned) {
+          console.warn('[Chaospace Transfer] Storage write skipped · extension context invalidated. 请重新加载扩展或页面以继续。');
+          storageInvalidationWarned = true;
+        }
+        return;
+      }
+      console.error(`[Chaospace Transfer] Failed to persist ${contextLabel}`, error);
     }
   }
 
@@ -2513,9 +2545,9 @@
           panel.style.transition = '';
           if (header) header.style.cursor = 'move';
           if (miniBar) miniBar.style.cursor = 'grab';
-          chrome.storage.local.set({
+          safeStorageSet({
             [POSITION_KEY]: lastKnownPosition
-          });
+          }, 'panel position');
           shouldRestoreSelection = true;
         }
         if (isResizing) {
@@ -2524,10 +2556,10 @@
           panel.style.transition = '';
           const clampedPosition = applyPanelPosition(lastKnownPosition.left, lastKnownPosition.top);
           lastKnownPosition = clampedPosition;
-          chrome.storage.local.set({
+          safeStorageSet({
             [SIZE_KEY]: lastKnownSize,
             [POSITION_KEY]: lastKnownPosition
-          });
+          }, 'panel geometry');
           shouldRestoreSelection = true;
         }
         if (shouldRestoreSelection) {
@@ -2542,9 +2574,9 @@
         if (panel.classList.contains('minimized')) {
           const clampedPosition = applyPanelPosition(lastKnownPosition.left, lastKnownPosition.top);
           lastKnownPosition = clampedPosition;
-          chrome.storage.local.set({
+          safeStorageSet({
             [POSITION_KEY]: lastKnownPosition
-          });
+          }, 'panel position');
           return;
         }
         const sourceWidth = lastKnownSize?.width ?? panel.offsetWidth;
@@ -2552,10 +2584,10 @@
         applyPanelSize(sourceWidth, sourceHeight);
         const clampedPosition = applyPanelPosition(lastKnownPosition.left, lastKnownPosition.top);
         lastKnownPosition = clampedPosition;
-        chrome.storage.local.set({
+        safeStorageSet({
           [SIZE_KEY]: lastKnownSize,
           [POSITION_KEY]: lastKnownPosition
-        });
+        }, 'panel geometry');
       };
 
       window.addEventListener('resize', handleWindowResize);
@@ -2575,10 +2607,10 @@
           applyPanelSize(restoreWidth, restoreHeight);
           const clampedPosition = applyPanelPosition(lastKnownPosition.left, lastKnownPosition.top);
           lastKnownPosition = clampedPosition;
-          chrome.storage.local.set({
+          safeStorageSet({
             [SIZE_KEY]: lastKnownSize,
             [POSITION_KEY]: lastKnownPosition
-          });
+          }, 'panel geometry');
           updateMinimizeButton();
           if (panelDom.baseDirInput) {
             panelDom.baseDirInput.focus();
@@ -2604,10 +2636,10 @@
             applyPanelSize(restoreWidth, restoreHeight);
             const clampedPosition = applyPanelPosition(lastKnownPosition.left, lastKnownPosition.top);
             lastKnownPosition = clampedPosition;
-            chrome.storage.local.set({
+            safeStorageSet({
               [SIZE_KEY]: lastKnownSize,
               [POSITION_KEY]: lastKnownPosition
-            });
+            }, 'panel geometry');
           }
           updateMinimizeButton();
         });
