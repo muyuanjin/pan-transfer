@@ -39,6 +39,7 @@
   let isMinimized = false;
   let lastKnownSize = null;
   let detachWindowResize = null;
+  let panelCreationInProgress = false;
 
   // 智能提取剧集标题
   function extractCleanTitle(rawTitle) {
@@ -75,8 +76,9 @@
   }
 
   // 只查找百度网盘链接（在 #download 区域）
-  function locateBaiduPanRows() {
-    const downloadSection = document.getElementById('download');
+  function locateBaiduPanRows(root = document) {
+    const scope = root && typeof root.querySelector === 'function' ? root : document;
+    const downloadSection = scope.querySelector('#download');
     if (!downloadSection) {
       return [];
     }
@@ -87,36 +89,7 @@
     return rows;
   }
 
-  function extractLinkInfo(row) {
-    const anchor = row.querySelector('a[href*="/links/"]');
-    if (!anchor) {
-      return null;
-    }
-
-    const idMatch = anchor.href.match(/\/links\/(\d+)\.html/);
-    if (!idMatch) {
-      return null;
-    }
-
-    const qualityCell = row.querySelector('.quality');
-    const cells = Array.from(row.children);
-
-    const rawTitle = anchor.textContent.replace(/\s+/g, ' ').trim();
-    const cleanTitle = extractCleanTitle(rawTitle);
-    const quality = qualityCell ? qualityCell.textContent.trim() : (cells[1] ? cells[1].textContent.trim() : '');
-    const subtitle = cells[2] ? cells[2].textContent.trim() : '';
-
-    return {
-      id: idMatch[1],
-      href: anchor.href,
-      title: cleanTitle,
-      rawTitle: rawTitle,
-      quality,
-      subtitle
-    };
-  }
-
-  function resolveAbsoluteUrl(value) {
+  function resolveAbsoluteUrl(value, baseUrl = window.location.href) {
     if (!value || typeof value !== 'string') {
       return '';
     }
@@ -125,7 +98,7 @@
       return '';
     }
     try {
-      return new URL(trimmed, window.location.href).href;
+      return new URL(trimmed, baseUrl).href;
     } catch (_error) {
       return '';
     }
@@ -229,35 +202,244 @@
     };
   }
 
-  function collectLinks() {
-    try {
-      const rows = locateBaiduPanRows();
-      const items = rows
-        .map((row, index) => {
-          const info = extractLinkInfo(row);
-          if (!info) {
-            return null;
-          }
-          return { ...info, order: index };
-        })
-        .filter(Boolean);
+  function extractLinkInfo(row, { baseUrl } = {}) {
+    const anchor =
+      row.querySelector('a[href*="/links/"]') ||
+      row.querySelector('a[data-href*="/links/"]') ||
+      row.querySelector('a');
 
+    if (!anchor && !row?.id) {
+      return null;
+    }
+
+    const baseForLinks = baseUrl || window.location.href;
+    const hrefCandidates = [];
+    if (anchor) {
+      hrefCandidates.push(anchor.getAttribute('href') || '');
+      hrefCandidates.push(anchor.href || '');
+      if (anchor.dataset) {
+        hrefCandidates.push(anchor.dataset.href || '');
+        hrefCandidates.push(anchor.dataset.link || '');
+        hrefCandidates.push(anchor.dataset.url || '');
+      }
+    }
+    if (row?.dataset) {
+      hrefCandidates.push(row.dataset.href || '');
+      hrefCandidates.push(row.dataset.link || '');
+      hrefCandidates.push(row.dataset.url || '');
+    }
+    hrefCandidates.push(row?.getAttribute?.('data-href') || '');
+
+    let resolvedHref = '';
+    let linkId = '';
+    for (const candidate of hrefCandidates) {
+      const absolute = resolveAbsoluteUrl(candidate, baseForLinks);
+      if (!absolute) {
+        continue;
+      }
+      const idMatch = absolute.match(/\/links\/(\d+)\.html/);
+      if (idMatch) {
+        resolvedHref = absolute;
+        linkId = idMatch[1];
+        break;
+      }
+    }
+
+    if (!linkId && row?.id) {
+      const idFromRow = row.id.match(/^link-(\d+)/);
+      if (idFromRow) {
+        linkId = idFromRow[1];
+        try {
+          const origin = new URL(baseForLinks, window.location.href).origin;
+          resolvedHref = `${origin}/links/${linkId}.html`;
+        } catch (_error) {
+          resolvedHref = `${window.location.origin}/links/${linkId}.html`;
+        }
+      }
+    }
+
+    if (!linkId) {
+      return null;
+    }
+
+    const qualityCell = row.querySelector('.quality');
+    const cells = Array.from(row.children);
+
+    const rawTitle = (anchor ? anchor.textContent : row.textContent || '').replace(/\s+/g, ' ').trim();
+    const cleanTitle = extractCleanTitle(rawTitle);
+    const quality = qualityCell ? qualityCell.textContent.trim() : (cells[1] ? cells[1].textContent.trim() : '');
+    const subtitle = cells[2] ? cells[2].textContent.trim() : '';
+
+    return {
+      id: linkId,
+      href: resolvedHref,
+      title: cleanTitle,
+      rawTitle,
+      quality,
+      subtitle
+    };
+  }
+
+  function extractItemsFromDocument(root = document, { baseUrl } = {}) {
+    return locateBaiduPanRows(root)
+      .map((row, index) => {
+        const info = extractLinkInfo(row, { baseUrl });
+        if (!info) {
+          return null;
+        }
+        return { ...info, order: index };
+      })
+      .filter(Boolean);
+  }
+
+  function deriveSeasonLabel(seasonElement, index) {
+    const badgeText = seasonElement?.querySelector?.('.se-t')?.textContent?.trim();
+    if (badgeText) {
+      const numeric = badgeText.replace(/[^\d]/g, '');
+      if (numeric) {
+        return `第${numeric}季`;
+      }
+      if (/^S\d+$/i.test(badgeText)) {
+        return badgeText.toUpperCase();
+      }
+    }
+
+    const anchor = seasonElement?.querySelector?.('.se-q a');
+    const titleSpan = anchor?.querySelector?.('.title');
+    let rawText = '';
+    if (titleSpan) {
+      rawText = Array.from(titleSpan.childNodes || [])
+        .filter(node => node && node.nodeType === 3)
+        .map(node => node.textContent || '')
+        .join('');
+    }
+    if (!rawText && anchor) {
+      rawText = anchor.textContent || '';
+    }
+
+    const normalized = rawText.replace(/\s+/g, ' ').trim();
+    const zhMatch = normalized.match(/第[\d一二三四五六七八九十百零]+季/);
+    if (zhMatch) {
+      return zhMatch[0];
+    }
+    const enMatch = normalized.match(/Season\s*\d+/i);
+    if (enMatch) {
+      return enMatch[0].replace(/\s+/g, ' ').replace(/season/i, 'Season');
+    }
+    const shortMatch = normalized.match(/S\d+/i);
+    if (shortMatch) {
+      return shortMatch[0].toUpperCase();
+    }
+    if (badgeText) {
+      return badgeText;
+    }
+    if (Number.isFinite(index)) {
+      return `第${index + 1}季`;
+    }
+    return normalized || '未知季';
+  }
+
+  async function fetchHtmlDocument(url) {
+    const response = await fetch(url, { credentials: 'include' });
+    if (!response.ok) {
+      throw new Error(`请求失败：${response.status}`);
+    }
+    const html = await response.text();
+    const parser = new DOMParser();
+    return parser.parseFromString(html, 'text/html');
+  }
+
+  async function collectTvShowSeasonItems() {
+    const seasonBlocks = Array.from(document.querySelectorAll('#seasons .se-c'));
+    if (!seasonBlocks.length) {
+      return [];
+    }
+
+    const seasonInfos = seasonBlocks
+      .map((block, index) => {
+        const anchor = block.querySelector('.se-q a[href]');
+        if (!anchor) {
+          return null;
+        }
+        const href = anchor.getAttribute('href') || anchor.href;
+        const url = resolveAbsoluteUrl(href);
+        if (!url) {
+          return null;
+        }
+        const label = deriveSeasonLabel(block, index);
+        const seasonIdMatch = url.match(/\/seasons\/(\d+)\.html/);
+        const seasonId = seasonIdMatch ? seasonIdMatch[1] : `season-${index + 1}`;
+        return { url, label, index, seasonId };
+      })
+      .filter(Boolean);
+
+    if (!seasonInfos.length) {
+      return [];
+    }
+
+    const aggregated = [];
+    const seen = new Set();
+
+    const seasonResults = await Promise.all(
+      seasonInfos.map(async info => {
+        try {
+          const doc = await fetchHtmlDocument(info.url);
+          const seasonItems = extractItemsFromDocument(doc, { baseUrl: info.url });
+          return { info, seasonItems };
+        } catch (error) {
+          console.error('[Chaospace Transfer] Failed to load season page', info.url, error);
+          return { info, seasonItems: [] };
+        }
+      })
+    );
+
+    seasonResults.forEach(({ info, seasonItems }) => {
+      if (!seasonItems || !seasonItems.length) {
+        return;
+      }
+      seasonItems.forEach((item, itemIndex) => {
+        if (seen.has(item.id)) {
+          console.warn('[Chaospace Transfer] Duplicate link id detected across seasons', item.id);
+          return;
+        }
+        seen.add(item.id);
+        aggregated.push({
+          ...item,
+          order: info.index * 10000 + (typeof item.order === 'number' ? item.order : itemIndex),
+          seasonLabel: info.label,
+          seasonId: info.seasonId,
+          seasonUrl: info.url
+        });
+      });
+    });
+
+    return aggregated;
+  }
+
+  async function collectLinks() {
+    const baseResult = {
+      items: [],
+      url: window.location.href || '',
+      origin: window.location.origin || '',
+      title: getPageCleanTitle(),
+      poster: extractPosterDetails()
+    };
+
+    try {
+      let items = extractItemsFromDocument(document);
+      if (isTvShowPage()) {
+        const seasonItems = await collectTvShowSeasonItems();
+        if (seasonItems.length > 0) {
+          items = seasonItems;
+        }
+      }
       return {
-        items,
-        url: window.location.href,
-        origin: window.location.origin,
-        title: getPageCleanTitle(),
-        poster: extractPosterDetails()
+        ...baseResult,
+        items
       };
     } catch (error) {
-      console.error('[Chaospace] Failed to collect links:', error);
-      return {
-        items: [],
-        url: window.location.href || '',
-        origin: window.location.origin || '',
-        title: '',
-        poster: null
-      };
+      console.error('[Chaospace Transfer] Failed to collect links', error);
+      return baseResult;
     }
   }
 
@@ -1108,6 +1290,10 @@
     if (state.newItemIds.size) {
       parts.push(`新增 ${state.newItemIds.size}`);
     }
+    const seasonIds = new Set(state.items.map(item => item.seasonId).filter(Boolean));
+    if (seasonIds.size > 1) {
+      parts.push(`涵盖 ${seasonIds.size} 季`);
+    }
     panelDom.resourceSummary.textContent = parts.join(' · ');
     if (panelDom.resourceTitle) {
       panelDom.resourceTitle.textContent = `🔍 找到 ${total} 个百度网盘资源`;
@@ -1164,6 +1350,9 @@
         statusBadges.push('<span class="chaospace-badge chaospace-badge-pending">待转存</span>');
       }
       const detailBadges = [];
+      if (item.seasonLabel) {
+        detailBadges.push(`<span class="chaospace-badge">季：${item.seasonLabel}</span>`);
+      }
       if (item.quality) {
         detailBadges.push(`<span class="chaospace-badge">画质：${item.quality}</span>`);
       }
@@ -1171,13 +1360,14 @@
         detailBadges.push(`<span class="chaospace-badge">字幕：${item.subtitle}</span>`);
       }
       const metaBadges = [...statusBadges, ...detailBadges].join('');
+      const displayTitle = item.seasonLabel ? `🔗 [${item.seasonLabel}] ${item.title}` : `🔗 ${item.title}`;
       const row = document.createElement('label');
       row.className = 'chaospace-item';
       row.dataset.id = item.id;
       row.innerHTML = `
         <input type="checkbox" class="chaospace-item-checkbox" ${isSelected ? 'checked' : ''} />
         <div class="chaospace-item-body">
-          <div class="chaospace-item-title">🔗 ${item.title}</div>
+          <div class="chaospace-item-title">${displayTitle}</div>
           <div class="chaospace-item-meta">${metaBadges}</div>
         </div>
       `;
@@ -1400,9 +1590,10 @@
   }
 
   async function createFloatingPanel() {
-    if (floatingPanel) {
+    if (floatingPanel || panelCreationInProgress) {
       return;
     }
+    panelCreationInProgress = true;
 
     if (detachWindowResize) {
       detachWindowResize();
@@ -1415,13 +1606,13 @@
       await loadHistory({ silent: true });
       applyPanelTheme();
 
-      const data = collectLinks();
+      const data = await collectLinks();
       if (!data.items || data.items.length === 0) {
         return;
       }
 
       state.pageTitle = data.title || '';
-       state.pageUrl = normalizePageUrl(data.url || window.location.href);
+      state.pageUrl = normalizePageUrl(data.url || window.location.href);
       state.poster = data.poster || null;
       state.origin = data.origin || window.location.origin;
       state.items = data.items.map((item, index) => ({
@@ -2149,8 +2340,10 @@
       renderLogs();
       updateTransferButton();
     } catch (error) {
-      console.error('[Chaospace] Failed to create floating panel:', error);
+      console.error('[Chaospace Transfer] Failed to create floating panel:', error);
       showToast('error', '创建面板失败', error.message);
+    } finally {
+      panelCreationInProgress = false;
     }
   }
 
@@ -2192,12 +2385,20 @@
     }
   }
 
+  function isTvShowPage() {
+    return /\/tvshows\/\d+\.html/.test(window.location.pathname);
+  }
+
   function isSeasonPage() {
     return /\/seasons\/\d+\.html/.test(window.location.pathname);
   }
 
+  function isSupportedDetailPage() {
+    return isSeasonPage() || /\/movies\/\d+\.html/.test(window.location.pathname) || isTvShowPage();
+  }
+
   function init() {
-    if (!isSeasonPage()) {
+    if (!isSupportedDetailPage()) {
       return;
     }
 
@@ -2219,16 +2420,16 @@
           clearTimeout(observerTimeout);
         }
 
-        observerTimeout = setTimeout(() => {
+        observerTimeout = setTimeout(async () => {
           try {
-            if (!floatingPanel) {
-              const data = collectLinks();
+            if (!floatingPanel && !panelCreationInProgress) {
+              const data = await collectLinks();
               if (data.items && data.items.length > 0) {
-                createFloatingPanel();
+                await createFloatingPanel();
               }
             }
           } catch (error) {
-            console.error('[Chaospace] Observer error:', error);
+            console.error('[Chaospace Transfer] Observer error:', error);
           }
         }, 1000);
       });
@@ -2270,13 +2471,15 @@
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type === 'chaospace:collect-links') {
-      try {
-        sendResponse(collectLinks());
-      } catch (error) {
-        console.error('[Chaospace] Message handler error:', error);
-        sendResponse({ items: [], url: '', origin: '', title: '', poster: null });
-      }
-      return false;
+      collectLinks()
+        .then(result => {
+          sendResponse(result);
+        })
+        .catch(error => {
+          console.error('[Chaospace Transfer] Message handler error:', error);
+          sendResponse({ items: [], url: '', origin: '', title: '', poster: null });
+        });
+      return true;
     }
 
     if (message?.type === 'chaospace:transfer-progress') {
