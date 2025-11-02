@@ -1184,6 +1184,10 @@
   color: var(--cp-text-secondary);
 }
 
+.chaospace-season-checkbox {
+  margin-top: 6px;
+}
+
 .chaospace-checkbox input[type="checkbox"] {
   width: 18px;
   height: 18px;
@@ -1200,6 +1204,20 @@
   color: var(--cp-text-secondary);
   word-break: break-all;
   line-height: 1.5;
+}
+
+.chaospace-path-hint {
+  margin-top: 6px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 11px;
+  color: var(--cp-text-muted);
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px dashed rgba(99, 102, 241, 0.28);
+}
+
+.chaospace-path-hint.is-empty {
+  display: none;
 }
 
 .chaospace-path-label {

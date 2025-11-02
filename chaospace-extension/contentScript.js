@@ -11,6 +11,8 @@
   const state = {
     baseDir: '/',
     useTitleSubdir: true,
+    useSeasonSubdir: false,
+    hasSeasonSubdirPreference: false,
     presets: [...DEFAULT_PRESETS],
     items: [],
     itemIdSet: new Set(),
@@ -36,7 +38,9 @@
     currentHistory: null,
     transferredIds: new Set(),
     newItemIds: new Set(),
-    historyExpanded: false
+    historyExpanded: false,
+    seasonDirMap: {},
+    seasonExampleDir: ''
   };
 
   const panelDom = {};
@@ -47,6 +51,154 @@
   let lastKnownSize = null;
   let detachWindowResize = null;
   let panelCreationInProgress = false;
+
+  function computeItemTargetPath(item, defaultPath) {
+    if (!state.useSeasonSubdir || !item || !item.seasonId) {
+      return defaultPath;
+    }
+    const cleanBase = normalizeDir(defaultPath || state.baseDir || '/');
+    const seasonId = item.seasonId;
+    let dirName = state.seasonDirMap[seasonId];
+    if (!dirName) {
+      dirName = deriveSeasonDirectory(item.seasonLabel, item.seasonIndex);
+      state.seasonDirMap[seasonId] = dirName;
+    }
+    const safeDir = sanitizeSeasonDirSegment(dirName);
+    if (!safeDir) {
+      return cleanBase;
+    }
+    return cleanBase === '/' ? `/${safeDir}` : `${cleanBase}/${safeDir}`;
+  }
+
+  function sanitizeSeasonDirSegment(value) {
+    const text = (value || '').trim();
+    if (!text) {
+      return '';
+    }
+    let normalized = text.replace(/\s+/g, ' ').trim();
+    normalized = normalized.replace(/[<>:"|?*]+/g, '-');
+    normalized = normalized.replace(/[/\\]+/g, '-');
+    normalized = normalized.replace(/-+/g, '-');
+    normalized = normalized.replace(/^-+|-+$/g, '');
+    return normalized.trim();
+  }
+
+  function dedupeSeasonDirMap() {
+    if (!state.seasonDirMap || typeof state.seasonDirMap !== 'object') {
+      state.seasonDirMap = {};
+      return;
+    }
+    const used = new Map();
+    Object.entries(state.seasonDirMap).forEach(([key, name]) => {
+      let sanitized = sanitizeSeasonDirSegment(name);
+      if (!sanitized) {
+        const fallbackKey = String(key || '').replace(/[^a-zA-Z0-9]+/g, '').slice(-6) || 'season';
+        sanitized = `season-${fallbackKey}`;
+      }
+      const base = sanitized;
+      let count = used.get(base) || 0;
+      let finalName = base;
+      while (used.has(finalName)) {
+        count += 1;
+        finalName = `${base}-${count}`;
+      }
+      used.set(base, count);
+      used.set(finalName, 0);
+      state.seasonDirMap[key] = finalName;
+    });
+  }
+
+  function updateSeasonExampleDir() {
+    if (!state.useSeasonSubdir) {
+      state.seasonExampleDir = '';
+      return;
+    }
+    const seasonIds = Object.keys(state.seasonDirMap || {});
+    if (!seasonIds.length) {
+      state.seasonExampleDir = '';
+      return;
+    }
+    const firstId = seasonIds[0];
+    const dirName = sanitizeSeasonDirSegment(state.seasonDirMap[firstId]);
+    if (!dirName) {
+      state.seasonExampleDir = '';
+      return;
+    }
+    const base = getTargetPath(state.baseDir, state.useTitleSubdir, state.pageTitle);
+    state.seasonExampleDir = base === '/' ? `/${dirName}` : `${base}/${dirName}`;
+  }
+
+  function getAvailableSeasonIds() {
+    return state.items
+      .map(item => item && item.seasonId)
+      .filter(Boolean);
+  }
+
+  function getSeasonCount() {
+    return new Set(getAvailableSeasonIds()).size;
+  }
+
+  function rebuildSeasonDirMap({ preserveExisting = true } = {}) {
+    const existing = preserveExisting && state.seasonDirMap ? { ...state.seasonDirMap } : {};
+    const next = {};
+    state.items.forEach(item => {
+      if (!item || !item.seasonId) {
+        return;
+      }
+      if (next[item.seasonId]) {
+        return;
+      }
+      let candidate = preserveExisting ? existing[item.seasonId] : '';
+      if (!candidate) {
+        candidate = deriveSeasonDirectory(item.seasonLabel, item.seasonIndex);
+      }
+      if (!candidate) {
+        candidate = `第${Number.isFinite(item.seasonIndex) ? item.seasonIndex + 1 : 1}季`;
+      }
+      next[item.seasonId] = candidate;
+    });
+    state.seasonDirMap = next;
+    dedupeSeasonDirMap();
+    updateSeasonExampleDir();
+  }
+
+  function ensureSeasonSubdirDefault() {
+    if (state.hasSeasonSubdirPreference) {
+      return;
+    }
+    const seasonCount = getSeasonCount();
+    state.useSeasonSubdir = isTvShowPage() && seasonCount > 1;
+  }
+
+  function renderSeasonHint() {
+    if (!panelDom.seasonPathHint) {
+      return;
+    }
+    const showHint = state.useSeasonSubdir && state.seasonExampleDir;
+    if (showHint) {
+      panelDom.seasonPathHint.innerHTML = `<span class="chaospace-path-label">📂 示例：</span><span class="chaospace-path-value">${state.seasonExampleDir}</span>`;
+      panelDom.seasonPathHint.classList.remove('is-empty');
+    } else {
+      panelDom.seasonPathHint.textContent = '';
+      panelDom.seasonPathHint.classList.add('is-empty');
+    }
+  }
+
+  function renderSeasonControls() {
+    const seasonCount = getSeasonCount();
+    const shouldShow = isTvShowPage() && seasonCount > 1;
+    if (panelDom.seasonRow) {
+      panelDom.seasonRow.style.display = shouldShow ? 'flex' : 'none';
+    }
+    if (panelDom.useSeasonCheckbox) {
+      panelDom.useSeasonCheckbox.checked = shouldShow ? state.useSeasonSubdir : false;
+      panelDom.useSeasonCheckbox.disabled = state.transferStatus === 'running';
+    }
+    if (shouldShow) {
+      updateSeasonExampleDir();
+    }
+    renderSeasonHint();
+  }
 
   // 智能提取剧集标题
   function extractCleanTitle(rawTitle) {
@@ -108,6 +260,7 @@
         ...item,
         order: info.index * 10000 + (typeof item.order === 'number' ? item.order : itemIndex),
         seasonLabel: info.label,
+        seasonIndex: info.index,
         seasonId: info.seasonId,
         seasonUrl: info.url,
         seasonCompletion: seasonCompletion
@@ -125,6 +278,10 @@
       }
     }
 
+    rebuildSeasonDirMap();
+    ensureSeasonSubdirDefault();
+    updateSeasonExampleDir();
+
     const completionEntries = Object.values(state.seasonCompletion || {}).filter(Boolean);
     if (completionEntries.length) {
       state.completion = summarizeSeasonCompletion(completionEntries);
@@ -136,6 +293,7 @@
     );
 
     renderResourceList();
+    renderPathPreview();
   }
 
   async function ensureDeferredSeasonLoading() {
@@ -704,6 +862,7 @@
           ...item,
           order: info.index * 10000 + (typeof item.order === 'number' ? item.order : itemIndex),
           seasonLabel: info.label,
+          seasonIndex: info.index,
           seasonId: info.seasonId,
           seasonUrl: info.url,
           seasonCompletion: completion || info.completion || null
@@ -947,6 +1106,10 @@
       if (typeof settings.useTitleSubdir === 'boolean') {
         state.useTitleSubdir = settings.useTitleSubdir;
       }
+      if (typeof settings.useSeasonSubdir === 'boolean') {
+        state.useSeasonSubdir = settings.useSeasonSubdir;
+        state.hasSeasonSubdirPreference = true;
+      }
       if (Array.isArray(settings.presets)) {
         const merged = [...settings.presets, ...DEFAULT_PRESETS]
           .map(sanitizePreset)
@@ -965,13 +1128,17 @@
   }
 
   async function saveSettings() {
+    const settings = {
+      baseDir: state.baseDir,
+      useTitleSubdir: state.useTitleSubdir,
+      presets: state.presets,
+      theme: state.theme
+    };
+    if (state.hasSeasonSubdirPreference) {
+      settings.useSeasonSubdir = state.useSeasonSubdir;
+    }
     await safeStorageSet({
-      [STORAGE_KEY]: {
-        baseDir: state.baseDir,
-        useTitleSubdir: state.useTitleSubdir,
-        presets: state.presets,
-        theme: state.theme
-      }
+      [STORAGE_KEY]: settings
     }, 'settings');
   }
 
@@ -988,15 +1155,20 @@
     return message.toLowerCase().includes('context invalidated');
   }
 
+  function warnStorageInvalidation(operation = 'Storage operation') {
+    if (storageInvalidationWarned) {
+      return;
+    }
+    console.warn(`[Chaospace Transfer] ${operation} skipped · extension context invalidated. 请重新加载扩展或页面以继续。`);
+    storageInvalidationWarned = true;
+  }
+
   async function safeStorageSet(entries, contextLabel = 'storage') {
     try {
       await chrome.storage.local.set(entries);
     } catch (error) {
       if (isExtensionContextInvalidated(error)) {
-        if (!storageInvalidationWarned) {
-          console.warn('[Chaospace Transfer] Storage write skipped · extension context invalidated. 请重新加载扩展或页面以继续。');
-          storageInvalidationWarned = true;
-        }
+        warnStorageInvalidation('Storage write');
         return;
       }
       console.error(`[Chaospace Transfer] Failed to persist ${contextLabel}`, error);
@@ -1067,6 +1239,23 @@
     return result;
   }
 
+  function normalizeSeasonDirectory(value) {
+    if (!value || typeof value !== 'object') {
+      return {};
+    }
+    const result = {};
+    Object.entries(value).forEach(([key, dir]) => {
+      if (typeof dir !== 'string') {
+        return;
+      }
+      const trimmed = dir.trim();
+      if (trimmed) {
+        result[key] = trimmed;
+      }
+    });
+    return result;
+  }
+
   function prepareHistoryRecords(raw) {
     if (!raw || typeof raw !== 'object' || !Array.isArray(raw.records)) {
       return [];
@@ -1079,6 +1268,8 @@
         }
         safe.completion = normalizeHistoryCompletion(safe.completion);
         safe.seasonCompletion = normalizeSeasonCompletionMap(safe.seasonCompletion);
+        safe.seasonDirectory = normalizeSeasonDirectory(safe.seasonDirectory);
+        safe.useSeasonSubdir = Boolean(safe.useSeasonSubdir);
         return safe;
       })
       .sort((a, b) => {
@@ -1107,6 +1298,17 @@
     const knownIds = new Set(Object.keys(matched.items || {}));
     if (!state.completion && matched.completion) {
       state.completion = matched.completion;
+    }
+    if (matched.seasonDirectory && typeof matched.seasonDirectory === 'object') {
+      const seasonMap = normalizeSeasonDirectory(matched.seasonDirectory);
+      if (Object.keys(seasonMap).length) {
+        state.seasonDirMap = { ...state.seasonDirMap, ...seasonMap };
+        dedupeSeasonDirMap();
+        updateSeasonExampleDir();
+      }
+    }
+    if (!state.hasSeasonSubdirPreference && typeof matched.useSeasonSubdir === 'boolean') {
+      state.useSeasonSubdir = matched.useSeasonSubdir;
     }
     state.transferredIds = knownIds;
     state.items.forEach(item => {
@@ -1591,6 +1793,17 @@
     renderLogs();
   }
 
+  function deriveSeasonDirectory(label, index) {
+    const resolvedLabel = (label || '').trim();
+    if (resolvedLabel) {
+      return resolvedLabel;
+    }
+    if (Number.isFinite(index)) {
+      return `第${index + 1}季`;
+    }
+    return '第1季';
+  }
+
   function pushLog(message, { level = 'info', detail = '', stage = '' } = {}) {
     const lastEntry = state.logs[state.logs.length - 1];
     if (
@@ -1699,6 +1912,8 @@
     }
     const targetPath = getTargetPath(state.baseDir, state.useTitleSubdir, state.pageTitle);
     panelDom.pathPreview.innerHTML = `<span class="chaospace-path-label">📂 当前将保存到：</span><span class="chaospace-path-value">${targetPath}</span>`;
+    updateSeasonExampleDir();
+    renderSeasonHint();
   }
 
   function renderPresets() {
@@ -1801,6 +2016,7 @@
       renderResourceSummary();
       updateTransferButton();
       updatePanelHeader();
+      renderSeasonControls();
       return;
     }
 
@@ -1859,6 +2075,7 @@
     renderResourceSummary();
     updateTransferButton();
     updatePanelHeader();
+    renderSeasonControls();
   }
 
   function updateTransferButton() {
@@ -1909,6 +2126,7 @@
   function setPanelControlsDisabled(disabled) {
     if (panelDom.baseDirInput) panelDom.baseDirInput.disabled = disabled;
     if (panelDom.useTitleCheckbox) panelDom.useTitleCheckbox.disabled = disabled;
+    if (panelDom.useSeasonCheckbox) panelDom.useSeasonCheckbox.disabled = disabled;
     if (panelDom.sortKeySelect) panelDom.sortKeySelect.disabled = disabled;
     if (panelDom.sortOrderButton) panelDom.sortOrderButton.disabled = disabled;
     if (panelDom.addPresetButton) panelDom.addPresetButton.disabled = disabled;
@@ -1972,6 +2190,12 @@
       state.useTitleSubdir = panelDom.useTitleCheckbox.checked;
       saveSettings();
     }
+    if (panelDom.useSeasonCheckbox) {
+      state.useSeasonSubdir = panelDom.useSeasonCheckbox.checked;
+      state.hasSeasonSubdirPreference = true;
+      dedupeSeasonDirMap();
+      saveSettings();
+    }
 
     const targetDirectory = getTargetPath(state.baseDir, state.useTitleSubdir, state.pageTitle);
 
@@ -1993,17 +2217,19 @@
         items: selectedItems.map(item => ({
           id: item.id,
           title: item.title,
-          targetPath: targetDirectory
+          targetPath: computeItemTargetPath(item, targetDirectory)
         })),
         targetDirectory,
         meta: {
           total: selectedItems.length,
           baseDir: state.baseDir,
           useTitleSubdir: state.useTitleSubdir,
+          useSeasonSubdir: state.useSeasonSubdir,
           pageTitle: state.pageTitle,
           pageUrl: state.pageUrl || normalizePageUrl(window.location.href),
           pageType: state.items.length > 1 ? 'series' : 'movie',
           targetDirectory,
+          seasonDirectory: state.useSeasonSubdir ? { ...state.seasonDirMap } : null,
           completion: state.completion || null,
           seasonCompletion: state.seasonCompletion || {},
           poster: state.poster && state.poster.src
@@ -2113,6 +2339,9 @@
       }));
       state.itemIdSet = new Set(state.items.map(item => item.id));
       state.selectedIds = new Set(state.items.map(item => item.id));
+      rebuildSeasonDirMap({ preserveExisting: false });
+      ensureSeasonSubdirDefault();
+      updateSeasonExampleDir();
       state.deferredSeasonInfos = deferredSeasons;
       const declaredTotal = Number.isFinite(data.totalSeasons) ? Math.max(0, data.totalSeasons) : 0;
       const declaredLoaded = Number.isFinite(data.loadedSeasons) ? Math.max(0, data.loadedSeasons) : 0;
@@ -2235,7 +2464,12 @@
                       <input type="checkbox" data-role="use-title" />
                       <span>为本页创建子目录（推荐）</span>
                     </label>
+                    <label class="chaospace-checkbox chaospace-season-checkbox" data-role="season-row" style="display: none;">
+                      <input type="checkbox" data-role="use-season" />
+                      <span>为每季创建子文件夹</span>
+                    </label>
                     <div class="chaospace-path-preview" data-role="path-preview"></div>
+                    <div class="chaospace-path-hint is-empty" data-role="season-path-hint"></div>
                   </div>
                 </div>
                 <div class="chaospace-card chaospace-status-card">
@@ -2367,6 +2601,9 @@
       panelDom.showSubtitle = panel.querySelector('[data-role="show-subtitle"]');
       panelDom.baseDirInput = panel.querySelector('[data-role="base-dir"]');
       panelDom.useTitleCheckbox = panel.querySelector('[data-role="use-title"]');
+      panelDom.useSeasonCheckbox = panel.querySelector('[data-role="use-season"]');
+      panelDom.seasonRow = panel.querySelector('[data-role="season-row"]');
+      panelDom.seasonPathHint = panel.querySelector('[data-role="season-path-hint"]');
       panelDom.pathPreview = panel.querySelector('[data-role="path-preview"]');
       panelDom.presetList = panel.querySelector('[data-role="preset-list"]');
       panelDom.addPresetButton = panel.querySelector('[data-role="add-preset"]');
@@ -2422,6 +2659,19 @@
           state.useTitleSubdir = panelDom.useTitleCheckbox.checked;
           saveSettings();
           renderPathPreview();
+        });
+      }
+
+      if (panelDom.useSeasonCheckbox) {
+        panelDom.useSeasonCheckbox.checked = state.useSeasonSubdir;
+        panelDom.useSeasonCheckbox.addEventListener('change', () => {
+          state.useSeasonSubdir = panelDom.useSeasonCheckbox.checked;
+          state.hasSeasonSubdirPreference = true;
+          dedupeSeasonDirMap();
+          updateSeasonExampleDir();
+          renderPathPreview();
+          renderResourceList();
+          saveSettings();
         });
       }
 

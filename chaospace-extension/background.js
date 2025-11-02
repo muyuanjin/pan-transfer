@@ -312,6 +312,31 @@ function mergeSeasonCompletionMap(current, updates, timestamp, sourceHint = '') 
   return target;
 }
 
+function normalizeSeasonDirectoryMap(value) {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+  const result = {};
+  Object.entries(value).forEach(([key, dir]) => {
+    if (typeof dir !== 'string') {
+      return;
+    }
+    const trimmed = dir.trim();
+    if (!trimmed) {
+      return;
+    }
+    const safe = trimmed.replace(/[/\\]+/g, '/');
+    result[key] = safe;
+  });
+  return result;
+}
+
+function mergeSeasonDirectoryMap(current, updates) {
+  const base = normalizeSeasonDirectoryMap(current);
+  const incoming = normalizeSeasonDirectoryMap(updates);
+  return { ...base, ...incoming };
+}
+
 function summarizeSeasonCompletion(statuses = []) {
   const valid = statuses.filter(Boolean);
   if (!valid.length) {
@@ -1388,6 +1413,8 @@ function ensureHistoryRecordStructure(record) {
   }
   record.completion = normalizeHistoryCompletion(record.completion);
   record.seasonCompletion = normalizeSeasonCompletionMap(record.seasonCompletion);
+  record.seasonDirectory = normalizeSeasonDirectoryMap(record.seasonDirectory);
+  record.useSeasonSubdir = Boolean(record.useSeasonSubdir);
   return record;
 }
 
@@ -1408,11 +1435,13 @@ function upsertHistoryRecord(pageUrl) {
     targetDirectory: '/',
     baseDir: '/',
     useTitleSubdir: true,
+    useSeasonSubdir: false,
     lastTransferredAt: 0,
     lastCheckedAt: 0,
     totalTransferred: 0,
     completion: null,
     seasonCompletion: {},
+    seasonDirectory: {},
     items: {},
     itemOrder: [],
     lastResult: null
@@ -1486,6 +1515,10 @@ async function recordTransferHistory(payload, outcome) {
   record.targetDirectory = normalizeHistoryPath(meta.targetDirectory || payload.targetDirectory || record.targetDirectory, record.targetDirectory || '/');
   record.baseDir = normalizeHistoryPath(meta.baseDir || record.baseDir || record.targetDirectory, record.baseDir || '/');
   record.useTitleSubdir = typeof meta.useTitleSubdir === 'boolean' ? meta.useTitleSubdir : Boolean(record.useTitleSubdir);
+  record.useSeasonSubdir = typeof meta.useSeasonSubdir === 'boolean' ? meta.useSeasonSubdir : Boolean(record.useSeasonSubdir);
+  if (meta.seasonDirectory && typeof meta.seasonDirectory === 'object') {
+    record.seasonDirectory = mergeSeasonDirectoryMap(record.seasonDirectory, meta.seasonDirectory);
+  }
   record.lastCheckedAt = timestamp;
   if (meta.completion) {
     record.completion = mergeCompletionStatus(record.completion, meta.completion, timestamp, meta.completion.source || 'transfer-meta');
