@@ -3301,9 +3301,8 @@
         seasonList.className = 'chaospace-history-season-list';
         seasonList.dataset.role = 'history-season-list';
         seasonList.dataset.groupKey = group.key;
-        if (!expanded) {
-          seasonList.hidden = true;
-        } else {
+        seasonList.hidden = !expanded;
+        if (expanded) {
           item.classList.add('is-season-expanded');
         }
 
@@ -5287,11 +5286,11 @@
             const isExpanded = state.historySeasonExpanded.has(groupKey);
             seasonToggle.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
             seasonToggle.textContent = isExpanded ? '收起季' : '展开季';
-            const list = panelDom.historyList.querySelector(`[data-role="history-season-list"][data-group-key="${groupKey}"]`);
+            const container = seasonToggle.closest('.chaospace-history-item');
+            const list = container ? container.querySelector('[data-role="history-season-list"]') : null;
             if (list) {
               list.hidden = !isExpanded;
             }
-            const container = seasonToggle.closest('.chaospace-history-item');
             if (container) {
               container.classList.toggle('is-season-expanded', isExpanded);
             }
