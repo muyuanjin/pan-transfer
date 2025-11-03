@@ -1401,6 +1401,22 @@
     return url.replace(/["\n\r]/g, '').trim();
   }
 
+  function handleSuppressDrag(event) {
+    event.preventDefault();
+  }
+
+  function disableElementDrag(element) {
+    if (!element) {
+      return;
+    }
+    try {
+      element.setAttribute('draggable', 'false');
+      element.addEventListener('dragstart', handleSuppressDrag, { passive: false });
+    } catch (_error) {
+      // If element is not a standard DOM node, ignore.
+    }
+  }
+
   function updatePanelHeader() {
     const hasPoster = Boolean(state.poster && state.poster.src);
     if (panelDom.showTitle) {
@@ -1438,6 +1454,7 @@
       }
     }
     if (panelDom.headerPoster) {
+      disableElementDrag(panelDom.headerPoster);
       if (hasPoster) {
         panelDom.headerPoster.src = state.poster.src;
         panelDom.headerPoster.alt = state.poster.alt || '';
@@ -2010,16 +2027,6 @@
     applyPosterPreviewScale(nextScale);
   }
 
-  function handlePosterPreviewDoubleClick(event) {
-    if (!posterPreviewImage) {
-      return;
-    }
-    if (event.target !== posterPreviewImage && event.target !== posterPreviewInner) {
-      return;
-    }
-    applyPosterPreviewScale(1);
-  }
-
   function handlePosterPreviewResize() {
     if (!posterPreviewActive || !posterPreviewImage) {
       return;
@@ -2027,6 +2034,16 @@
     const currentScale = posterPreviewScale || 1;
     posterPreviewMetrics = computePosterPreviewBaseMetrics(posterPreviewImage);
     applyPosterPreviewScale(currentScale, { immediate: true });
+  }
+
+  function handlePosterPreviewClick(event) {
+    if (!posterPreviewActive || !posterPreviewInner) {
+      return;
+    }
+    if (event.target !== posterPreviewImage && event.target !== posterPreviewInner) {
+      return;
+    }
+    closePosterPreview();
   }
 
   function closePosterPreview() {
@@ -2038,7 +2055,7 @@
     posterPreviewLoadHandler = null;
     if (posterPreviewInner) {
       posterPreviewInner.removeEventListener('wheel', handlePosterPreviewWheel);
-      posterPreviewInner.removeEventListener('dblclick', handlePosterPreviewDoubleClick);
+      posterPreviewInner.removeEventListener('click', handlePosterPreviewClick);
     }
     if (posterPreviewOverlay && posterPreviewOverlay.parentNode) {
       posterPreviewOverlay.parentNode.removeChild(posterPreviewOverlay);
@@ -2053,6 +2070,9 @@
     document.removeEventListener('keydown', handlePosterPreviewKeydown, true);
     window.removeEventListener('resize', handlePosterPreviewResize);
     posterPreviewImage = null;
+    if (floatingPanel) {
+      floatingPanel.classList.remove('is-previewing');
+    }
   }
 
   function handlePosterPreviewKeydown(event) {
@@ -2096,7 +2116,7 @@
     posterPreviewInner.style.width = `${POSTER_PREVIEW_BASE_MIN_WIDTH}px`;
     posterPreviewInner.style.height = `${POSTER_PREVIEW_BASE_MIN_HEIGHT}px`;
     posterPreviewInner.addEventListener('wheel', handlePosterPreviewWheel, { passive: false });
-    posterPreviewInner.addEventListener('dblclick', handlePosterPreviewDoubleClick);
+    posterPreviewInner.addEventListener('click', handlePosterPreviewClick);
     posterPreviewActive = true;
     posterPreviewLoadHandler = null;
     const initializePreview = () => {
@@ -2118,6 +2138,7 @@
     }
     if (floatingPanel) {
       floatingPanel.classList.remove('is-leaving');
+      floatingPanel.classList.add('is-previewing');
     }
     if (cancelEdgeHideRef) {
       cancelEdgeHideRef({ show: true });
@@ -2233,6 +2254,7 @@
         const posterImg = document.createElement('img');
         posterImg.src = group.poster.src;
         posterImg.alt = group.poster.alt || group.title || '';
+        disableElementDrag(posterImg);
         posterElement.appendChild(posterImg);
       } else {
         posterElement.classList.add('is-placeholder');
@@ -2349,6 +2371,7 @@
             const img = document.createElement('img');
             img.src = row.poster.src;
             img.alt = row.poster.alt || row.label || '';
+            disableElementDrag(img);
             rowPoster.appendChild(img);
           } else {
             rowPoster.classList.add('is-placeholder');
@@ -3505,6 +3528,7 @@
               alt=""
               loading="lazy"
               decoding="async"
+              draggable="false"
               style="display: none;"
             />
             <div class="chaospace-header-body">
@@ -3878,6 +3902,7 @@
       panelDom.header = panel.querySelector('.chaospace-float-header');
       panelDom.headerArt = panel.querySelector('[data-role="header-art"]');
       panelDom.headerPoster = panel.querySelector('[data-role="header-poster"]');
+      disableElementDrag(panelDom.headerPoster);
       panelDom.showTitle = panel.querySelector('[data-role="show-title"]');
       panelDom.showSubtitle = panel.querySelector('[data-role="show-subtitle"]');
       panelDom.baseDirInput = panel.querySelector('[data-role="base-dir"]');

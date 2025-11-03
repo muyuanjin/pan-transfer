@@ -98,6 +98,11 @@
   will-change: transform, opacity;
 }
 
+.chaospace-float-panel.is-previewing {
+  pointer-events: none;
+  z-index: 2147483645 !important;
+}
+
 .chaospace-float-panel.is-mounted {
   animation: none;
   opacity: 1;
