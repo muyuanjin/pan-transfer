@@ -66,9 +66,42 @@
           </div>
 
           <div class="popup-card popup-history-card" id="history-card">
-            <div class="popup-card-title">🔖 转存历史</div>
+            <div class="popup-card-header">
+              <div class="popup-card-title">🔖 转存历史</div>
+              <div class="popup-card-actions">
+                <button id="history-expand" type="button" class="popup-ghost-btn">展开</button>
+              </div>
+            </div>
             <div id="history-empty" class="popup-history-empty">还没有转存记录</div>
             <div id="history-list" class="popup-history-list"></div>
+            <div id="history-panel" class="popup-history-panel" aria-hidden="true">
+              <div class="popup-history-tabs" id="history-tabs" role="tablist">
+                <button type="button" class="popup-history-tab is-active" data-filter="all">全部</button>
+                <button type="button" class="popup-history-tab" data-filter="series">剧集</button>
+                <button type="button" class="popup-history-tab" data-filter="ongoing">未完结</button>
+                <button type="button" class="popup-history-tab" data-filter="completed">已完结</button>
+                <button type="button" class="popup-history-tab" data-filter="movie">电影</button>
+              </div>
+              <div class="popup-history-panel-toolbar">
+                <div class="popup-history-panel-left">
+                  <label class="popup-checkbox popup-history-select-all">
+                    <input id="history-select-all" type="checkbox" />
+                    <span>全选当前筛选结果</span>
+                  </label>
+                  <div id="history-selection-count" class="popup-history-selection-count">已选 0 项</div>
+                </div>
+                <div class="popup-history-panel-right">
+                  <button id="history-batch-check" type="button" class="popup-primary-btn" disabled>批量检测更新</button>
+                  <button id="history-delete-selected" type="button" class="popup-ghost-btn" disabled>删除选中</button>
+                  <button id="history-clear" type="button" class="popup-ghost-btn">清空历史</button>
+                </div>
+              </div>
+              <div id="history-panel-list" class="popup-history-panel-list"></div>
+              <div id="history-panel-empty" class="popup-history-panel-empty">当前筛选没有记录</div>
+              <div id="history-panel-footnote" class="popup-history-panel-footnote">
+                仅支持对未完结的剧集进行检测；批量检测会按顺序逐条执行，并自动控制访问速率。
+              </div>
+            </div>
           </div>
 
           <div class="popup-card popup-status-card">

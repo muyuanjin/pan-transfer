@@ -1629,6 +1629,38 @@ async function recordTransferHistory(payload, outcome) {
   await persistHistoryNow();
 }
 
+async function deleteHistoryRecords(urls = []) {
+  await ensureHistoryLoaded();
+  if (!Array.isArray(urls) || !urls.length) {
+    return { ok: true, removed: 0, total: historyState.records.length };
+  }
+  const targets = new Set(urls.filter(url => typeof url === 'string' && url));
+  if (!targets.size) {
+    return { ok: true, removed: 0, total: historyState.records.length };
+  }
+  const beforeCount = historyState.records.length;
+  historyState.records = historyState.records.filter(record => !targets.has(record.pageUrl));
+  const removed = beforeCount - historyState.records.length;
+  if (!removed) {
+    return { ok: true, removed: 0, total: historyState.records.length };
+  }
+  rebuildHistoryIndex();
+  await persistHistoryNow();
+  return { ok: true, removed, total: historyState.records.length };
+}
+
+async function clearHistoryRecords() {
+  await ensureHistoryLoaded();
+  const removed = historyState.records.length;
+  if (!removed) {
+    return { ok: true, removed: 0, total: 0 };
+  }
+  historyState = createDefaultHistoryState();
+  rebuildHistoryIndex();
+  await persistHistoryNow();
+  return { ok: true, removed, total: 0, cleared: true };
+}
+
 function decodeHtmlEntities(input) {
   if (!input || typeof input !== 'string') {
     return '';
@@ -2470,6 +2502,29 @@ async function handleTransfer(payload) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === 'chaospace:history-delete') {
+    const urls = Array.isArray(message?.payload?.urls) ? message.payload.urls : [];
+    deleteHistoryRecords(urls)
+      .then(result => {
+        sendResponse({ ok: true, ...result });
+      })
+      .catch(error => {
+        sendResponse({ ok: false, error: error.message || '删除历史记录失败' });
+      });
+    return true;
+  }
+
+  if (message?.type === 'chaospace:history-clear') {
+    clearHistoryRecords()
+      .then(result => {
+        sendResponse({ ok: true, ...result });
+      })
+      .catch(error => {
+        sendResponse({ ok: false, error: error.message || '清空历史失败' });
+      });
+    return true;
+  }
+
   if (message?.type === 'chaospace:check-updates') {
     handleCheckUpdatesRequest(message.payload || {})
       .then(result => {

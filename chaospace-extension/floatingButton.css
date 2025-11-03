@@ -493,6 +493,121 @@
   gap: 12px;
 }
 
+.chaospace-history-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chaospace-history-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chaospace-history-tab {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--cp-border);
+  background: transparent;
+  color: var(--cp-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.chaospace-history-tab:hover {
+  background: rgba(99, 102, 241, 0.16);
+  color: var(--cp-text-primary);
+}
+
+.chaospace-history-tab.is-active {
+  background: rgba(99, 102, 241, 0.26);
+  border-color: rgba(99, 102, 241, 0.46);
+  color: var(--cp-text-primary);
+  font-weight: 600;
+}
+
+.chaospace-history-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.chaospace-history-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--cp-text-secondary);
+}
+
+.chaospace-history-select-all input {
+  width: 16px;
+  height: 16px;
+}
+
+.chaospace-history-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.chaospace-history-selection-count {
+  font-size: 12px;
+  color: var(--cp-text-muted);
+}
+
+.chaospace-history-primary-btn {
+  background: var(--cp-accent);
+  color: #fff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.chaospace-history-primary-btn:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
+.chaospace-history-primary-btn:not(:disabled):hover {
+  transform: translateY(-1px);
+  opacity: 0.92;
+}
+
+.chaospace-float-panel.theme-light .chaospace-history-primary-btn {
+  background: var(--cp-accent-strong);
+}
+
+.chaospace-history-ghost-btn {
+  border: 1px solid var(--cp-border);
+  background: transparent;
+  color: var(--cp-text-secondary);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.chaospace-history-ghost-btn:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.18);
+  color: var(--cp-text-primary);
+  border-color: rgba(99, 102, 241, 0.45);
+}
+
+.chaospace-history-ghost-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
 .chaospace-history-overlay-title {
   font-size: 16px;
   font-weight: 600;
@@ -1105,9 +1220,11 @@
 }
 
 .chaospace-history-item {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 14px;
+  row-gap: 14px;
+  align-items: flex-start;
   padding: 12px 14px;
   border-radius: 14px;
   background: var(--cp-surface-soft);
@@ -1125,10 +1242,27 @@
   box-shadow: 0 12px 28px rgba(99, 102, 241, 0.18);
 }
 
+.chaospace-history-item.is-selected {
+  border-color: rgba(99, 102, 241, 0.42);
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.chaospace-history-selector {
+  align-self: flex-start;
+  padding-top: 6px;
+  display: flex;
+}
+
+.chaospace-history-selector input {
+  width: 16px;
+  height: 16px;
+}
+
 .chaospace-history-item-header {
   display: flex;
   align-items: flex-start;
   gap: 12px;
+  grid-column: 2 / span 1;
 }
 
 .chaospace-history-poster,
@@ -1202,6 +1336,9 @@ button.chaospace-history-season-poster:hover {
   font-family: var(--font-heading);
   letter-spacing: 0.15px;
   color: var(--cp-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .chaospace-history-meta {
@@ -1227,6 +1364,7 @@ button.chaospace-history-season-poster:hover {
   margin-left: 0;
   padding-left: calc(68px + 18px);
   margin-top: -2px;
+  grid-column: 1 / span 2;
 }
 
 .chaospace-history-season-item {
@@ -1247,6 +1385,9 @@ button.chaospace-history-season-poster:hover {
   font-weight: 600;
   color: var(--cp-text-primary);
   letter-spacing: 0.2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .chaospace-history-season-meta {
@@ -1258,6 +1399,42 @@ button.chaospace-history-season-poster:hover {
 .chaospace-history-season-item .chaospace-history-actions {
   min-width: 88px;
   gap: 6px;
+}
+
+.chaospace-history-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(148, 163, 184, 0.18);
+  color: var(--cp-text-secondary);
+}
+
+.chaospace-history-status-inline {
+  margin-left: 0;
+}
+
+.chaospace-history-status.is-completed {
+  background: rgba(34, 197, 94, 0.22);
+  color: #34d399;
+}
+
+.chaospace-history-status.is-ongoing {
+  background: rgba(59, 130, 246, 0.22);
+  color: #60a5fa;
+}
+
+.chaospace-history-status.is-upcoming {
+  background: rgba(245, 158, 11, 0.22);
+  color: #fbbf24;
+}
+
+.chaospace-history-status.is-unknown {
+  background: rgba(148, 163, 184, 0.24);
+  color: var(--cp-text-muted);
 }
 
 .chaospace-history-season-toggle {

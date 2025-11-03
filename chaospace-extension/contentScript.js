@@ -6,6 +6,8 @@
   const MAX_LOG_ENTRIES = 80;
   const HISTORY_KEY = 'chaospace-transfer-history';
   const HISTORY_DISPLAY_LIMIT = 6;
+  const HISTORY_BATCH_RATE_LIMIT_MS = 3500;
+  const HISTORY_FILTERS = ['all', 'series', 'ongoing', 'completed', 'movie'];
   const TV_SHOW_INITIAL_SEASON_BATCH = 2;
   const ALL_SEASON_TAB_ID = '__all__';
   const NO_SEASON_TAB_ID = '__no-season__';
@@ -56,6 +58,11 @@
     newItemIds: new Set(),
     historyExpanded: false,
     historySeasonExpanded: new Set(),
+    historyFilter: 'all',
+    historySelectedKeys: new Set(),
+    historyBatchRunning: false,
+    historyBatchProgressLabel: '',
+    historyRateLimitMs: HISTORY_BATCH_RATE_LIMIT_MS,
     seasonDirMap: {},
     seasonResolvedPaths: [],
     activeSeasonId: null
@@ -147,6 +154,11 @@
       used.set(finalName, 0);
       state.seasonDirMap[key] = finalName;
     });
+  }
+
+  function wait(ms) {
+    const duration = Number.isFinite(ms) ? Math.max(0, ms) : 0;
+    return new Promise(resolve => setTimeout(resolve, duration));
   }
 
   function updateSeasonExampleDir() {
@@ -627,6 +639,164 @@
       updatePanelHeader();
       updateTransferButton();
     }
+  }
+
+  async function deleteHistoryRecords(urls) {
+    if (!Array.isArray(urls) || !urls.length) {
+      return { ok: true, removed: 0 };
+    }
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'chaospace:history-delete',
+        payload: { urls }
+      });
+      if (!response || response.ok === false) {
+        throw new Error(response?.error || '删除历史记录失败');
+      }
+      return response;
+    } catch (error) {
+      console.error('[Chaospace Transfer] Failed to delete history records', error);
+      throw error;
+    }
+  }
+
+  async function clearAllHistoryRecords() {
+    try {
+      const response = await chrome.runtime.sendMessage({ type: 'chaospace:history-clear' });
+      if (!response || response.ok === false) {
+        throw new Error(response?.error || '清空历史记录失败');
+      }
+      return response;
+    } catch (error) {
+      console.error('[Chaospace Transfer] Failed to clear history', error);
+      throw error;
+    }
+  }
+
+  async function handleHistoryDeleteSelected() {
+    if (!state.historySelectedKeys.size) {
+      showToast('info', '未选择记录', '请先勾选要删除的历史记录');
+      return;
+    }
+    const groups = Array.isArray(state.historyGroups) ? state.historyGroups : [];
+    const targetUrls = new Set();
+    state.historySelectedKeys.forEach(key => {
+      const group = groups.find(entry => entry.key === key);
+      if (group && Array.isArray(group.records)) {
+        group.records.forEach(record => {
+          if (record && record.pageUrl) {
+            targetUrls.add(record.pageUrl);
+          }
+        });
+      }
+    });
+    if (!targetUrls.size) {
+      showToast('info', '无可删除记录', '所选历史没有可删除的条目');
+      return;
+    }
+    try {
+      const result = await deleteHistoryRecords(Array.from(targetUrls));
+      const removed = typeof result?.removed === 'number' ? result.removed : targetUrls.size;
+      showToast('success', '已删除历史', `移除 ${removed} 条记录`);
+    } catch (error) {
+      showToast('error', '删除失败', error.message || '无法删除选中的历史记录');
+      return;
+    }
+    state.historySelectedKeys = new Set();
+    await loadHistory({ silent: true });
+    applyHistoryToCurrentPage();
+    renderHistoryCard();
+    if (floatingPanel) {
+      renderResourceList();
+    }
+  }
+
+  async function handleHistoryClear() {
+    if (!state.historyGroups.length) {
+      showToast('info', '历史为空', '当前没有需要清理的历史记录');
+      return;
+    }
+    try {
+      const result = await clearAllHistoryRecords();
+      const cleared = typeof result?.removed === 'number' ? result.removed : state.historyGroups.length;
+      showToast('success', '已清空历史', `共清理 ${cleared} 条记录`);
+    } catch (error) {
+      showToast('error', '清理失败', error.message || '无法清空转存历史');
+      return;
+    }
+    state.historySelectedKeys = new Set();
+    await loadHistory({ silent: true });
+    applyHistoryToCurrentPage();
+    renderHistoryCard();
+    if (floatingPanel) {
+      renderResourceList();
+    }
+  }
+
+  async function handleHistoryBatchCheck() {
+    if (state.historyBatchRunning) {
+      return;
+    }
+    const groups = Array.isArray(state.historyGroups) ? state.historyGroups : [];
+    const selectedGroups = groups.filter(group => state.historySelectedKeys.has(group.key));
+    const candidates = selectedGroups.filter(canCheckHistoryGroup);
+    if (!candidates.length) {
+      showToast('info', '无可检测剧集', '仅支持检测未完结的剧集，请先勾选目标');
+      return;
+    }
+    state.historyBatchRunning = true;
+    setHistoryBatchProgressLabel('准备中...');
+    updateHistoryBatchControls();
+
+    let updated = 0;
+    let completed = 0;
+    let noUpdate = 0;
+    let failed = 0;
+
+    for (let index = 0; index < candidates.length; index += 1) {
+      const group = candidates[index];
+      if (index > 0) {
+        await wait(state.historyRateLimitMs);
+      }
+      const progressLabel = `检测中 ${index + 1}/${candidates.length}`;
+      setHistoryBatchProgressLabel(progressLabel);
+      try {
+        const response = await triggerHistoryUpdate(group.main?.pageUrl, null, { silent: true, deferRender: true });
+        if (!response || response.ok === false) {
+          failed += 1;
+          continue;
+        }
+        if (response.reason === 'completed' || (response.completion && response.completion.state === 'completed')) {
+          completed += 1;
+        } else if (response.hasUpdates) {
+          updated += 1;
+        } else {
+          noUpdate += 1;
+        }
+      } catch (error) {
+        console.error('[Chaospace Transfer] Batch update failed', error);
+        failed += 1;
+      }
+    }
+
+    state.historyBatchRunning = false;
+    setHistoryBatchProgressLabel('');
+    await loadHistory({ silent: true });
+    applyHistoryToCurrentPage();
+    renderHistoryCard();
+    if (floatingPanel) {
+      renderResourceList();
+    }
+
+    const summaryParts = [];
+    if (updated) summaryParts.push(`检测到更新 ${updated} 条`);
+    if (completed) summaryParts.push(`已完结 ${completed} 条`);
+    if (noUpdate) summaryParts.push(`无更新 ${noUpdate} 条`);
+    if (failed) summaryParts.push(`失败 ${failed} 条`);
+    const detail = summaryParts.join(' · ') || '已完成批量检测';
+    const toastType = failed ? (updated ? 'warning' : 'error') : 'success';
+    const title = failed ? (updated ? '部分检测成功' : '检测失败') : '批量检测完成';
+    showToast(toastType, title, `${detail}（速率 ${Math.round(state.historyRateLimitMs / 1000)} 秒/条）`);
   }
 
   // 从页面标题提取剧集名称
@@ -2180,11 +2350,229 @@
       state.useSeasonSubdir = matched.useSeasonSubdir;
     }
     state.transferredIds = knownIds;
-    state.items.forEach(item => {
-      if (item && !knownIds.has(item.id)) {
-        state.newItemIds.add(item.id);
+  state.items.forEach(item => {
+    if (item && !knownIds.has(item.id)) {
+      state.newItemIds.add(item.id);
+    }
+  });
+}
+
+  function getHistoryGroupMain(group) {
+    if (!group || typeof group !== 'object') {
+      return null;
+    }
+    return group.main || null;
+  }
+
+  function getHistoryGroupCompletion(group) {
+    const main = getHistoryGroupMain(group);
+    return main && main.completion ? main.completion : null;
+  }
+
+  function getHistoryGroupCompletionState(group) {
+    const completion = getHistoryGroupCompletion(group);
+    return completion && completion.state ? completion.state : 'unknown';
+  }
+
+  function isHistoryGroupCompleted(group) {
+    return getHistoryGroupCompletionState(group) === 'completed';
+  }
+
+  function isHistoryGroupSeries(group) {
+    const main = getHistoryGroupMain(group);
+    return main && main.pageType === 'series';
+  }
+
+  function isHistoryGroupMovie(group) {
+    const main = getHistoryGroupMain(group);
+    return main && main.pageType === 'movie';
+  }
+
+  function canCheckHistoryGroup(group) {
+    if (!group) {
+      return false;
+    }
+    if (!isHistoryGroupSeries(group)) {
+      return false;
+    }
+    return !isHistoryGroupCompleted(group);
+  }
+
+  function createHistoryStatusBadge(completion, extraClass = '') {
+    if (!completion || !completion.label) {
+      return null;
+    }
+    const badge = document.createElement('span');
+    badge.className = `chaospace-history-status ${extraClass || ''}`.trim();
+    const state = completion.state || 'unknown';
+    badge.classList.add(`is-${state}`);
+    const emojiMap = {
+      completed: '✅',
+      ongoing: '📡',
+      upcoming: '🕒',
+      unknown: 'ℹ️'
+    };
+    const emoji = emojiMap[state] || emojiMap.unknown;
+    badge.textContent = `${emoji} ${completion.label}`;
+    return badge;
+  }
+
+  function getFilteredHistoryGroups() {
+    const groups = Array.isArray(state.historyGroups) ? state.historyGroups : [];
+    const filter = HISTORY_FILTERS.includes(state.historyFilter) ? state.historyFilter : 'all';
+    return groups.filter(group => {
+      switch (filter) {
+        case 'series':
+          return isHistoryGroupSeries(group);
+        case 'movie':
+          return isHistoryGroupMovie(group);
+        case 'ongoing':
+          return canCheckHistoryGroup(group);
+        case 'completed':
+          return isHistoryGroupCompleted(group);
+        case 'all':
+        default:
+          return true;
       }
     });
+  }
+
+  function pruneHistorySelection() {
+    const groups = Array.isArray(state.historyGroups) ? state.historyGroups : [];
+    const validKeys = new Set(groups.map(group => group.key));
+    state.historySelectedKeys = new Set(
+      Array.from(state.historySelectedKeys).filter(key => validKeys.has(key))
+    );
+  }
+
+  function setHistoryExpanded(expanded) {
+    const next = Boolean(expanded);
+    if (state.historyExpanded === next) {
+      return;
+    }
+    state.historyExpanded = next;
+    updateHistoryExpansion();
+  }
+
+  function setHistoryFilter(filter) {
+    const normalized = HISTORY_FILTERS.includes(filter) ? filter : 'all';
+    if (state.historyFilter === normalized) {
+      updateHistorySelectionSummary();
+      updateHistoryBatchControls();
+      return;
+    }
+    state.historyFilter = normalized;
+    if (panelDom.historyTabs) {
+      panelDom.historyTabs.querySelectorAll('[data-filter]').forEach(button => {
+        button.classList.toggle('is-active', (button.dataset.filter || 'all') === normalized);
+      });
+    }
+    renderHistoryCard();
+  }
+
+  function setHistoryBatchProgressLabel(label) {
+    state.historyBatchProgressLabel = label || '';
+    if (panelDom.historyBatchCheck) {
+      if (state.historyBatchRunning) {
+        panelDom.historyBatchCheck.textContent = state.historyBatchProgressLabel || '检测中...';
+      } else {
+        panelDom.historyBatchCheck.textContent = '批量检测更新';
+      }
+    }
+  }
+
+  function updateHistorySelectionSummary(filtered = null) {
+    if (!panelDom.historySelectionCount || !panelDom.historySelectAll) {
+      return;
+    }
+    const groups = filtered || getFilteredHistoryGroups();
+    const filteredKeys = new Set(groups.map(group => group.key));
+    const selectedTotal = state.historySelectedKeys.size;
+    let selectedWithinFilter = 0;
+    state.historySelectedKeys.forEach(key => {
+      if (filteredKeys.has(key)) {
+        selectedWithinFilter += 1;
+      }
+    });
+    panelDom.historySelectionCount.textContent = `已选 ${selectedTotal} 项`;
+    const hasRecords = groups.length > 0;
+    const disabled = state.historyBatchRunning || !hasRecords;
+    panelDom.historySelectAll.disabled = disabled;
+    if (!hasRecords) {
+      panelDom.historySelectAll.checked = false;
+      panelDom.historySelectAll.indeterminate = false;
+      return;
+    }
+    if (selectedWithinFilter === groups.length) {
+      panelDom.historySelectAll.checked = true;
+      panelDom.historySelectAll.indeterminate = false;
+    } else if (selectedWithinFilter === 0) {
+      panelDom.historySelectAll.checked = false;
+      panelDom.historySelectAll.indeterminate = false;
+    } else {
+      panelDom.historySelectAll.checked = false;
+      panelDom.historySelectAll.indeterminate = true;
+    }
+  }
+
+  function updateHistoryBatchControls(filtered = null) {
+    const groups = filtered || getFilteredHistoryGroups();
+    const selectedGroups = groups.filter(group => state.historySelectedKeys.has(group.key));
+    const selectableSelected = selectedGroups.filter(canCheckHistoryGroup);
+    if (panelDom.historyBatchCheck) {
+      if (state.historyBatchRunning) {
+        panelDom.historyBatchCheck.disabled = true;
+        panelDom.historyBatchCheck.textContent = state.historyBatchProgressLabel || '检测中...';
+      } else {
+        panelDom.historyBatchCheck.disabled = selectableSelected.length === 0;
+        panelDom.historyBatchCheck.textContent = '批量检测更新';
+      }
+    }
+    if (panelDom.historyDeleteSelected) {
+      panelDom.historyDeleteSelected.disabled = state.historyBatchRunning || state.historySelectedKeys.size === 0;
+    }
+    if (panelDom.historyClear) {
+      panelDom.historyClear.disabled = state.historyBatchRunning || !state.historyGroups.length;
+    }
+    if (panelDom.historySelectAll) {
+      panelDom.historySelectAll.disabled = state.historyBatchRunning || groups.length === 0;
+    }
+    if (panelDom.historyList) {
+      panelDom.historyList
+        .querySelectorAll('input[type="checkbox"][data-role="history-select-item"]')
+        .forEach(input => {
+          input.disabled = state.historyBatchRunning;
+        });
+    }
+  }
+
+  function setHistorySelection(groupKey, selected) {
+    if (!groupKey) {
+      return;
+    }
+    const next = new Set(state.historySelectedKeys);
+    if (selected) {
+      next.add(groupKey);
+    } else {
+      next.delete(groupKey);
+    }
+    state.historySelectedKeys = next;
+    updateHistorySelectionSummary();
+    updateHistoryBatchControls();
+  }
+
+  function setHistorySelectAll(selected) {
+    const groups = getFilteredHistoryGroups();
+    const next = new Set(state.historySelectedKeys);
+    groups.forEach(group => {
+      if (selected) {
+        next.add(group.key);
+      } else {
+        next.delete(group.key);
+      }
+    });
+    state.historySelectedKeys = next;
+    renderHistoryCard();
   }
 
   function renderHistoryCard() {
@@ -2192,13 +2580,18 @@
       return;
     }
 
-    const groups = Array.isArray(state.historyGroups) ? state.historyGroups : [];
-    const validGroupKeys = new Set(groups.map(group => group.key));
+    pruneHistorySelection();
+
+    const allGroups = Array.isArray(state.historyGroups) ? state.historyGroups : [];
+    const validGroupKeys = new Set(allGroups.map(group => group.key));
     state.historySeasonExpanded = new Set(
       Array.from(state.historySeasonExpanded).filter(key => validGroupKeys.has(key))
     );
-    const limit = state.historyExpanded ? groups.length : Math.min(groups.length, HISTORY_DISPLAY_LIMIT);
-    const entries = groups.slice(0, limit);
+
+    const filteredGroups = getFilteredHistoryGroups();
+    const limit = state.historyExpanded ? filteredGroups.length : Math.min(filteredGroups.length, HISTORY_DISPLAY_LIMIT);
+    const entries = filteredGroups.slice(0, limit);
+
     panelDom.historyList.innerHTML = '';
     panelDom.historySummaryBody.innerHTML = '';
     const currentUrl = normalizePageUrl(state.pageUrl || window.location.href);
@@ -2211,25 +2604,62 @@
     };
 
     if (!hasEntries) {
-      panelDom.historyEmpty.classList.remove('is-hidden');
-      if (state.historyExpanded) {
-        state.historyExpanded = false;
+      const totalGroups = allGroups.length;
+      const emptyMessage = totalGroups ? '当前筛选没有记录' : '还没有转存记录';
+
+      if (panelDom.historyEmpty) {
+        panelDom.historyEmpty.textContent = emptyMessage;
+        panelDom.historyEmpty.classList.remove('is-hidden');
       }
+
       if (panelDom.historySummary) {
         panelDom.historySummary.classList.add('is-empty');
       }
-      panelDom.historySummaryBody.innerHTML = '<span class="chaospace-history-summary-empty">暂无转存记录</span>';
+
+      panelDom.historySummaryBody.innerHTML = '';
+      const placeholder = document.createElement('div');
+      placeholder.className = 'chaospace-history-summary-item is-placeholder';
+      placeholder.dataset.role = 'history-summary-entry';
+      placeholder.setAttribute('role', 'button');
+      placeholder.tabIndex = 0;
+
+      const topRow = document.createElement('div');
+      topRow.className = 'chaospace-history-summary-topline';
+
+      const label = document.createElement('span');
+      label.className = 'chaospace-history-summary-label';
+      label.textContent = '🔖 转存历史';
+      topRow.appendChild(label);
+
+      const toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button';
+      toggleBtn.className = 'chaospace-history-toggle';
+      toggleBtn.dataset.role = 'history-toggle';
+      toggleBtn.setAttribute('aria-expanded', state.historyExpanded ? 'true' : 'false');
+      toggleBtn.setAttribute('aria-label', state.historyExpanded ? '收起转存历史' : '展开转存历史');
+      toggleBtn.textContent = state.historyExpanded ? '收起' : '展开';
+      topRow.appendChild(toggleBtn);
+
+      placeholder.appendChild(topRow);
+
+      const emptyText = document.createElement('div');
+      emptyText.className = 'chaospace-history-summary-empty';
+      emptyText.textContent = emptyMessage;
+      placeholder.appendChild(emptyText);
+
+      panelDom.historySummaryBody.appendChild(placeholder);
+
       refreshToggleCache();
-      if (Array.isArray(panelDom.historyToggleButtons)) {
-        panelDom.historyToggleButtons.forEach(btn => {
-          btn.disabled = true;
-        });
-      }
+      updateHistorySelectionSummary(filteredGroups);
+      updateHistoryBatchControls(filteredGroups);
       updateHistoryExpansion();
       return;
     }
 
     panelDom.historyEmpty.classList.add('is-hidden');
+    if (panelDom.historyEmpty) {
+      panelDom.historyEmpty.textContent = '还没有转存记录';
+    }
     panelDom.historySummary?.classList.remove('is-empty');
 
     entries.forEach(group => {
@@ -2237,9 +2667,23 @@
       const item = document.createElement('div');
       item.className = 'chaospace-history-item';
       item.dataset.groupKey = group.key;
+      if (state.historySelectedKeys.has(group.key)) {
+        item.classList.add('is-selected');
+      }
       if (Array.isArray(group.urls) && group.urls.includes(currentUrl)) {
         item.classList.add('is-current');
       }
+
+      const selector = document.createElement('label');
+      selector.className = 'chaospace-history-selector';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.dataset.role = 'history-select-item';
+      checkbox.dataset.groupKey = group.key;
+      checkbox.checked = state.historySelectedKeys.has(group.key);
+      checkbox.disabled = state.historyBatchRunning;
+      selector.appendChild(checkbox);
+      item.appendChild(selector);
 
       const header = document.createElement('div');
       header.className = 'chaospace-history-item-header';
@@ -2267,6 +2711,10 @@
       const title = document.createElement('div');
       title.className = 'chaospace-history-title';
       title.textContent = group.title || mainRecord.pageTitle || '未命名资源';
+      const statusBadge = createHistoryStatusBadge(mainRecord.completion, 'chaospace-history-status-inline');
+      if (statusBadge) {
+        title.appendChild(statusBadge);
+      }
       main.appendChild(title);
 
       const meta = document.createElement('div');
@@ -2285,9 +2733,6 @@
       }
       if (total) {
         metaParts.push(`共 ${total} 项`);
-      }
-      if (mainRecord.completion && mainRecord.completion.label) {
-        metaParts.push(mainRecord.completion.label);
       }
       if (timeLabel) {
         metaParts.push(`更新于 ${timeLabel}`);
@@ -2321,9 +2766,9 @@
         checkBtn.dataset.action = 'check';
         checkBtn.dataset.url = mainRecord.pageUrl || '';
         checkBtn.className = 'chaospace-history-action chaospace-history-action-check';
-        const isCompleted = mainRecord.completion && mainRecord.completion.state === 'completed';
-        checkBtn.textContent = isCompleted ? '已完结' : '检测新篇';
-        if (isCompleted || !mainRecord.pageUrl) {
+        const completed = isHistoryGroupCompleted(group);
+        checkBtn.textContent = completed ? '已完结' : '检测新篇';
+        if (completed || !mainRecord.pageUrl) {
           checkBtn.disabled = true;
           checkBtn.classList.add('is-disabled');
           checkBtn.dataset.reason = 'completed';
@@ -2384,14 +2829,15 @@
           const rowTitle = document.createElement('div');
           rowTitle.className = 'chaospace-history-season-title';
           rowTitle.textContent = row.label || '未知季';
+          const seasonBadge = createHistoryStatusBadge(row.completion, 'chaospace-history-status-inline');
+          if (seasonBadge) {
+            rowTitle.appendChild(seasonBadge);
+          }
           rowBody.appendChild(rowTitle);
 
           const rowMeta = document.createElement('div');
           rowMeta.className = 'chaospace-history-season-meta';
           const metaParts = [];
-          if (row.completion && row.completion.label) {
-            metaParts.push(row.completion.label);
-          }
           if (row.recordTimestamp) {
             const ts = formatHistoryTimestamp(row.recordTimestamp);
             if (ts) {
@@ -2448,6 +2894,13 @@
       panelDom.historyList.appendChild(item);
     });
 
+    if (panelDom.historyTabs) {
+      panelDom.historyTabs.querySelectorAll('[data-filter]').forEach(button => {
+        const value = button.dataset.filter || 'all';
+        button.classList.toggle('is-active', value === state.historyFilter);
+      });
+    }
+
     const summaryGroup = entries.find(group => !(Array.isArray(group.urls) && group.urls.includes(currentUrl)));
     if (summaryGroup) {
       const summary = document.createElement('div');
@@ -2481,8 +2934,9 @@
       summary.appendChild(title);
 
       const metaParts = [];
-      if (summaryGroup.main && summaryGroup.main.completion && summaryGroup.main.completion.label) {
-        metaParts.push(summaryGroup.main.completion.label);
+      const summaryCompletion = summaryGroup.main?.completion;
+      if (summaryCompletion && summaryCompletion.label) {
+        metaParts.push(summaryCompletion.label);
       }
       const summaryTime = formatHistoryTimestamp(summaryGroup.updatedAt || summaryGroup.main?.lastTransferredAt || summaryGroup.main?.lastCheckedAt);
       if (summaryTime) {
@@ -2549,6 +3003,8 @@
       });
     }
 
+    updateHistorySelectionSummary(filteredGroups);
+    updateHistoryBatchControls(filteredGroups);
     updateHistoryExpansion();
   }
 
@@ -2599,10 +3055,11 @@
     }
   }
 
-  async function triggerHistoryUpdate(pageUrl, button) {
+  async function triggerHistoryUpdate(pageUrl, button, options = {}) {
     if (!pageUrl) {
       return;
     }
+    const { silent = false, deferRender = false } = options;
     let previousText = '';
     let shouldRestoreButton = true;
     if (button) {
@@ -2617,16 +3074,20 @@
       });
       if (!response || response.ok === false) {
         const errorMessage = response?.error || '检测失败';
-        showToast('error', '检测失败', errorMessage);
-        return;
+        if (!silent) {
+          showToast('error', '检测失败', errorMessage);
+        }
+        return { ok: false, error: new Error(errorMessage) };
       }
       if (!response.hasUpdates) {
         const completionLabel = response?.completion?.label || response?.completionLabel || '';
         if (response.reason === 'completed') {
           shouldRestoreButton = false;
           const message = completionLabel ? `${completionLabel} · 无需继续转存 ✅` : '该剧集已完结 · 不再检测更新';
-          showToast('success', '剧集已完结', message);
-        } else {
+          if (!silent) {
+            showToast('success', '剧集已完结', message);
+          }
+        } else if (!silent) {
           showToast('success', '无需转存', '所有剧集都已同步 ✅');
         }
       } else {
@@ -2646,17 +3107,25 @@
           skipped,
           failed
         };
-        showToast(toastType, '检测完成', summary, stats);
+        if (!silent) {
+          showToast(toastType, '检测完成', summary, stats);
+        }
       }
-      await loadHistory();
-      applyHistoryToCurrentPage();
-      renderHistoryCard();
-      if (floatingPanel) {
-        renderResourceList();
+      await loadHistory({ silent: deferRender });
+      if (!deferRender) {
+        applyHistoryToCurrentPage();
+        renderHistoryCard();
+        if (floatingPanel) {
+          renderResourceList();
+        }
       }
+      return response;
     } catch (error) {
       console.error('[Chaospace Transfer] Update check failed', error);
-      showToast('error', '检测失败', error.message || '无法检测更新');
+      if (!silent) {
+        showToast('error', '检测失败', error.message || '无法检测更新');
+      }
+      return { ok: false, error };
     } finally {
       if (button) {
         if (shouldRestoreButton) {
@@ -3552,6 +4021,27 @@
                 aria-label="收起转存历史"
               >收起</button>
             </div>
+            <div class="chaospace-history-controls" data-role="history-controls">
+              <div class="chaospace-history-tabs" data-role="history-tabs">
+                <button type="button" class="chaospace-history-tab is-active" data-filter="all">全部</button>
+                <button type="button" class="chaospace-history-tab" data-filter="series">剧集</button>
+                <button type="button" class="chaospace-history-tab" data-filter="ongoing">未完结</button>
+                <button type="button" class="chaospace-history-tab" data-filter="completed">已完结</button>
+                <button type="button" class="chaospace-history-tab" data-filter="movie">电影</button>
+              </div>
+              <div class="chaospace-history-toolbar" data-role="history-toolbar">
+                <label class="chaospace-history-select-all">
+                  <input type="checkbox" data-role="history-select-all" />
+                  <span>全选当前筛选结果</span>
+                </label>
+                <div class="chaospace-history-toolbar-actions">
+                  <span class="chaospace-history-selection-count" data-role="history-selection-count">已选 0 项</span>
+                  <button type="button" class="chaospace-history-primary-btn" data-role="history-batch-check" disabled>批量检测更新</button>
+                  <button type="button" class="chaospace-history-ghost-btn" data-role="history-delete-selected" disabled>删除选中</button>
+                  <button type="button" class="chaospace-history-ghost-btn" data-role="history-clear">清空历史</button>
+                </div>
+              </div>
+            </div>
             <div class="chaospace-history-overlay-scroll">
               <div class="chaospace-history-empty" data-role="history-empty">还没有转存记录</div>
               <div class="chaospace-history-list" data-role="history-list"></div>
@@ -3926,6 +4416,13 @@
       panelDom.historyEmpty = panel.querySelector('[data-role="history-empty"]');
       panelDom.historySummary = panel.querySelector('[data-role="history-summary"]');
       panelDom.historySummaryBody = panel.querySelector('[data-role="history-summary-body"]');
+      panelDom.historyControls = panel.querySelector('[data-role="history-controls"]');
+      panelDom.historyTabs = panel.querySelector('[data-role="history-tabs"]');
+      panelDom.historySelectAll = panel.querySelector('[data-role="history-select-all"]');
+      panelDom.historySelectionCount = panel.querySelector('[data-role="history-selection-count"]');
+      panelDom.historyBatchCheck = panel.querySelector('[data-role="history-batch-check"]');
+      panelDom.historyDeleteSelected = panel.querySelector('[data-role="history-delete-selected"]');
+      panelDom.historyClear = panel.querySelector('[data-role="history-clear"]');
       panelDom.historyToggleButtons = Array.from(panel.querySelectorAll('[data-role="history-toggle"]'));
       panelDom.resourceSummary = panel.querySelector('[data-role="resource-summary"]');
       panelDom.resourceTitle = panel.querySelector('[data-role="resource-title"]');
@@ -3936,6 +4433,13 @@
       panelDom.resizeHandle = panel.querySelector('[data-role="resize-handle"]');
 
       updatePinButton();
+
+      if (panelDom.historyTabs) {
+        panelDom.historyTabs.querySelectorAll('[data-filter]').forEach(button => {
+          const value = button.dataset.filter || 'all';
+          button.classList.toggle('is-active', value === state.historyFilter);
+        });
+      }
 
       if (panelDom.pinBtn) {
         panelDom.pinBtn.addEventListener('click', () => {
@@ -4176,6 +4680,47 @@
         });
       }
 
+      if (panelDom.historyTabs) {
+        panelDom.historyTabs.addEventListener('click', event => {
+          const tab = event.target.closest('.chaospace-history-tab[data-filter]');
+          if (!tab) return;
+          if (tab.classList.contains('is-active')) {
+            return;
+          }
+          const filter = tab.dataset.filter || 'all';
+          setHistoryFilter(filter);
+        });
+      }
+
+      if (panelDom.historySelectAll) {
+        panelDom.historySelectAll.addEventListener('change', event => {
+          if (state.historyBatchRunning) {
+            event.preventDefault();
+            updateHistorySelectionSummary();
+            return;
+          }
+          setHistorySelectAll(Boolean(event.target.checked));
+        });
+      }
+
+      if (panelDom.historyBatchCheck) {
+        panelDom.historyBatchCheck.addEventListener('click', () => {
+          handleHistoryBatchCheck();
+        });
+      }
+
+      if (panelDom.historyDeleteSelected) {
+        panelDom.historyDeleteSelected.addEventListener('click', () => {
+          handleHistoryDeleteSelected();
+        });
+      }
+
+      if (panelDom.historyClear) {
+        panelDom.historyClear.addEventListener('click', () => {
+          handleHistoryClear();
+        });
+      }
+
       if (panelDom.historyList) {
         panelDom.historyList.addEventListener('click', event => {
           const seasonToggle = event.target.closest('[data-role="history-season-toggle"]');
@@ -4238,6 +4783,13 @@
               triggerHistoryUpdate(url, actionButton);
             }
           }
+        });
+        panelDom.historyList.addEventListener('change', event => {
+          const checkbox = event.target.closest('input[type="checkbox"][data-role="history-select-item"]');
+          if (!checkbox) return;
+          const groupKey = checkbox.dataset.groupKey;
+          if (!groupKey) return;
+          setHistorySelection(groupKey, checkbox.checked);
         });
       }
 

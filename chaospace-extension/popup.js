@@ -4,6 +4,8 @@ const DEFAULT_PRESETS = ['/视频/番剧', '/视频/影视', '/视频/电影'];
 const MAX_LOG_ENTRIES = 80;
 const LOG_COLLAPSED_COUNT = 4;
 const HISTORY_DISPLAY_LIMIT = 8;
+const HISTORY_BATCH_RATE_LIMIT_MS = 3500;
+const HISTORY_FILTERS = ['all', 'series', 'ongoing', 'completed', 'movie'];
 
 const dom = {
   header: document.getElementById('popup-header'),
@@ -36,7 +38,17 @@ const dom = {
   themeToggle: document.getElementById('theme-toggle'),
   historyCard: document.getElementById('history-card'),
   historyList: document.getElementById('history-list'),
-  historyEmpty: document.getElementById('history-empty')
+  historyEmpty: document.getElementById('history-empty'),
+  historyExpand: document.getElementById('history-expand'),
+  historyPanel: document.getElementById('history-panel'),
+  historyTabs: document.getElementById('history-tabs'),
+  historySelectAll: document.getElementById('history-select-all'),
+  historyBatchCheck: document.getElementById('history-batch-check'),
+  historyDeleteSelected: document.getElementById('history-delete-selected'),
+  historyClear: document.getElementById('history-clear'),
+  historySelectionCount: document.getElementById('history-selection-count'),
+  historyPanelList: document.getElementById('history-panel-list'),
+  historyPanelEmpty: document.getElementById('history-panel-empty')
 };
 
 const state = {
@@ -64,7 +76,13 @@ const state = {
   historyRecords: [],
   currentHistory: null,
   transferredIds: new Set(),
-  newItemIds: new Set()
+  newItemIds: new Set(),
+  historyExpanded: false,
+  historyFilter: 'all',
+  historySelectedUrls: new Set(),
+  historyBatchRunning: false,
+  historyRateLimitMs: HISTORY_BATCH_RATE_LIMIT_MS,
+  historyBatchProgressLabel: ''
 };
 
 function normalizeDir(value) {
@@ -116,6 +134,13 @@ function sanitizeCssUrl(url) {
     return '';
   }
   return url.replace(/["\n\r]/g, '').trim();
+}
+
+function wait(ms) {
+  return new Promise(resolve => {
+    const duration = Number.isFinite(ms) && ms > 0 ? ms : 0;
+    setTimeout(resolve, duration);
+  });
 }
 
 function updateHeaderArtwork() {
@@ -336,6 +361,189 @@ function applyHistoryToCurrentPage() {
   });
 }
 
+function getHistoryCompletionState(record) {
+  if (!record || !record.completion) {
+    return 'unknown';
+  }
+  return record.completion.state || 'unknown';
+}
+
+function isHistoryRecordCompleted(record) {
+  return getHistoryCompletionState(record) === 'completed';
+}
+
+function isHistoryRecordMovie(record) {
+  return (record?.pageType || '') === 'movie';
+}
+
+function isHistoryRecordSeries(record) {
+  return (record?.pageType || '') === 'series';
+}
+
+function canCheckHistoryRecord(record) {
+  if (!record) {
+    return false;
+  }
+  if (isHistoryRecordMovie(record)) {
+    return false;
+  }
+  return !isHistoryRecordCompleted(record);
+}
+
+function getHistoryTypeLabel(record) {
+  if (isHistoryRecordSeries(record)) {
+    return '剧集';
+  }
+  if (isHistoryRecordMovie(record)) {
+    return '电影';
+  }
+  return '资源';
+}
+
+function formatHistoryTimestamp(timestamp) {
+  if (!timestamp) {
+    return '';
+  }
+  const date = new Date(timestamp);
+  try {
+    return new Intl.DateTimeFormat('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(date);
+  } catch (_error) {
+    return `${date.getMonth() + 1}-${date.getDate()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+  }
+}
+
+function createHistoryStatusBadge(completion) {
+  if (!completion || !completion.label) {
+    return null;
+  }
+  const badge = document.createElement('span');
+  badge.className = 'popup-history-status';
+  const state = completion.state || 'unknown';
+  const emojiMap = {
+    completed: '✅',
+    ongoing: '📡',
+    upcoming: '🕒',
+    unknown: 'ℹ️'
+  };
+  if (state && typeof state === 'string') {
+    badge.classList.add(`is-${state}`);
+  } else {
+    badge.classList.add('is-unknown');
+  }
+  const emoji = emojiMap[state] || emojiMap.unknown;
+  badge.textContent = `${emoji} ${completion.label}`;
+  return badge;
+}
+
+function getFilteredHistoryRecords() {
+  const filter = state.historyFilter;
+  if (!Array.isArray(state.historyRecords)) {
+    return [];
+  }
+  return state.historyRecords.filter(record => {
+    switch (filter) {
+      case 'series':
+        return isHistoryRecordSeries(record);
+      case 'movie':
+        return isHistoryRecordMovie(record);
+      case 'ongoing':
+        return canCheckHistoryRecord(record);
+      case 'completed':
+        return isHistoryRecordCompleted(record);
+      case 'all':
+      default:
+        return true;
+    }
+  });
+}
+
+function pruneHistorySelection() {
+  const known = new Set(state.historyRecords.map(record => record.pageUrl));
+  state.historySelectedUrls = new Set(Array.from(state.historySelectedUrls).filter(url => known.has(url)));
+}
+
+function getSelectedHistoryRecords() {
+  if (!state.historySelectedUrls.size) {
+    return [];
+  }
+  const selected = new Set(state.historySelectedUrls);
+  return state.historyRecords.filter(record => selected.has(record.pageUrl));
+}
+
+function setHistoryBatchProgressLabel(label) {
+  state.historyBatchProgressLabel = label || '';
+  if (!dom.historyBatchCheck) {
+    return;
+  }
+  if (state.historyBatchRunning) {
+    dom.historyBatchCheck.textContent = state.historyBatchProgressLabel || '检测中...';
+  } else {
+    dom.historyBatchCheck.textContent = '批量检测更新';
+  }
+}
+
+function updateHistorySelectionSummary(filteredRecords = null) {
+  if (!dom.historySelectionCount || !dom.historySelectAll) {
+    return;
+  }
+  const records = filteredRecords || getFilteredHistoryRecords();
+  const filteredUrls = new Set(records.map(record => record.pageUrl));
+  let selectedWithinFilter = 0;
+  state.historySelectedUrls.forEach(url => {
+    if (filteredUrls.has(url)) {
+      selectedWithinFilter += 1;
+    }
+  });
+  const totalSelected = state.historySelectedUrls.size;
+  dom.historySelectionCount.textContent = `已选 ${totalSelected} 项`;
+  dom.historySelectAll.disabled = state.historyBatchRunning || records.length === 0;
+  if (records.length === 0) {
+    dom.historySelectAll.checked = false;
+    dom.historySelectAll.indeterminate = false;
+    return;
+  }
+  if (selectedWithinFilter === records.length) {
+    dom.historySelectAll.checked = true;
+    dom.historySelectAll.indeterminate = false;
+  } else if (selectedWithinFilter === 0) {
+    dom.historySelectAll.checked = false;
+    dom.historySelectAll.indeterminate = false;
+  } else {
+    dom.historySelectAll.checked = false;
+    dom.historySelectAll.indeterminate = true;
+  }
+}
+
+function updateHistoryBatchControls(filteredRecords = null) {
+  const records = filteredRecords || getFilteredHistoryRecords();
+  const hasRecords = records.length > 0;
+  const selectedRecords = getSelectedHistoryRecords();
+  const eligibleSelected = selectedRecords.filter(canCheckHistoryRecord);
+  if (dom.historyBatchCheck) {
+    if (state.historyBatchRunning) {
+      dom.historyBatchCheck.disabled = true;
+      setHistoryBatchProgressLabel(state.historyBatchProgressLabel || '检测中...');
+    } else {
+      dom.historyBatchCheck.disabled = eligibleSelected.length === 0;
+      dom.historyBatchCheck.textContent = '批量检测更新';
+    }
+  }
+  if (dom.historyDeleteSelected) {
+    dom.historyDeleteSelected.disabled = state.historyBatchRunning || selectedRecords.length === 0;
+  }
+  if (dom.historyClear) {
+    dom.historyClear.disabled = state.historyBatchRunning || state.historyRecords.length === 0;
+  }
+  if (dom.historySelectAll) {
+    dom.historySelectAll.disabled = state.historyBatchRunning || !hasRecords;
+  }
+}
+
 function renderHistoryCard() {
   if (!dom.historyList || !dom.historyEmpty) {
     return;
@@ -365,9 +573,7 @@ function renderHistoryCard() {
 
     const meta = document.createElement('div');
     meta.className = 'popup-history-meta';
-    const typeLabel = record.pageType === 'series'
-      ? '剧集'
-      : (record.pageType === 'movie' ? '电影' : '资源');
+    const typeLabel = getHistoryTypeLabel(record);
     const timeLabel = record.lastTransferredAt || record.lastCheckedAt
       ? formatTime(new Date(record.lastTransferredAt || record.lastCheckedAt))
       : '';
@@ -377,9 +583,6 @@ function renderHistoryCard() {
     if (total) {
       metaParts.push(`共 ${total} 项`);
     }
-    if (record.completion && record.completion.label) {
-      metaParts.push(record.completion.label);
-    }
     if (timeLabel) {
       metaParts.push(`更新于 ${timeLabel}`);
     }
@@ -387,6 +590,11 @@ function renderHistoryCard() {
       metaParts.push(dir);
     }
     meta.textContent = metaParts.join(' · ');
+    const statusBadge = createHistoryStatusBadge(record.completion);
+    if (statusBadge) {
+      statusBadge.classList.add('popup-history-status-inline');
+      main.appendChild(statusBadge);
+    }
     main.appendChild(meta);
     item.appendChild(main);
 
@@ -399,23 +607,238 @@ function renderHistoryCard() {
     openBtn.textContent = '打开';
     actions.appendChild(openBtn);
 
-    if (record.pageType === 'series') {
-      const updateBtn = document.createElement('button');
-      updateBtn.type = 'button';
-      updateBtn.dataset.action = 'check';
-      updateBtn.dataset.url = record.pageUrl;
-      const isCompleted = record.completion && record.completion.state === 'completed';
-      updateBtn.textContent = isCompleted ? '已完结' : '检测更新';
-      if (isCompleted) {
-        updateBtn.disabled = true;
-        updateBtn.dataset.reason = 'completed';
-      }
-      actions.appendChild(updateBtn);
+    const updateBtn = document.createElement('button');
+    updateBtn.type = 'button';
+    updateBtn.dataset.action = 'check';
+    updateBtn.dataset.url = record.pageUrl;
+    const canCheck = canCheckHistoryRecord(record);
+    if (canCheck) {
+      updateBtn.textContent = '检测更新';
+    } else if (isHistoryRecordMovie(record)) {
+      updateBtn.textContent = '电影无需检测';
+      updateBtn.disabled = true;
+      updateBtn.dataset.reason = 'movie';
+    } else if (isHistoryRecordCompleted(record)) {
+      updateBtn.textContent = '已完结';
+      updateBtn.disabled = true;
+      updateBtn.dataset.reason = 'completed';
+    } else {
+      updateBtn.textContent = '不可检测';
+      updateBtn.disabled = true;
+      updateBtn.dataset.reason = 'blocked';
     }
+    actions.appendChild(updateBtn);
 
     item.appendChild(actions);
     dom.historyList.appendChild(item);
   });
+  renderHistoryPanel();
+}
+
+function renderHistoryPanel() {
+  if (!dom.historyPanel) {
+    return;
+  }
+  pruneHistorySelection();
+  const isExpanded = state.historyExpanded;
+  dom.historyPanel.setAttribute('aria-hidden', isExpanded ? 'false' : 'true');
+  if (dom.historyCard) {
+    dom.historyCard.classList.toggle('is-expanded', isExpanded);
+  }
+  if (!isExpanded) {
+    updateHistorySelectionSummary();
+    updateHistoryBatchControls();
+    return;
+  }
+  if (!dom.historyPanelList) {
+    return;
+  }
+  dom.historyPanelList.innerHTML = '';
+  const filtered = getFilteredHistoryRecords();
+  if (dom.historyPanelEmpty) {
+    dom.historyPanelEmpty.classList.toggle('is-visible', filtered.length === 0);
+  }
+  const currentUrl = normalizePageUrl(state.pageUrl);
+  filtered.forEach(record => {
+    const row = document.createElement('div');
+    row.className = 'popup-history-panel-row';
+    const recordUrl = normalizePageUrl(record.pageUrl);
+    if (recordUrl === currentUrl) {
+      row.classList.add('is-current');
+    }
+
+    const checkboxWrap = document.createElement('label');
+    checkboxWrap.className = 'popup-history-panel-checkbox';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.dataset.url = record.pageUrl;
+    checkbox.checked = state.historySelectedUrls.has(record.pageUrl);
+    checkbox.disabled = state.historyBatchRunning;
+    checkboxWrap.appendChild(checkbox);
+    row.appendChild(checkboxWrap);
+
+    const main = document.createElement('div');
+    main.className = 'popup-history-panel-main';
+    const title = document.createElement('div');
+    title.className = 'popup-history-panel-row-title';
+    const typeBadge = document.createElement('span');
+    typeBadge.className = 'popup-badge';
+    typeBadge.textContent = getHistoryTypeLabel(record);
+    title.appendChild(typeBadge);
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = record.pageTitle || '未命名资源';
+    title.appendChild(nameSpan);
+    const statusBadge = createHistoryStatusBadge(record.completion);
+    if (statusBadge) {
+      title.appendChild(statusBadge);
+    }
+    main.appendChild(title);
+
+    const meta = document.createElement('div');
+    meta.className = 'popup-history-panel-meta';
+    const total = record.totalTransferred || Object.keys(record.items || {}).length || 0;
+    const metaTexts = [`共 ${total} 项`];
+    if (record.lastTransferredAt) {
+      metaTexts.push(`最近转存 ${formatHistoryTimestamp(record.lastTransferredAt)}`);
+    }
+    if (record.lastCheckedAt) {
+      metaTexts.push(`最近检测 ${formatHistoryTimestamp(record.lastCheckedAt)}`);
+    }
+    if (record.targetDirectory) {
+      metaTexts.push(`目录 ${record.targetDirectory}`);
+    }
+    metaTexts.forEach(text => {
+      const span = document.createElement('span');
+      span.textContent = text;
+      meta.appendChild(span);
+    });
+    main.appendChild(meta);
+
+    if (record.lastResult && record.lastResult.summary) {
+      const summary = document.createElement('div');
+      summary.className = 'popup-history-panel-meta';
+      summary.textContent = `最近结果：${record.lastResult.summary}`;
+      main.appendChild(summary);
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'popup-history-panel-actions';
+
+    const openBtn = document.createElement('button');
+    openBtn.type = 'button';
+    openBtn.dataset.action = 'open';
+    openBtn.dataset.url = record.pageUrl;
+    openBtn.textContent = '打开页面';
+    actions.appendChild(openBtn);
+
+    const checkBtn = document.createElement('button');
+    checkBtn.type = 'button';
+    checkBtn.dataset.action = 'check';
+    checkBtn.dataset.url = record.pageUrl;
+    const canCheck = canCheckHistoryRecord(record);
+    if (canCheck) {
+      checkBtn.textContent = '检测更新';
+      checkBtn.disabled = state.historyBatchRunning;
+    } else if (isHistoryRecordMovie(record)) {
+      checkBtn.textContent = '电影无需检测';
+      checkBtn.disabled = true;
+      checkBtn.dataset.reason = 'movie';
+    } else if (isHistoryRecordCompleted(record)) {
+      checkBtn.textContent = '已完结';
+      checkBtn.disabled = true;
+      checkBtn.dataset.reason = 'completed';
+    } else {
+      checkBtn.textContent = '不可检测';
+      checkBtn.disabled = true;
+      checkBtn.dataset.reason = 'blocked';
+    }
+    actions.appendChild(checkBtn);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.dataset.action = 'delete';
+    deleteBtn.dataset.url = record.pageUrl;
+    deleteBtn.textContent = '删除';
+    deleteBtn.disabled = state.historyBatchRunning;
+    actions.appendChild(deleteBtn);
+
+    main.appendChild(actions);
+    row.appendChild(main);
+    dom.historyPanelList.appendChild(row);
+  });
+
+  updateHistorySelectionSummary(filtered);
+  updateHistoryBatchControls(filtered);
+}
+
+function setHistoryExpanded(expanded) {
+  const next = Boolean(expanded);
+  if (state.historyExpanded === next) {
+    return;
+  }
+  state.historyExpanded = next;
+  if (dom.historyExpand) {
+    dom.historyExpand.textContent = next ? '收起' : '展开';
+    dom.historyExpand.setAttribute('aria-expanded', String(next));
+  }
+  renderHistoryPanel();
+}
+
+function setHistoryFilter(filter) {
+  const normalized = HISTORY_FILTERS.includes(filter) ? filter : 'all';
+  const changed = state.historyFilter !== normalized;
+  state.historyFilter = normalized;
+  if (dom.historyTabs) {
+    dom.historyTabs.querySelectorAll('.popup-history-tab').forEach(tab => {
+      const value = tab.dataset.filter || 'all';
+      tab.classList.toggle('is-active', value === normalized);
+    });
+  }
+  if (changed) {
+    renderHistoryPanel();
+  } else {
+    updateHistorySelectionSummary();
+    updateHistoryBatchControls();
+  }
+}
+
+function setHistorySelection(url, selected) {
+  if (!url) {
+    return;
+  }
+  const next = new Set(state.historySelectedUrls);
+  if (selected) {
+    next.add(url);
+  } else {
+    next.delete(url);
+  }
+  state.historySelectedUrls = next;
+  updateHistorySelectionSummary();
+  updateHistoryBatchControls();
+}
+
+function setHistorySelectAll(selected) {
+  const filtered = getFilteredHistoryRecords();
+  const next = new Set(state.historySelectedUrls);
+  filtered.forEach(record => {
+    if (selected) {
+      next.add(record.pageUrl);
+    } else {
+      next.delete(record.pageUrl);
+    }
+  });
+  state.historySelectedUrls = next;
+  if (dom.historyPanelList) {
+    dom.historyPanelList.querySelectorAll('input[type="checkbox"][data-url]').forEach(input => {
+      const url = input.dataset.url;
+      if (!url) {
+        return;
+      }
+      input.checked = selected;
+    });
+  }
+  updateHistorySelectionSummary(filtered);
+  updateHistoryBatchControls(filtered);
 }
 
 async function loadHistory(options = {}) {
@@ -435,10 +858,11 @@ async function loadHistory(options = {}) {
   }
 }
 
-async function triggerHistoryUpdate(pageUrl, button) {
+async function triggerHistoryUpdate(pageUrl, button, options = {}) {
   if (!pageUrl) {
     return;
   }
+  const { silent = false, deferRender = false } = options;
   let previous = '';
   let shouldRestoreButton = true;
   if (button) {
@@ -461,8 +885,10 @@ async function triggerHistoryUpdate(pageUrl, button) {
       if (response.reason === 'completed') {
         shouldRestoreButton = false;
         const label = response?.completion?.label || '已完结';
-        showToast('success', '剧集已完结', `${label} · 无需继续检测 ✅`);
-      } else {
+        if (!silent) {
+          showToast('success', '剧集已完结', `${label} · 无需继续检测 ✅`);
+        }
+      } else if (!silent) {
         showToast('info', '暂无更新', '没有检测到新的剧集。');
       }
     } else {
@@ -473,16 +899,24 @@ async function triggerHistoryUpdate(pageUrl, button) {
         ? response.results.filter(item => item.status === 'skipped').length
         : 0;
       const summary = response.summary || `新增 ${response.newItems} 项`;
-      showToast('success', '检测完成', `${summary}（成功 ${transferred} · 跳过 ${skipped}）`);
+      if (!silent) {
+        showToast('success', '检测完成', `${summary}（成功 ${transferred} · 跳过 ${skipped}）`);
+      }
     }
-    await loadHistory();
-    applyHistoryToCurrentPage();
-    renderHistoryCard();
-    renderItems();
-    renderSelectionSummary();
+    await loadHistory({ silent: deferRender });
+    if (!deferRender) {
+      applyHistoryToCurrentPage();
+      renderHistoryCard();
+      renderItems();
+      renderSelectionSummary();
+    }
+    return response;
   } catch (error) {
     console.error('[Chaospace Transfer] Update check failed', error);
-    showToast('error', '检测失败', error.message || '无法检测更新');
+    if (!silent) {
+      showToast('error', '检测失败', error.message || '无法检测更新');
+    }
+    return { ok: false, error };
   } finally {
     if (button) {
       if (shouldRestoreButton) {
@@ -506,6 +940,158 @@ function selectNewItems() {
   renderSelectionSummary();
   updateTransferButton();
   showToast('success', '已选中新剧集', `共 ${state.newItemIds.size} 项。`);
+}
+
+async function deleteHistoryRecords(urls) {
+  if (!Array.isArray(urls) || !urls.length) {
+    return { removed: 0 };
+  }
+  try {
+    const response = await sendRuntimeMessage({
+      type: 'chaospace:history-delete',
+      payload: { urls }
+    });
+    if (!response || response.ok === false) {
+      throw new Error(response?.error || '删除历史记录失败');
+    }
+    return response;
+  } catch (error) {
+    console.error('[Chaospace Transfer] Failed to delete history records', error);
+    throw error;
+  }
+}
+
+async function clearHistoryRecords() {
+  try {
+    const response = await sendRuntimeMessage({ type: 'chaospace:history-clear' });
+    if (!response || response.ok === false) {
+      throw new Error(response?.error || '清空历史记录失败');
+    }
+    return response;
+  } catch (error) {
+    console.error('[Chaospace Transfer] Failed to clear history', error);
+    throw error;
+  }
+}
+
+async function handleHistoryDeleteSelected() {
+  const urls = Array.from(state.historySelectedUrls);
+  if (!urls.length) {
+    showToast('info', '未选择记录', '请先勾选需要删除的历史记录。');
+    return;
+  }
+  try {
+    const result = await deleteHistoryRecords(urls);
+    const removed = typeof result?.removed === 'number' ? result.removed : urls.length;
+    showToast('success', '已删除历史', `移除 ${removed} 条记录。`);
+  } catch (error) {
+    showToast('error', '删除失败', error.message || '无法删除选中的历史记录');
+    return;
+  }
+  state.historySelectedUrls = new Set();
+  await loadHistory({ silent: true });
+  applyHistoryToCurrentPage();
+  renderHistoryCard();
+  renderItems();
+  renderSelectionSummary();
+}
+
+async function handleHistoryClear() {
+  if (!state.historyRecords.length) {
+    showToast('info', '历史为空', '当前没有需要清理的转存历史。');
+    return;
+  }
+  try {
+    await clearHistoryRecords();
+    showToast('success', '已清空历史', '所有转存历史已清理。');
+  } catch (error) {
+    showToast('error', '清理失败', error.message || '无法清空转存历史');
+    return;
+  }
+  state.historySelectedUrls = new Set();
+  await loadHistory({ silent: true });
+  applyHistoryToCurrentPage();
+  renderHistoryCard();
+  renderItems();
+  renderSelectionSummary();
+}
+
+async function handleHistoryBatchCheck() {
+  if (state.historyBatchRunning) {
+    return;
+  }
+  const selectedRecords = getSelectedHistoryRecords();
+  const candidates = selectedRecords.filter(canCheckHistoryRecord);
+  if (!candidates.length) {
+    showToast('info', '无可检测剧集', '仅支持检测未完结的剧集，请先勾选目标。');
+    return;
+  }
+  state.historyBatchRunning = true;
+  setHistoryBatchProgressLabel('准备中...');
+  renderHistoryPanel();
+
+  let processed = 0;
+  let updated = 0;
+  let completed = 0;
+  let noUpdate = 0;
+  let failed = 0;
+
+  for (let index = 0; index < candidates.length; index += 1) {
+    const record = candidates[index];
+    if (index > 0) {
+      await wait(state.historyRateLimitMs);
+    }
+    const progressLabel = `检测中 ${index + 1}/${candidates.length}`;
+    setHistoryBatchProgressLabel(progressLabel);
+    try {
+      const result = await triggerHistoryUpdate(record.pageUrl, null, { silent: true, deferRender: true });
+      processed += 1;
+      if (!result || result.ok === false) {
+        failed += 1;
+        continue;
+      }
+      if (result.reason === 'completed' || (result.completion && result.completion.state === 'completed')) {
+        completed += 1;
+        continue;
+      }
+      if (result.hasUpdates) {
+        updated += 1;
+      } else {
+        noUpdate += 1;
+      }
+    } catch (error) {
+      console.error('[Chaospace Transfer] Batch update error', error);
+      failed += 1;
+    }
+  }
+
+  state.historyBatchRunning = false;
+  setHistoryBatchProgressLabel('');
+  await loadHistory({ silent: true });
+  applyHistoryToCurrentPage();
+  renderHistoryCard();
+  renderItems();
+  renderSelectionSummary();
+
+  const summaryParts = [];
+  if (updated) {
+    summaryParts.push(`检测到更新 ${updated} 条`);
+  }
+  if (completed) {
+    summaryParts.push(`已完结 ${completed} 条`);
+  }
+  if (noUpdate) {
+    summaryParts.push(`无更新 ${noUpdate} 条`);
+  }
+  if (failed) {
+    summaryParts.push(`失败 ${failed} 条`);
+  }
+  const detail = summaryParts.join(' · ') || '已完成批量检测';
+  const toastType = failed ? (updated ? 'warning' : 'error') : 'success';
+  const title = failed
+    ? (updated ? '部分检测成功' : '检测失败')
+    : '批量检测完成';
+  showToast(toastType, title, `${detail}（速率 ${Math.round(state.historyRateLimitMs / 1000)} 秒/条）`);
 }
 
 function clearMessages() {
@@ -1259,6 +1845,91 @@ function registerEventListeners() {
     });
   }
 
+  if (dom.historyExpand) {
+    dom.historyExpand.addEventListener('click', () => {
+      setHistoryExpanded(!state.historyExpanded);
+    });
+  }
+
+  if (dom.historyTabs) {
+    dom.historyTabs.addEventListener('click', event => {
+      const tab = event.target.closest('.popup-history-tab');
+      if (!tab) return;
+      const filter = tab.dataset.filter || 'all';
+      setHistoryFilter(filter);
+    });
+  }
+
+  if (dom.historySelectAll) {
+    dom.historySelectAll.addEventListener('change', event => {
+      if (state.historyBatchRunning) {
+        event.preventDefault();
+        return;
+      }
+      setHistorySelectAll(event.target.checked);
+    });
+  }
+
+  if (dom.historyPanelList) {
+    dom.historyPanelList.addEventListener('change', event => {
+      const checkbox = event.target.closest('input[type="checkbox"][data-url]');
+      if (!checkbox) return;
+      if (state.historyBatchRunning) {
+        checkbox.checked = !checkbox.checked;
+        return;
+      }
+      const url = checkbox.dataset.url;
+      setHistorySelection(url, checkbox.checked);
+    });
+
+    dom.historyPanelList.addEventListener('click', async event => {
+      const button = event.target.closest('button[data-action]');
+      if (!button) return;
+      if (button.disabled) return;
+      const { action, url } = button.dataset;
+      if (!url) return;
+      if (action === 'open') {
+        chrome.tabs.create({ url });
+      } else if (action === 'check') {
+        triggerHistoryUpdate(url, button);
+      } else if (action === 'delete') {
+        try {
+          await deleteHistoryRecords([url]);
+          const next = new Set(state.historySelectedUrls);
+          next.delete(url);
+          state.historySelectedUrls = next;
+          showToast('success', '已删除历史', '该记录已从历史中移除。');
+          await loadHistory({ silent: true });
+          applyHistoryToCurrentPage();
+          renderHistoryCard();
+          renderItems();
+          renderSelectionSummary();
+        } catch (error) {
+          console.error('[Chaospace Transfer] Delete history item failed', error);
+          showToast('error', '删除失败', error.message || '无法移除该历史记录');
+        }
+      }
+    });
+  }
+
+  if (dom.historyBatchCheck) {
+    dom.historyBatchCheck.addEventListener('click', () => {
+      handleHistoryBatchCheck();
+    });
+  }
+
+  if (dom.historyDeleteSelected) {
+    dom.historyDeleteSelected.addEventListener('click', () => {
+      handleHistoryDeleteSelected();
+    });
+  }
+
+  if (dom.historyClear) {
+    dom.historyClear.addEventListener('click', () => {
+      handleHistoryClear();
+    });
+  }
+
   if (dom.presetList) {
     dom.presetList.addEventListener('click', event => {
       if (state.transferStatus === 'running') {
@@ -1363,6 +2034,11 @@ async function init() {
   renderStatus();
   renderItems();
   renderHistoryCard();
+  if (dom.historyExpand) {
+    dom.historyExpand.textContent = state.historyExpanded ? '收起' : '展开';
+    dom.historyExpand.setAttribute('aria-expanded', String(state.historyExpanded));
+  }
+  setHistoryFilter(state.historyFilter);
   updateTransferButton();
   registerEventListeners();
   registerMessageListener();
