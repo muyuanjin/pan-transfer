@@ -550,12 +550,23 @@
     historyBatchRunning: false,
     historyBatchProgressLabel: '',
     historyRateLimitMs: HISTORY_BATCH_RATE_LIMIT_MS,
+    historyDetail: {
+      isOpen: false,
+      loading: false,
+      groupKey: '',
+      pageUrl: '',
+      data: null,
+      error: '',
+      fallback: null
+    },
+    historyDetailCache: new Map(),
     seasonDirMap: {},
     seasonResolvedPaths: [],
     activeSeasonId: null
   };
 
   const panelDom = {};
+  const detailDom = {};
 
   let floatingPanel = null;
   let currentToast = null;
@@ -578,6 +589,8 @@
   let posterPreviewActive = false;
   let scheduleEdgeHideRef = null;
   let cancelEdgeHideRef = null;
+
+  document.addEventListener('keydown', handleHistoryDetailKeydown, true);
 
   function computeItemTargetPath(item, defaultPath) {
     if (!state.useSeasonSubdir || !item || !item.seasonId) {
@@ -3204,6 +3217,13 @@
 
     pruneHistorySelection();
 
+    if (state.historyDetail.isOpen) {
+      const activeGroup = getHistoryGroupByKey(state.historyDetail.groupKey);
+      if (!activeGroup) {
+        closeHistoryDetail();
+      }
+    }
+
     const allGroups = Array.isArray(state.historyGroups) ? state.historyGroups : [];
     const validGroupKeys = new Set(allGroups.map(group => group.key));
     state.historySeasonExpanded = new Set(
@@ -3289,6 +3309,7 @@
       const item = document.createElement('div');
       item.className = 'chaospace-history-item';
       item.dataset.groupKey = group.key;
+      item.dataset.detailTrigger = 'group';
       if (state.historySelectedKeys.has(group.key)) {
         item.classList.add('is-selected');
       }
@@ -3327,8 +3348,15 @@
       }
       header.appendChild(posterElement);
 
+      const detailLabel = group.title || mainRecord.pageTitle || '转存记录';
       const main = document.createElement('div');
       main.className = 'chaospace-history-main';
+      main.dataset.action = 'history-detail';
+      main.dataset.groupKey = group.key;
+      main.dataset.pageUrl = mainRecord.pageUrl || '';
+      main.tabIndex = 0;
+      main.setAttribute('role', 'button');
+      main.setAttribute('aria-label', `查看 ${detailLabel} 的转存详情`);
 
       const title = document.createElement('div');
       title.className = 'chaospace-history-title';
@@ -3437,6 +3465,21 @@
           const rowElement = document.createElement('div');
           rowElement.className = 'chaospace-history-season-item';
           rowElement.dataset.key = row.key;
+          rowElement.dataset.groupKey = group.key;
+          rowElement.dataset.detailTrigger = 'season';
+          if (row.url) {
+            rowElement.dataset.pageUrl = row.url;
+          }
+          if (row.label) {
+            rowElement.dataset.title = row.label;
+          }
+          if (row.poster && row.poster.src) {
+            rowElement.dataset.posterSrc = row.poster.src;
+            rowElement.dataset.posterAlt = row.poster.alt || row.label || '';
+          }
+          rowElement.tabIndex = 0;
+          rowElement.setAttribute('role', 'button');
+          rowElement.setAttribute('aria-label', `查看 ${row.label || '季详情'} 的转存详情`);
 
           const rowPoster = document.createElement(row.poster && row.poster.src ? 'button' : 'div');
           rowPoster.className = 'chaospace-history-season-poster';
@@ -3674,6 +3717,488 @@
         button.setAttribute('aria-label', expanded ? '收起转存历史' : '展开转存历史');
       });
     }
+  }
+
+  function getHistoryGroupByKey(key) {
+    if (!key) {
+      return null;
+    }
+    return state.historyGroups.find(group => group && group.key === key) || null;
+  }
+
+  function buildHistoryDetailFallback(group, overrides = {}) {
+    if (!group) {
+      return {
+        title: typeof overrides.title === 'string' && overrides.title ? overrides.title : '转存记录',
+        poster: overrides.poster && overrides.poster.src ? overrides.poster : null,
+        releaseDate: typeof overrides.releaseDate === 'string' ? overrides.releaseDate : '',
+        country: typeof overrides.country === 'string' ? overrides.country : '',
+        runtime: typeof overrides.runtime === 'string' ? overrides.runtime : '',
+        rating: null,
+        genres: Array.isArray(overrides.genres) ? overrides.genres.slice(0, 12) : [],
+        info: Array.isArray(overrides.info) ? overrides.info.slice(0, 12) : [],
+        synopsis: typeof overrides.synopsis === 'string' ? overrides.synopsis : '',
+        stills: Array.isArray(overrides.stills) ? overrides.stills.slice(0, 12) : [],
+        pageUrl: typeof overrides.pageUrl === 'string' ? overrides.pageUrl : ''
+      };
+    }
+    const mainRecord = group.main || {};
+    const poster = (group.poster && group.poster.src)
+      ? group.poster
+      : (mainRecord.poster && mainRecord.poster.src ? mainRecord.poster : null);
+    const fallback = {
+      title: group.title || mainRecord.pageTitle || '转存记录',
+      poster,
+      releaseDate: '',
+      country: '',
+      runtime: '',
+      rating: null,
+      genres: [],
+      info: [],
+      synopsis: '',
+      stills: [],
+      pageUrl: mainRecord.pageUrl || ''
+    };
+    if (typeof overrides.title === 'string' && overrides.title.trim()) {
+      fallback.title = overrides.title.trim();
+    }
+    if (typeof overrides.pageUrl === 'string' && overrides.pageUrl.trim()) {
+      fallback.pageUrl = overrides.pageUrl.trim();
+    }
+    if (overrides.poster && overrides.poster.src) {
+      fallback.poster = {
+        src: overrides.poster.src,
+        alt: overrides.poster.alt || fallback.title || ''
+      };
+    }
+    if (typeof overrides.releaseDate === 'string' && overrides.releaseDate.trim()) {
+      fallback.releaseDate = overrides.releaseDate.trim();
+    }
+    if (typeof overrides.country === 'string' && overrides.country.trim()) {
+      fallback.country = overrides.country.trim();
+    }
+    if (typeof overrides.runtime === 'string' && overrides.runtime.trim()) {
+      fallback.runtime = overrides.runtime.trim();
+    }
+    if (typeof overrides.synopsis === 'string' && overrides.synopsis.trim()) {
+      fallback.synopsis = overrides.synopsis.trim();
+    }
+    if (Array.isArray(overrides.genres) && overrides.genres.length) {
+      fallback.genres = overrides.genres.slice(0, 12);
+    }
+    if (Array.isArray(overrides.info) && overrides.info.length) {
+      fallback.info = overrides.info.slice(0, 12);
+    }
+    if (Array.isArray(overrides.stills) && overrides.stills.length) {
+      fallback.stills = overrides.stills.slice(0, 12);
+    }
+    return fallback;
+  }
+
+  function normalizeHistoryDetailResponse(rawDetail, fallback) {
+    const safeFallback = fallback || buildHistoryDetailFallback(null);
+    const detail = rawDetail && typeof rawDetail === 'object' ? rawDetail : {};
+    const normalizeString = value => (typeof value === 'string' ? value.trim() : '');
+    const normalized = {
+      title: normalizeString(detail.title) || safeFallback.title,
+      poster: detail.poster && detail.poster.src ? detail.poster : safeFallback.poster,
+      releaseDate: normalizeString(detail.releaseDate),
+      country: normalizeString(detail.country),
+      runtime: normalizeString(detail.runtime),
+      rating: detail.rating && detail.rating.value
+        ? {
+            value: normalizeString(detail.rating.value),
+            votes: normalizeString(detail.rating.votes),
+            label: normalizeString(detail.rating.label),
+            scale: Number.isFinite(detail.rating.scale) ? detail.rating.scale : 10
+          }
+        : null,
+      genres: Array.isArray(detail.genres)
+        ? Array.from(new Set(detail.genres.map(normalizeString).filter(Boolean)))
+        : [],
+      info: Array.isArray(detail.info)
+        ? detail.info
+          .map(entry => ({
+            label: normalizeString(entry?.label),
+            value: normalizeString(entry?.value)
+          }))
+          .filter(entry => entry.label && entry.value)
+        : [],
+      synopsis: normalizeString(detail.synopsis),
+      stills: Array.isArray(detail.stills)
+        ? detail.stills
+          .map(still => {
+            const full = normalizeString(still?.full);
+            const thumb = normalizeString(still?.thumb);
+            const alt = normalizeString(still?.alt) || fallback.title;
+            const resolvedFull = full || thumb;
+            const resolvedThumb = thumb || full;
+            if (!resolvedFull && !resolvedThumb) {
+              return null;
+            }
+            return {
+              full: resolvedFull || resolvedThumb,
+              thumb: resolvedThumb || resolvedFull,
+              alt
+            };
+          })
+          .filter(Boolean)
+        : [],
+      pageUrl: normalizeString(detail.pageUrl) || safeFallback.pageUrl
+    };
+    if (!normalized.poster && safeFallback.poster && safeFallback.poster.src) {
+      normalized.poster = safeFallback.poster;
+    }
+    if (!normalized.releaseDate && safeFallback.releaseDate) {
+      normalized.releaseDate = safeFallback.releaseDate;
+    }
+    if (!normalized.country && safeFallback.country) {
+      normalized.country = safeFallback.country;
+    }
+    if (!normalized.runtime && safeFallback.runtime) {
+      normalized.runtime = safeFallback.runtime;
+    }
+    if (!normalized.synopsis && safeFallback.synopsis) {
+      normalized.synopsis = safeFallback.synopsis;
+    }
+    if (!normalized.genres.length && Array.isArray(safeFallback.genres) && safeFallback.genres.length) {
+      normalized.genres = safeFallback.genres.slice();
+    }
+    if (!normalized.info.length && Array.isArray(safeFallback.info) && safeFallback.info.length) {
+      normalized.info = safeFallback.info.slice();
+    }
+    if (!normalized.stills.length && Array.isArray(safeFallback.stills) && safeFallback.stills.length) {
+      normalized.stills = safeFallback.stills.slice();
+    }
+    return normalized;
+  }
+
+  function ensureHistoryDetailOverlay() {
+    if (detailDom.backdrop && detailDom.backdrop.isConnected) {
+      return;
+    }
+    const backdrop = document.createElement('div');
+    backdrop.className = 'chaospace-history-detail-backdrop';
+    backdrop.dataset.role = 'history-detail-backdrop';
+    backdrop.hidden = true;
+    backdrop.innerHTML = `
+      <div class="chaospace-history-detail-modal" data-role="history-detail-modal" role="dialog" aria-modal="true">
+        <button type="button" class="chaospace-history-detail-close" data-role="history-detail-close" aria-label="关闭详情">✕</button>
+        <div class="chaospace-history-detail-header">
+          <div class="chaospace-history-detail-poster">
+            <img data-role="history-detail-poster" alt="" draggable="false" />
+          </div>
+          <div class="chaospace-history-detail-summary">
+            <h3 class="chaospace-history-detail-title" data-role="history-detail-title"></h3>
+            <div class="chaospace-history-detail-tags">
+              <span data-role="history-detail-date"></span>
+              <span data-role="history-detail-country"></span>
+              <span data-role="history-detail-runtime"></span>
+              <span data-role="history-detail-rating"></span>
+            </div>
+            <div class="chaospace-history-detail-genres" data-role="history-detail-genres"></div>
+            <div class="chaospace-history-detail-info" data-role="history-detail-info"></div>
+          </div>
+        </div>
+        <div class="chaospace-history-detail-body" data-role="history-detail-body">
+          <div class="chaospace-history-detail-section">
+            <div class="chaospace-history-detail-section-title">剧情简介</div>
+            <div class="chaospace-history-detail-synopsis" data-role="history-detail-synopsis"></div>
+          </div>
+          <div class="chaospace-history-detail-section">
+            <div class="chaospace-history-detail-section-title">剧照</div>
+            <div class="chaospace-history-detail-stills" data-role="history-detail-stills"></div>
+          </div>
+        </div>
+        <div class="chaospace-history-detail-loading" data-role="history-detail-loading">正在加载详情...</div>
+        <div class="chaospace-history-detail-error" data-role="history-detail-error"></div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
+    detailDom.backdrop = backdrop;
+    detailDom.modal = backdrop.querySelector('[data-role="history-detail-modal"]');
+    detailDom.close = backdrop.querySelector('[data-role="history-detail-close"]');
+    detailDom.poster = backdrop.querySelector('[data-role="history-detail-poster"]');
+    detailDom.title = backdrop.querySelector('[data-role="history-detail-title"]');
+    detailDom.date = backdrop.querySelector('[data-role="history-detail-date"]');
+    detailDom.country = backdrop.querySelector('[data-role="history-detail-country"]');
+    detailDom.runtime = backdrop.querySelector('[data-role="history-detail-runtime"]');
+    detailDom.rating = backdrop.querySelector('[data-role="history-detail-rating"]');
+    detailDom.genres = backdrop.querySelector('[data-role="history-detail-genres"]');
+    detailDom.info = backdrop.querySelector('[data-role="history-detail-info"]');
+    detailDom.synopsis = backdrop.querySelector('[data-role="history-detail-synopsis"]');
+    detailDom.stills = backdrop.querySelector('[data-role="history-detail-stills"]');
+    detailDom.body = backdrop.querySelector('[data-role="history-detail-body"]');
+    detailDom.loading = backdrop.querySelector('[data-role="history-detail-loading"]');
+    detailDom.error = backdrop.querySelector('[data-role="history-detail-error"]');
+    detailDom.hideTimer = null;
+    if (detailDom.close) {
+      detailDom.close.addEventListener('click', () => {
+        closeHistoryDetail();
+      });
+    }
+    backdrop.addEventListener('click', event => {
+      if (event.target === backdrop) {
+        closeHistoryDetail();
+      }
+    });
+    if (detailDom.poster) {
+      detailDom.poster.addEventListener('click', () => {
+        const src = detailDom.poster.dataset.previewSrc || detailDom.poster.src;
+        if (src) {
+          showPosterPreview({
+            src,
+            alt: detailDom.poster.alt || detailDom.title?.textContent || ''
+          });
+        }
+      });
+    }
+  }
+
+  function renderHistoryDetail() {
+    ensureHistoryDetailOverlay();
+    const overlay = detailDom.backdrop;
+    if (!overlay) {
+      return;
+    }
+    if (detailDom.hideTimer) {
+      clearTimeout(detailDom.hideTimer);
+      detailDom.hideTimer = null;
+    }
+    const detailState = state.historyDetail;
+    if (!detailState.isOpen) {
+      overlay.classList.remove('is-visible');
+      if (!overlay.hidden) {
+        detailDom.hideTimer = setTimeout(() => {
+          if (!state.historyDetail.isOpen && overlay) {
+            overlay.hidden = true;
+          }
+          detailDom.hideTimer = null;
+        }, 200);
+      } else {
+        overlay.hidden = true;
+      }
+      document.body.classList.remove('chaospace-history-detail-active');
+      return;
+    }
+    overlay.hidden = false;
+    requestAnimationFrame(() => {
+      overlay.classList.add('is-visible');
+    });
+    document.body.classList.add('chaospace-history-detail-active');
+    const group = getHistoryGroupByKey(detailState.groupKey);
+    const data = detailState.data || detailState.fallback || buildHistoryDetailFallback(group);
+    if (detailDom.modal) {
+      detailDom.modal.setAttribute('aria-busy', detailState.loading ? 'true' : 'false');
+    }
+    if (detailDom.loading) {
+      detailDom.loading.hidden = !detailState.loading;
+    }
+    if (detailDom.error) {
+      detailDom.error.hidden = !detailState.error;
+      detailDom.error.textContent = detailState.error ? `加载失败：${detailState.error}` : '';
+    }
+    if (detailDom.body) {
+      detailDom.body.hidden = detailState.error && !data;
+    }
+    if (detailDom.title) {
+      detailDom.title.textContent = data.title || '转存记录';
+    }
+    if (detailDom.poster) {
+      if (data.poster && data.poster.src) {
+        detailDom.poster.src = data.poster.src;
+        detailDom.poster.alt = data.poster.alt || data.title || '';
+        detailDom.poster.dataset.previewSrc = data.poster.src;
+        detailDom.poster.style.display = '';
+        detailDom.poster.closest('.chaospace-history-detail-poster')?.classList.remove('is-empty');
+      } else {
+        detailDom.poster.removeAttribute('src');
+        detailDom.poster.alt = '';
+        detailDom.poster.dataset.previewSrc = '';
+        detailDom.poster.style.display = 'none';
+        detailDom.poster.closest('.chaospace-history-detail-poster')?.classList.add('is-empty');
+      }
+    }
+    const dateLabel = data.releaseDate ? `📅 ${data.releaseDate}` : '';
+    if (detailDom.date) {
+      detailDom.date.textContent = dateLabel;
+      detailDom.date.hidden = !dateLabel;
+    }
+    const countryLabel = data.country ? `🌍 ${data.country}` : '';
+    if (detailDom.country) {
+      detailDom.country.textContent = countryLabel;
+      detailDom.country.hidden = !countryLabel;
+    }
+    const runtimeLabel = data.runtime ? `⏱️ ${data.runtime}` : '';
+    if (detailDom.runtime) {
+      detailDom.runtime.textContent = runtimeLabel;
+      detailDom.runtime.hidden = !runtimeLabel;
+    }
+    let ratingLabel = '';
+    if (data.rating && data.rating.value) {
+      const pieces = [`⭐ ${data.rating.value}`];
+      const votes = data.rating.votes;
+      const label = data.rating.label;
+      if (votes && label) {
+        pieces.push(`· ${votes} ${label}`);
+      } else if (votes) {
+        pieces.push(`· ${votes}`);
+      } else if (label) {
+        pieces.push(`· ${label}`);
+      }
+      ratingLabel = pieces.join(' ');
+    }
+    if (detailDom.rating) {
+      detailDom.rating.textContent = ratingLabel;
+      detailDom.rating.hidden = !ratingLabel;
+    }
+    if (detailDom.genres) {
+      detailDom.genres.innerHTML = '';
+      const genres = Array.isArray(data.genres) ? data.genres : [];
+      if (genres.length) {
+        genres.slice(0, 12).forEach(genre => {
+          const chip = document.createElement('span');
+          chip.className = 'chaospace-history-detail-genre';
+          chip.textContent = genre;
+          detailDom.genres.appendChild(chip);
+        });
+        detailDom.genres.hidden = false;
+      } else {
+        detailDom.genres.hidden = true;
+      }
+    }
+    if (detailDom.info) {
+      detailDom.info.innerHTML = '';
+      const infoEntries = Array.isArray(data.info) ? data.info : [];
+      if (infoEntries.length) {
+        infoEntries.slice(0, 12).forEach(entry => {
+          const row = document.createElement('div');
+          row.className = 'chaospace-history-detail-info-item';
+          const labelEl = document.createElement('span');
+          labelEl.className = 'chaospace-history-detail-info-label';
+          labelEl.textContent = entry.label;
+          const valueEl = document.createElement('span');
+          valueEl.className = 'chaospace-history-detail-info-value';
+          valueEl.textContent = entry.value;
+          row.appendChild(labelEl);
+          row.appendChild(valueEl);
+          detailDom.info.appendChild(row);
+        });
+        detailDom.info.hidden = false;
+      } else {
+        detailDom.info.hidden = true;
+      }
+    }
+    if (detailDom.synopsis) {
+      if (data.synopsis) {
+        detailDom.synopsis.textContent = data.synopsis;
+        detailDom.synopsis.classList.remove('is-empty');
+      } else {
+        detailDom.synopsis.textContent = '暂无剧情简介';
+        detailDom.synopsis.classList.add('is-empty');
+      }
+    }
+    if (detailDom.stills) {
+      detailDom.stills.innerHTML = '';
+      const stills = Array.isArray(data.stills) ? data.stills : [];
+      if (stills.length) {
+        stills.slice(0, 12).forEach(still => {
+          const link = document.createElement('a');
+          link.className = 'chaospace-history-detail-still';
+          link.href = still.full || still.thumb || '#';
+          link.target = '_blank';
+          link.rel = 'noopener';
+          link.title = still.alt || data.title || '剧照';
+          const img = document.createElement('img');
+          img.src = still.thumb || still.full || '';
+          img.alt = still.alt || data.title || '';
+          img.loading = 'lazy';
+          img.decoding = 'async';
+          disableElementDrag(img);
+          link.appendChild(img);
+          detailDom.stills.appendChild(link);
+        });
+        detailDom.stills.classList.remove('is-empty');
+      } else {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'chaospace-history-detail-stills-empty';
+        placeholder.textContent = '暂无剧照';
+        detailDom.stills.appendChild(placeholder);
+        detailDom.stills.classList.add('is-empty');
+      }
+    }
+  }
+
+  async function openHistoryDetail(groupKey, overrides = {}) {
+    const group = getHistoryGroupByKey(groupKey);
+    if (!group) {
+      return;
+    }
+    ensureHistoryDetailOverlay();
+    const fallback = buildHistoryDetailFallback(group, overrides);
+    const pageUrl = (typeof overrides.pageUrl === 'string' && overrides.pageUrl.trim())
+      ? overrides.pageUrl.trim()
+      : fallback.pageUrl;
+    state.historyDetail.isOpen = true;
+    state.historyDetail.groupKey = groupKey;
+    state.historyDetail.pageUrl = pageUrl;
+    state.historyDetail.error = '';
+    state.historyDetail.fallback = fallback;
+    const cacheKey = pageUrl || '';
+    const cached = cacheKey ? state.historyDetailCache.get(cacheKey) : null;
+    state.historyDetail.data = cached || fallback;
+    state.historyDetail.loading = !cached && Boolean(cacheKey);
+    renderHistoryDetail();
+    if (cached || !cacheKey) {
+      if (!cacheKey && !cached) {
+        state.historyDetail.loading = false;
+        renderHistoryDetail();
+      }
+      return;
+    }
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'chaospace:history-detail',
+        payload: { pageUrl: cacheKey }
+      });
+      if (!response || response.ok === false) {
+        throw new Error(response?.error || '加载详情失败');
+      }
+      const normalized = normalizeHistoryDetailResponse(response.detail || {}, fallback);
+      state.historyDetailCache.set(cacheKey, normalized);
+      state.historyDetail.data = normalized;
+      state.historyDetail.loading = false;
+      renderHistoryDetail();
+    } catch (error) {
+      state.historyDetail.loading = false;
+      state.historyDetail.error = error.message || '加载详情失败';
+      renderHistoryDetail();
+    }
+  }
+
+  function closeHistoryDetail() {
+    if (!state.historyDetail.isOpen) {
+      return;
+    }
+    state.historyDetail.isOpen = false;
+    state.historyDetail.loading = false;
+    state.historyDetail.error = '';
+    state.historyDetail.groupKey = '';
+    state.historyDetail.pageUrl = '';
+    state.historyDetail.data = null;
+    state.historyDetail.fallback = null;
+    renderHistoryDetail();
+  }
+
+  function handleHistoryDetailKeydown(event) {
+    if (event.key !== 'Escape') {
+      return;
+    }
+    if (!state.historyDetail.isOpen) {
+      return;
+    }
+    closeHistoryDetail();
+    event.stopPropagation();
   }
 
   async function loadHistory(options = {}) {
@@ -4835,6 +5360,8 @@
         panelHideTimer = null;
       }
       panel.style.transition = 'none';
+      ensureHistoryDetailOverlay();
+      renderHistoryDetail();
 
       const clamp = (value, min, max) => {
         return Math.min(Math.max(value, min), max);
@@ -5504,40 +6031,77 @@
           }
 
           const actionButton = event.target.closest('button[data-action]');
-          if (!actionButton) {
-            return;
-          }
+          if (actionButton) {
+            const action = actionButton.dataset.action;
+            if (action === 'preview-poster') {
+              if (!actionButton.disabled) {
+                const src = actionButton.dataset.src;
+                if (src) {
+                  showPosterPreview({
+                    src,
+                    alt: actionButton.dataset.alt || actionButton.getAttribute('aria-label') || ''
+                  });
+                }
+              }
+              return;
+            }
 
-          const action = actionButton.dataset.action;
-          if (action === 'preview-poster') {
-            if (!actionButton.disabled) {
-              const src = actionButton.dataset.src;
-              if (src) {
-                showPosterPreview({
-                  src,
-                  alt: actionButton.dataset.alt || actionButton.getAttribute('aria-label') || ''
-                });
+            if (actionButton.disabled) {
+              return;
+            }
+
+            const url = actionButton.dataset.url;
+            if (action === 'open') {
+              if (url) {
+                window.open(url, '_blank', 'noopener');
+              }
+            } else if (action === 'open-pan') {
+              const panUrl = actionButton.dataset.url || buildPanDirectoryUrl('/');
+              window.open(panUrl, '_blank', 'noopener');
+            } else if (action === 'check') {
+              if (url) {
+                triggerHistoryUpdate(url, actionButton);
               }
             }
             return;
           }
 
-          if (actionButton.disabled) {
+          const seasonRow = event.target.closest('.chaospace-history-season-item[data-detail-trigger="season"]');
+          if (seasonRow && !event.target.closest('.chaospace-history-actions') && !event.target.closest('button') && !event.target.closest('input')) {
+            const groupKey = seasonRow.dataset.groupKey;
+            if (groupKey) {
+              const pageUrl = seasonRow.dataset.pageUrl || '';
+              const title = seasonRow.dataset.title || '';
+              const posterSrc = seasonRow.dataset.posterSrc || '';
+              const posterAlt = seasonRow.dataset.posterAlt || title;
+              const poster = posterSrc ? { src: posterSrc, alt: posterAlt } : null;
+              event.preventDefault();
+              openHistoryDetail(groupKey, {
+                pageUrl,
+                title,
+                poster
+              });
+            }
             return;
           }
 
-          const url = actionButton.dataset.url;
-          if (action === 'open') {
-            if (url) {
-              window.open(url, '_blank', 'noopener');
+          const detailTrigger = event.target.closest('[data-action="history-detail"]');
+          if (detailTrigger) {
+            const groupKey = detailTrigger.dataset.groupKey;
+            if (groupKey) {
+              event.preventDefault();
+              openHistoryDetail(groupKey);
             }
-          } else if (action === 'open-pan') {
-            const panUrl = actionButton.dataset.url || buildPanDirectoryUrl('/');
-            window.open(panUrl, '_blank', 'noopener');
-          } else if (action === 'check') {
-            if (url) {
-              triggerHistoryUpdate(url, actionButton);
+            return;
+          }
+
+          const historyItem = event.target.closest('.chaospace-history-item[data-detail-trigger="group"]');
+          if (historyItem && !event.target.closest('.chaospace-history-selector') && !event.target.closest('.chaospace-history-actions') && !event.target.closest('button') && !event.target.closest('input') && !event.target.closest('[data-role="history-season-toggle"]')) {
+            const groupKey = historyItem.dataset.groupKey;
+            if (groupKey) {
+              openHistoryDetail(groupKey);
             }
+            return;
           }
         });
         panelDom.historyList.addEventListener('change', event => {
@@ -5546,6 +6110,53 @@
           const groupKey = checkbox.dataset.groupKey;
           if (!groupKey) return;
           setHistorySelection(groupKey, checkbox.checked);
+        });
+        panelDom.historyList.addEventListener('keydown', event => {
+          if (event.key !== 'Enter' && event.key !== ' ') {
+            return;
+          }
+          if (event.target.closest('button') || event.target.closest('input')) {
+            return;
+          }
+          const seasonRow = event.target.closest('.chaospace-history-season-item[data-detail-trigger="season"]');
+          if (seasonRow && seasonRow === event.target.closest('.chaospace-history-season-item')) {
+            const groupKey = seasonRow.dataset.groupKey;
+            if (groupKey) {
+              const pageUrl = seasonRow.dataset.pageUrl || '';
+              const title = seasonRow.dataset.title || '';
+              const posterSrc = seasonRow.dataset.posterSrc || '';
+              const posterAlt = seasonRow.dataset.posterAlt || title;
+              const poster = posterSrc ? { src: posterSrc, alt: posterAlt } : null;
+              event.preventDefault();
+              openHistoryDetail(groupKey, {
+                pageUrl,
+                title,
+                poster
+              });
+            }
+            return;
+          }
+
+          const detailTrigger = event.target.closest('[data-action="history-detail"]');
+          if (detailTrigger) {
+            const groupKey = detailTrigger.dataset.groupKey;
+            if (groupKey) {
+              event.preventDefault();
+              openHistoryDetail(groupKey);
+            }
+            return;
+          }
+
+          const historyItem = event.target.closest('.chaospace-history-item[data-detail-trigger="group"]');
+          if (historyItem && historyItem === event.target.closest('.chaospace-history-item')) {
+            const groupKey = historyItem.dataset.groupKey;
+            if (!groupKey) {
+              return;
+            }
+            event.preventDefault();
+            openHistoryDetail(groupKey);
+            return;
+          }
         });
       }
 

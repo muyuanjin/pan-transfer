@@ -1745,6 +1745,208 @@ function extractSectionById(html, id) {
   return html.slice(startIndex, resultEnd);
 }
 
+function extractSectionByClass(html, className) {
+  if (!html || !className) {
+    return '';
+  }
+  const normalizedClass = className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const openPattern = new RegExp(`<([a-zA-Z0-9]+)([^>]*class\\s*=\\s*['"][^'"]*\\b${normalizedClass}\\b[^'"]*['"][^>]*)>`, 'i');
+  const match = openPattern.exec(html);
+  if (!match) {
+    return '';
+  }
+  const tagName = match[1];
+  const startIndex = match.index;
+  const searchStart = startIndex + match[0].length;
+  const tagPattern = new RegExp(`<${tagName}\\b[^>]*>|</${tagName}>`, 'gi');
+  tagPattern.lastIndex = searchStart;
+  let depth = 1;
+  let token;
+  let resultEnd = html.length;
+  while ((token = tagPattern.exec(html))) {
+    if (token.index < searchStart) {
+      continue;
+    }
+    if (token[0][1] === '/') {
+      depth -= 1;
+      if (depth === 0) {
+        resultEnd = tagPattern.lastIndex;
+        break;
+      }
+    } else {
+      depth += 1;
+    }
+  }
+  return html.slice(startIndex, resultEnd);
+}
+
+function parseHistoryDetailFromHtml(html, pageUrl = '') {
+  const normalizedHtml = (html || '').replace(/\r/g, '');
+  const detail = {
+    pageUrl,
+    title: '',
+    poster: null,
+    releaseDate: '',
+    country: '',
+    runtime: '',
+    rating: null,
+    genres: [],
+    info: [],
+    synopsis: '',
+    stills: []
+  };
+
+  const cleanText = value => stripHtmlTags(value || '').trim();
+  const cleanMeta = value => cleanText(value).replace(/[。．\\.]+$/g, '').trim();
+  const baseUrl = pageUrl || '';
+
+  const headerHtml = extractSectionByClass(normalizedHtml, 'sheader');
+  if (headerHtml) {
+    const titleMatch = headerHtml.match(/<div[^>]*class=['"]data['"][^>]*>[\s\S]*?<h1>([\s\S]*?)<\/h1>/i);
+    if (titleMatch) {
+      detail.title = cleanText(titleMatch[1]);
+    }
+
+    const posterMatch = headerHtml.match(/<div[^>]*class=['"]poster['"][^>]*>[\s\S]*?<img[^>]*>/i);
+    if (posterMatch) {
+      const imgTag = posterMatch[0].match(/<img[^>]*>/i)?.[0] || '';
+      const srcMatch = imgTag.match(/src=['"]([^'"]+)['"]/i);
+      const altMatch = imgTag.match(/alt=['"]([^'"]*)['"]/i);
+      if (srcMatch) {
+        const src = resolveSeasonUrl(srcMatch[1], baseUrl);
+        if (src) {
+          const rawAlt = altMatch ? altMatch[1] : '';
+          detail.poster = {
+            src,
+            alt: extractCleanTitle(decodeHtmlEntities(rawAlt || detail.title || ''))
+          };
+        }
+      }
+    }
+
+    const extraMatch = headerHtml.match(/<div[^>]*class=['"]extra['"][^>]*>([\s\S]*?)<\/div>/i);
+    if (extraMatch) {
+      const extraHtml = extraMatch[1];
+      const dateMatch = extraHtml.match(/<span[^>]*class=['"]date['"][^>]*>([\s\S]*?)<\/span>/i);
+      const countryMatch = extraHtml.match(/<span[^>]*class=['"]country['"][^>]*>([\s\S]*?)<\/span>/i);
+      const runtimeMatch = extraHtml.match(/<span[^>]*class=['"]runtime['"][^>]*>([\s\S]*?)<\/span>/i);
+      if (dateMatch) {
+        detail.releaseDate = cleanMeta(dateMatch[1]);
+      }
+      if (countryMatch) {
+        detail.country = cleanMeta(countryMatch[1]);
+      }
+      if (runtimeMatch) {
+        detail.runtime = cleanMeta(runtimeMatch[1]);
+      }
+    }
+
+    const ratingValueMatch = headerHtml.match(/<span[^>]*class=['"]dt_rating_vgs['"][^>]*>([\s\S]*?)<\/span>/i);
+    const ratingCountMatch = headerHtml.match(/<span[^>]*class=['"]rating-count['"][^>]*>([\s\S]*?)<\/span>/i);
+    const ratingTextMatch = headerHtml.match(/<span[^>]*class=['"]rating-text['"][^>]*>([\s\S]*?)<\/span>/i);
+    const ratingValue = ratingValueMatch ? cleanText(ratingValueMatch[1]) : '';
+    if (ratingValue) {
+      detail.rating = {
+        value: ratingValue,
+        votes: ratingCountMatch ? cleanText(ratingCountMatch[1]) : '',
+        label: ratingTextMatch ? cleanText(ratingTextMatch[1]) : '',
+        scale: 10
+      };
+    }
+
+    const genresMatch = headerHtml.match(/<div[^>]*class=['"]sgeneros['"][^>]*>([\s\S]*?)<\/div>/i);
+    if (genresMatch) {
+      const genreBlock = genresMatch[1];
+      const genreRegex = /<a[^>]*>([\s\S]*?)<\/a>/gi;
+      let genreMatch;
+      while ((genreMatch = genreRegex.exec(genreBlock))) {
+        const label = cleanText(genreMatch[1]);
+        if (label) {
+          detail.genres.push(label);
+        }
+      }
+    }
+  }
+
+  const infoSection = extractSectionById(normalizedHtml, 'info');
+  if (infoSection) {
+    const descriptionSection = extractSectionByClass(infoSection, 'wp-content');
+    if (descriptionSection) {
+      const descriptionHtml = descriptionSection
+        .replace(/^<div[^>]*>/i, '')
+        .replace(/<\/div>\s*$/i, '');
+      const gallerySection = extractSectionById(descriptionHtml, 'dt_galery');
+      const galleryRemoved = gallerySection ? descriptionHtml.replace(gallerySection, '') : descriptionHtml;
+      const synopsis = cleanText(galleryRemoved);
+      if (synopsis) {
+        detail.synopsis = synopsis;
+      }
+
+      if (gallerySection) {
+        const itemRegex = /<div[^>]*class=['"]g-item['"][^>]*>([\s\S]*?)<\/div>/gi;
+        let itemMatch;
+        const seen = new Set();
+        while ((itemMatch = itemRegex.exec(gallerySection))) {
+          const itemHtml = itemMatch[1] || '';
+          const anchorMatch = itemHtml.match(/<a[^>]*href=['"]([^'"]+)['"][^>]*>([\s\S]*?)<\/a>/i);
+          if (!anchorMatch) {
+            continue;
+          }
+          const fullUrl = resolveSeasonUrl(anchorMatch[1], baseUrl);
+          const imgMatch = anchorMatch[2].match(/<img[^>]+src=['"]([^'"]+)['"][^>]*?(?:alt=['"]([^'"]*)['"][^>]*)?/i);
+          const thumbUrl = imgMatch ? resolveSeasonUrl(imgMatch[1], baseUrl) : '';
+          const altRaw = imgMatch && imgMatch[2] ? imgMatch[2] : '';
+          if (!fullUrl && !thumbUrl) {
+            continue;
+          }
+          const key = fullUrl || thumbUrl;
+          if (seen.has(key)) {
+            continue;
+          }
+          seen.add(key);
+          const altText = extractCleanTitle(decodeHtmlEntities(altRaw || detail.title || ''));
+          detail.stills.push({
+            full: fullUrl || thumbUrl,
+            thumb: thumbUrl || fullUrl,
+            alt: altText
+          });
+        }
+      }
+    }
+
+    const infoRegex = /<div[^>]*class=['"]custom_fields['"][^>]*>([\s\S]*?)<\/div>/gi;
+    let infoMatch;
+    while ((infoMatch = infoRegex.exec(infoSection))) {
+      const blockHtml = infoMatch[1];
+      const labelMatch = blockHtml.match(/<b[^>]*class=['"]variante['"][^>]*>([\s\S]*?)<\/b>/i);
+      const valueMatch = blockHtml.match(/<span[^>]*class=['"]valor['"][^>]*>([\s\S]*?)<\/span>/i);
+      const label = cleanText(labelMatch ? labelMatch[1] : '');
+      const value = cleanText(valueMatch ? valueMatch[1] : blockHtml);
+      if (label && value) {
+        detail.info.push({ label, value });
+      }
+    }
+  }
+
+  if (!detail.title) {
+    detail.title = extractCleanTitle(parsePageTitleFromHtml(normalizedHtml) || '');
+  }
+  if (!detail.poster && headerHtml) {
+    const fallbackPoster = headerHtml.match(/<img[^>]+src=['"]([^'"]+)['"]/i);
+    if (fallbackPoster) {
+      const src = resolveSeasonUrl(fallbackPoster[1], baseUrl);
+      if (src) {
+        detail.poster = {
+          src,
+          alt: detail.title || ''
+        };
+      }
+    }
+  }
+
+  return detail;
+}
+
 function extractDownloadTableHtml(html) {
   const section = extractSectionById(html, 'download');
   if (!section) {
@@ -1857,7 +2059,11 @@ function resolveSeasonUrl(href, baseUrl) {
     return '';
   }
   try {
-    const url = new URL(href, baseUrl);
+    const normalizedHref = typeof href === 'string' ? href.trim() : href;
+    if (!normalizedHref) {
+      return '';
+    }
+    const url = new URL(normalizedHref, baseUrl);
     url.hash = '';
     return url.toString();
   } catch (_error) {
@@ -2039,6 +2245,31 @@ async function collectPageSnapshot(pageUrl) {
     completion,
     seasonCompletion,
     seasonEntries
+  };
+}
+
+async function collectHistoryDetail(pageUrl) {
+  if (!pageUrl) {
+    throw new Error('缺少页面地址');
+  }
+  const response = await fetch(pageUrl, { credentials: 'include' });
+  if (!response.ok) {
+    throw new Error(`获取页面失败：${response.status}`);
+  }
+  const html = await response.text();
+  return parseHistoryDetailFromHtml(html, pageUrl);
+}
+
+async function handleHistoryDetailRequest(payload = {}) {
+  const pageUrl = typeof payload.pageUrl === 'string' ? payload.pageUrl : '';
+  if (!pageUrl) {
+    throw new Error('缺少页面地址');
+  }
+  const detail = await collectHistoryDetail(pageUrl);
+  return {
+    ok: true,
+    pageUrl,
+    detail
   };
 }
 
@@ -2521,6 +2752,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       })
       .catch(error => {
         sendResponse({ ok: false, error: error.message || '清空历史失败' });
+      });
+    return true;
+  }
+
+  if (message?.type === 'chaospace:history-detail') {
+    handleHistoryDetailRequest(message.payload || {})
+      .then(result => {
+        sendResponse(result);
+      })
+      .catch(error => {
+        sendResponse({ ok: false, error: error.message || '获取详情失败' });
       });
     return true;
   }
