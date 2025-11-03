@@ -1,0 +1,25 @@
+{
+  "name": "tookit",
+  "version": "1.0.0",
+  "description": "[English](#english) | [中文](#中文)",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build --mode production"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/muyuanjin/pan-transfer.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/muyuanjin/pan-transfer/issues"
+  },
+  "homepage": "https://github.com/muyuanjin/pan-transfer#readme",
+  "devDependencies": {
+    "vite": "^7.1.12",
+    "vite-plugin-web-extension": "^4.5.0"
+  }
+}

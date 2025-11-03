@@ -6,7 +6,8 @@
 - Store temporary assets or reference captures under `chaospace-extension/assets/` (create the folder if needed) and avoid committing large binaries.
 
 ## Build, Test, and Development Commands
-- There is no bundler step; load the folder directly in Chrome via `chrome://extensions` → Load unpacked → `chaospace-extension/`.
+- Run `npm run build` (alias for `vite build --mode production`, manifest validation disabled in `vite.config.js` to avoid long network waits) to emit the Vite bundles into `dist/`.
+- There is no bundler step for the legacy code; load `chaospace-extension/` directly in Chrome via `chrome://extensions` → Load unpacked when parity testing the old implementation.
 - Use `web-ext lint --source-dir chaospace-extension` to catch manifest or API issues before pushing. Install `web-ext` globally with `npm install -g web-ext` if it is not available.
 - Package the extension for manual sharing with `zip -r chaospace-extension.zip chaospace-extension`.
 

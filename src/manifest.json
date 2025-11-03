@@ -1,0 +1,60 @@
+{
+  "manifest_version": 3,
+  "name": "Chaospace Baidu Transfer",
+  "description": "Collect CHAOSPACE resources and save them to Baidu Netdisk.",
+  "version": "1.0.0",
+  "action": {
+    "default_title": "CHAOSPACE 转存助手",
+    "default_icon": {
+      "48": "icon-48.png",
+      "128": "icon-128.png"
+    }
+  },
+  "icons": {
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  },
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "scripting",
+    "activeTab",
+    "tabs",
+    "cookies",
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "*://chaospace.cc/*",
+    "*://*.chaospace.cc/*",
+    "*://chaospace.xyz/*",
+    "*://*.chaospace.xyz/*",
+    "https://pan.baidu.com/*"
+  ],
+  "background": {
+    "service_worker": "background/index.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://chaospace.cc/*",
+        "*://*.chaospace.cc/*",
+        "*://chaospace.xyz/*",
+        "*://*.chaospace.xyz/*"
+      ],
+      "js": ["content/index.js"],
+      "css": ["content/styles/main.css"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["content/styles/main.css"],
+      "matches": [
+        "*://chaospace.cc/*",
+        "*://*.chaospace.cc/*",
+        "*://chaospace.xyz/*",
+        "*://*.chaospace.xyz/*"
+      ]
+    }
+  ]
+}
