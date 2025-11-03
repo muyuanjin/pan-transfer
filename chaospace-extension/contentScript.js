@@ -567,6 +567,7 @@
   let panelHideTimer = null;
   let panelEdgeState = { isHidden: false, side: 'right', peek: EDGE_HIDE_DEFAULT_PEEK };
   let pointerInsidePanel = false;
+  let lastPointerPosition = { x: Number.NaN, y: Number.NaN };
   let isPanelPinned = false;
   let edgeAnimationTimer = null;
   let edgeTransitionUnbind = null;
@@ -4713,6 +4714,31 @@
       let resizeStartHeight = 0;
       let resizeAnchorRight = 0;
 
+      const updatePointerPosition = (event) => {
+        if (!event) {
+          return;
+        }
+        lastPointerPosition.x = event.clientX;
+        lastPointerPosition.y = event.clientY;
+      };
+
+      // Re-check pointer location to avoid false leave triggers while interacting inside the panel.
+      const isPointerLikelyInsidePanel = () => {
+        if (!panel || !panel.isConnected) {
+          return false;
+        }
+        const { x, y } = lastPointerPosition;
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+          return false;
+        }
+        const hoveredElement = document.elementFromPoint(x, y);
+        if (hoveredElement && panel.contains(hoveredElement)) {
+          return true;
+        }
+        const rect = panel.getBoundingClientRect();
+        return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+      };
+
       const computeEdgePeek = () => {
         const width = panel.offsetWidth || PANEL_MIN_WIDTH;
         const derived = Math.round(width * 0.18);
@@ -5015,14 +5041,20 @@
 
       updatePanelHeader();
 
-      panel.addEventListener('pointerenter', () => {
+      panel.addEventListener('pointerenter', (event) => {
+        updatePointerPosition(event);
         pointerInsidePanel = true;
         panel.classList.add('is-hovering');
         panel.classList.remove('is-leaving');
         cancelEdgeHide({ show: true });
       });
 
-      panel.addEventListener('pointerleave', () => {
+      panel.addEventListener('pointermove', updatePointerPosition);
+      panel.addEventListener('pointerdown', updatePointerPosition);
+      panel.addEventListener('pointerup', updatePointerPosition);
+
+      panel.addEventListener('pointerleave', (event) => {
+        updatePointerPosition(event);
         const verifyHoverState = () => {
           if (isDragging || isResizing) {
             pointerInsidePanel = true;
@@ -5034,7 +5066,8 @@
           if (!panel || !panel.isConnected) {
             return;
           }
-          if (panel.matches(':hover')) {
+          const hasFocusWithin = floatingPanel && floatingPanel.matches(':focus-within');
+          if (hasFocusWithin || panel.matches(':hover') || isPointerLikelyInsidePanel()) {
             pointerInsidePanel = true;
             panel.classList.add('is-hovering');
             panel.classList.remove('is-leaving');
@@ -5586,6 +5619,7 @@
       lastKnownSize = null;
       panelEdgeState = { isHidden: false, side: 'right', peek: EDGE_HIDE_DEFAULT_PEEK };
       pointerInsidePanel = false;
+      lastPointerPosition = { x: Number.NaN, y: Number.NaN };
       isPanelPinned = false;
       Object.keys(panelDom).forEach(key => {
         panelDom[key] = null;

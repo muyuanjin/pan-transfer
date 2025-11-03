@@ -125,9 +125,9 @@
 }
 
 .chaospace-float-panel.is-leaving {
-  transform: translate3d(0, 8px, 0) scale(0.992);
-  opacity: 0.94;
-  box-shadow: 0 18px 52px rgba(8, 13, 24, 0.28);
+  transform: translate3d(0, 0, 0) scale(1);
+  opacity: 1;
+  box-shadow: var(--cp-shadow);
 }
 
 .chaospace-float-panel.is-edge-animating {
@@ -151,8 +151,8 @@
 }
 
 .chaospace-float-panel.theme-light.is-leaving {
-  box-shadow: 0 22px 60px rgba(148, 163, 184, 0.34);
-  opacity: 0.95;
+  box-shadow: 0 24px 56px rgba(148, 163, 184, 0.32);
+  opacity: 1;
 }
 
 @keyframes chaospace-panel-in {
