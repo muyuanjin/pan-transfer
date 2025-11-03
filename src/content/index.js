@@ -7,7 +7,6 @@ import {
   HISTORY_KEY,
   CACHE_KEY,
   HISTORY_BATCH_RATE_LIMIT_MS,
-  HISTORY_FILTERS,
   TV_SHOW_INITIAL_SEASON_BATCH,
   ALL_SEASON_TAB_ID,
   NO_SEASON_TAB_ID,
@@ -41,7 +40,11 @@ import {
   deleteHistoryRecords,
   clearAllHistoryRecords,
   requestHistoryUpdate,
-  fetchHistorySnapshot
+  fetchHistorySnapshot,
+  isHistoryGroupCompleted,
+  canCheckHistoryGroup,
+  filterHistoryGroups,
+  normalizeHistoryFilter
 } from './services/history-service.js';
 import {
   ensureHistoryDetailOverlay,
@@ -1622,65 +1625,9 @@ import { formatOriginLabel, sanitizeCssUrl } from './utils/format.js';
   });
 }
 
-  function getHistoryGroupMain(group) {
-    if (!group || typeof group !== 'object') {
-      return null;
-    }
-    return group.main || null;
-  }
-
-  function getHistoryGroupCompletion(group) {
-    const main = getHistoryGroupMain(group);
-    return main && main.completion ? main.completion : null;
-  }
-
-  function getHistoryGroupCompletionState(group) {
-    const completion = getHistoryGroupCompletion(group);
-    return completion && completion.state ? completion.state : 'unknown';
-  }
-
-  function isHistoryGroupCompleted(group) {
-    return getHistoryGroupCompletionState(group) === 'completed';
-  }
-
-  function isHistoryGroupSeries(group) {
-    const main = getHistoryGroupMain(group);
-    return main && main.pageType === 'series';
-  }
-
-  function isHistoryGroupMovie(group) {
-    const main = getHistoryGroupMain(group);
-    return main && main.pageType === 'movie';
-  }
-
-  function canCheckHistoryGroup(group) {
-    if (!group) {
-      return false;
-    }
-    if (!isHistoryGroupSeries(group)) {
-      return false;
-    }
-    return !isHistoryGroupCompleted(group);
-  }
-
   function getFilteredHistoryGroups() {
     const groups = Array.isArray(state.historyGroups) ? state.historyGroups : [];
-    const filter = HISTORY_FILTERS.includes(state.historyFilter) ? state.historyFilter : 'all';
-    return groups.filter(group => {
-      switch (filter) {
-        case 'series':
-          return isHistoryGroupSeries(group);
-        case 'movie':
-          return isHistoryGroupMovie(group);
-        case 'ongoing':
-          return canCheckHistoryGroup(group);
-        case 'completed':
-          return isHistoryGroupCompleted(group);
-        case 'all':
-        default:
-          return true;
-      }
-    });
+    return filterHistoryGroups(groups, state.historyFilter);
   }
 
   function pruneHistorySelection() {
@@ -1701,7 +1648,7 @@ import { formatOriginLabel, sanitizeCssUrl } from './utils/format.js';
   }
 
   function setHistoryFilter(filter) {
-    const normalized = HISTORY_FILTERS.includes(filter) ? filter : 'all';
+    const normalized = normalizeHistoryFilter(filter);
     if (state.historyFilter === normalized) {
       updateHistorySelectionSummary();
       updateHistoryBatchControls();

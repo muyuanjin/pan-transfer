@@ -87,6 +87,11 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
     - Migrated the settings overlay flow into `src/content/components/settings-modal.js`, covering open/close behavior, form submission, and import/export handlers.
     - `src/content/index.js` now delegates modal wiring to the component, with `clampHistoryRateLimit`/`sanitizePreset` exported for reuse across the entry script and component helpers.
 
+## Latest Session (2025-11-03, afternoon)
+- Shifted history group completion/type helpers and filter normalization into `src/content/services/history-service.js` so `content/index.js` retains orchestration duties only.
+- Updated `src/content/index.js` to consume the new helpers (`filterHistoryGroups`, `normalizeHistoryFilter`, `canCheckHistoryGroup`, `isHistoryGroupCompleted`) and dropped the duplicated inline implementations.
+- Rebuilt via `npm run build` (2025-11-03 14:35 UTC-8) to confirm bundles still succeed after the history refactor.
+
 ## Latest Session (2025-11-03, late night)
 - Hoisted storage safety helpers (`safeStorageGet/Set/Remove`) into `src/content/utils/storage.js` and updated `content/index.js` plus `components/panel.js` to consume them.
 - Added `src/content/utils/format.js` for `formatOriginLabel` and `sanitizeCssUrl`, trimming related inline helpers from the entry script.
@@ -117,7 +122,7 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 
 ### B. Shared Helpers & Services
 - [x] Move any remaining inline sanitizers (CSS URL, title formatters) into `src/shared/utils/` or `content/utils/` as appropriate.
-- [ ] Revisit history batch logic to determine if portions belong in `services/history-service.js` (e.g., selection/filter helpers).
+- [x] Revisit history batch logic to determine if portions belong in `services/history-service.js` (e.g., selection/filter helpers).
 
 ### C. Styles & Assets
 - [ ] Split legacy `floatingButton.css` (currently copied into `content/styles/main.css`) into modular styles under `src/content/styles/` (`_variables.css`, `_base.css`, `panel.css`, `components/history.css`, `components/settings.css`, `components/toast.css`, etc.).

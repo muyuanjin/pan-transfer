@@ -1,4 +1,4 @@
-import { HISTORY_KEY } from '../constants.js';
+import { HISTORY_KEY, HISTORY_FILTERS } from '../constants.js';
 import { normalizePageUrl } from './page-analyzer.js';
 
 export async function readHistoryFromStorage() {
@@ -305,6 +305,71 @@ export function buildHistoryGroupSeasonRows(group) {
     return a.seasonIndex - b.seasonIndex;
   });
   return rows;
+}
+
+export function getHistoryGroupMain(group) {
+  if (!group || typeof group !== 'object') {
+    return null;
+  }
+  return group.main || null;
+}
+
+export function getHistoryGroupCompletion(group) {
+  const main = getHistoryGroupMain(group);
+  return main && main.completion ? main.completion : null;
+}
+
+export function getHistoryGroupCompletionState(group) {
+  const completion = getHistoryGroupCompletion(group);
+  return completion && completion.state ? completion.state : 'unknown';
+}
+
+export function isHistoryGroupCompleted(group) {
+  return getHistoryGroupCompletionState(group) === 'completed';
+}
+
+export function isHistoryGroupSeries(group) {
+  const main = getHistoryGroupMain(group);
+  return Boolean(main && main.pageType === 'series');
+}
+
+export function isHistoryGroupMovie(group) {
+  const main = getHistoryGroupMain(group);
+  return Boolean(main && main.pageType === 'movie');
+}
+
+export function canCheckHistoryGroup(group) {
+  if (!group) {
+    return false;
+  }
+  if (!isHistoryGroupSeries(group)) {
+    return false;
+  }
+  return !isHistoryGroupCompleted(group);
+}
+
+export function normalizeHistoryFilter(filter) {
+  return HISTORY_FILTERS.includes(filter) ? filter : 'all';
+}
+
+export function filterHistoryGroups(groups, filter = 'all') {
+  const normalized = normalizeHistoryFilter(filter);
+  const list = Array.isArray(groups) ? groups : [];
+  return list.filter(group => {
+    switch (normalized) {
+      case 'series':
+        return isHistoryGroupSeries(group);
+      case 'movie':
+        return isHistoryGroupMovie(group);
+      case 'ongoing':
+        return canCheckHistoryGroup(group);
+      case 'completed':
+        return isHistoryGroupCompleted(group);
+      case 'all':
+      default:
+        return true;
+    }
+  });
 }
 
 export function prepareHistoryRecords(raw) {
