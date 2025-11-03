@@ -574,8 +574,37 @@
   let edgeTransitionUnbind = null;
   let scheduleEdgeHideRef = null;
   let cancelEdgeHideRef = null;
+  let documentPointerDownBound = false;
 
   document.addEventListener('keydown', handleHistoryDetailKeydown, true);
+
+  function handleDocumentPointerDown(event) {
+    if (!floatingPanel || isPanelPinned) {
+      return;
+    }
+    const target = event.target;
+    if (!(target instanceof Node)) {
+      return;
+    }
+    if (floatingPanel.contains(target)) {
+      return;
+    }
+    if (target.closest('.zi-overlay')) {
+      return;
+    }
+    if (state.historyDetail?.isOpen) {
+      if ((detailDom.modal && detailDom.modal.contains(target)) ||
+          (detailDom.backdrop && detailDom.backdrop.contains(target))) {
+        return;
+      }
+    }
+    pointerInsidePanel = false;
+    floatingPanel.classList.remove('is-hovering');
+    floatingPanel.classList.add('is-leaving');
+    if (typeof scheduleEdgeHideRef === 'function') {
+      scheduleEdgeHideRef(0);
+    }
+  }
 
   function computeItemTargetPath(item, defaultPath) {
     if (!state.useSeasonSubdir || !item || !item.seasonId) {
@@ -4236,6 +4265,14 @@
     if (!group) {
       return;
     }
+    if (!isPanelPinned && typeof cancelEdgeHideRef === 'function') {
+      cancelEdgeHideRef({ show: true });
+    }
+    if (floatingPanel) {
+      pointerInsidePanel = true;
+      floatingPanel.classList.add('is-hovering');
+      floatingPanel.classList.remove('is-leaving');
+    }
     ensureHistoryDetailOverlay();
     const fallback = buildHistoryDetailFallback(group, overrides);
     const pageUrl = (typeof overrides.pageUrl === 'string' && overrides.pageUrl.trim())
@@ -4278,7 +4315,8 @@
     }
   }
 
-  function closeHistoryDetail() {
+  function closeHistoryDetail(options = {}) {
+    const { hideDelay = EDGE_HIDE_DELAY } = options;
     if (!state.historyDetail.isOpen) {
       return;
     }
@@ -4290,6 +4328,17 @@
     state.historyDetail.data = null;
     state.historyDetail.fallback = null;
     renderHistoryDetail();
+    if (floatingPanel && !isPanelPinned) {
+      const hovering = floatingPanel.matches(':hover');
+      pointerInsidePanel = hovering;
+      if (!hovering) {
+        floatingPanel.classList.remove('is-hovering');
+        floatingPanel.classList.add('is-leaving');
+        if (typeof scheduleEdgeHideRef === 'function') {
+          scheduleEdgeHideRef(Math.max(0, hideDelay));
+        }
+      }
+    }
   }
 
   function handleHistoryDetailKeydown(event) {
@@ -5462,6 +5511,10 @@
         panelHideTimer = null;
       }
       panel.style.transition = 'none';
+      if (!documentPointerDownBound) {
+        document.addEventListener('pointerdown', handleDocumentPointerDown, true);
+        documentPointerDownBound = true;
+      }
       ensureHistoryDetailOverlay();
       renderHistoryDetail();
 
@@ -6497,6 +6550,10 @@
       }
       scheduleEdgeHideRef = null;
       cancelEdgeHideRef = null;
+      if (documentPointerDownBound) {
+        document.removeEventListener('pointerdown', handleDocumentPointerDown, true);
+        documentPointerDownBound = false;
+      }
       state.deferredSeasonInfos = [];
       state.isSeasonLoading = false;
       state.seasonLoadProgress = { total: 0, loaded: 0 };
