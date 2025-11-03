@@ -61,28 +61,24 @@
     'MBS Mainichi', '毎日放送',
     'AbemaTV', 'Abema', 'アベマTV',
     'dアニメストア', 'd Anime Store',
-    'Amazon Prime Video', 'Amazon Video',
-    'Netflix', 'ネットフリックス',
-    'Hulu', 'フールー',
-    'U-NEXT', 'ユーネクスト',
-    'FOD', 'フジテレビオンデマンド',
-    'TVer', 'ティーバー',
-    'Gyao!', 'GYAO!',
-    'Niconico', 'ニコニコ動画',
-    'Bilibili', 'ビリビリ',
     '日テレ', 'テレビ朝日', 'TBSテレビ', 'フジテレビ',
     'テレビ東京', 'NHK総合', 'NHK-Eテレ',
     'BS日テレ', 'BS朝日', 'BSフジ'
   ]);
 
-  const JAPANESE_KEYWORDS = new Set([
-    '日本', '日剧', '日漫', '动漫', '动画', 'anime', 'アニメ',
-    '番剧', '新番', '季番', '年番', '半年番',
-    '声优', '声優', 'seiyu', '声優さん',
-    '原作', '漫画', 'まんが', 'manga',
-    '轻小说', 'ライトノベル', 'light novel',
-    '游戏改编', 'ゲーム原作', 'game original',
-    '小说改编', '小説原作', 'novel original'
+  const JAPANESE_KEYWORDS_STRONG = new Set([
+    '日本', '日剧', '日劇', '日漫', '日本動畫', '日本动画',
+    '番剧', '番劇', '新番', '季番', '年番', '半年番',
+    '声优', '聲優', '声優', 'seiyu',
+    '原作：日本', '日本漫画', '日本漫畫',
+    'アニメ', 'アニメーション', 'アニメ化', 'マンガ', 'まんが',
+    'ライトノベル', 'ラノベ', '小説原作', '小說原作',
+    'ゲーム原作', '遊戲改編', 'ゲーム原作',
+    '原作：ライトノベル', '原作：ラノベ'
+  ]);
+
+  const JAPANESE_KEYWORDS_WEAK = new Set([
+    '动漫', '動畫', '动画', '动画片', 'anime', 'light novel', 'manga'
   ]);
 
   class ChaospaceClassifier {
@@ -128,15 +124,19 @@
           isSeason: false,
           primary: {
             hasJapaneseChannel: false,
-            hasJapaneseKeywordsInBody: false,
-            hasJapaneseKeywordsInMeta: false,
+            hasStrongKeywordsInBody: false,
+            hasStrongKeywordsInMeta: false,
+            hasWeakKeywordsInBody: false,
+            hasWeakKeywordsInMeta: false,
             tvChannels: []
           },
           mainPageLoaded: false,
           main: {
             hasJapaneseChannel: false,
-            hasJapaneseKeywordsInBody: false,
-            hasJapaneseKeywordsInMeta: false,
+            hasStrongKeywordsInBody: false,
+            hasStrongKeywordsInMeta: false,
+            hasWeakKeywordsInBody: false,
+            hasWeakKeywordsInMeta: false,
             tvChannels: []
           }
         }
@@ -161,18 +161,20 @@
       const primaryAnalysis = this.analyzeDocument(document);
       result.debug.primary = {
         hasJapaneseChannel: primaryAnalysis.hasJapaneseChannel,
-        hasJapaneseKeywordsInBody: primaryAnalysis.hasJapaneseKeywordsInBody,
-        hasJapaneseKeywordsInMeta: primaryAnalysis.hasJapaneseKeywordsInMeta,
+        hasStrongKeywordsInBody: primaryAnalysis.hasStrongKeywordsInBody,
+        hasStrongKeywordsInMeta: primaryAnalysis.hasStrongKeywordsInMeta,
+        hasWeakKeywordsInBody: primaryAnalysis.hasWeakKeywordsInBody,
+        hasWeakKeywordsInMeta: primaryAnalysis.hasWeakKeywordsInMeta,
         tvChannels: primaryAnalysis.tvChannels
       };
 
       let finalClassification = primaryAnalysis.classification;
-      let confidence = primaryAnalysis.hasJapaneseChannel ? 0.9 : (primaryAnalysis.hasJapaneseKeywords ? 0.7 : 0.6);
+      let confidence = primaryAnalysis.hasJapaneseChannel ? 0.9 : (primaryAnalysis.hasJapaneseKeywordsStrong ? 0.75 : 0.6);
 
       if (primaryAnalysis.hasJapaneseChannel) {
         result.reasons.push('检测到日本电视台/平台标识');
-      } else if (primaryAnalysis.hasJapaneseKeywordsInBody || primaryAnalysis.hasJapaneseKeywordsInMeta) {
-        const sourceLabel = primaryAnalysis.hasJapaneseKeywordsInBody ? '页面正文' : '标题/简介';
+      } else if (primaryAnalysis.hasJapaneseKeywordsStrong) {
+        const sourceLabel = primaryAnalysis.hasStrongKeywordsInBody ? '页面正文' : '标题/简介';
         result.reasons.push(`检测到 ${sourceLabel} 中的日本相关关键词`);
       }
 
@@ -183,17 +185,19 @@
           const mainAnalysis = this.analyzeDocument(mainDoc);
           result.debug.main = {
             hasJapaneseChannel: mainAnalysis.hasJapaneseChannel,
-            hasJapaneseKeywordsInBody: mainAnalysis.hasJapaneseKeywordsInBody,
-            hasJapaneseKeywordsInMeta: mainAnalysis.hasJapaneseKeywordsInMeta,
+            hasStrongKeywordsInBody: mainAnalysis.hasStrongKeywordsInBody,
+            hasStrongKeywordsInMeta: mainAnalysis.hasStrongKeywordsInMeta,
+            hasWeakKeywordsInBody: mainAnalysis.hasWeakKeywordsInBody,
+            hasWeakKeywordsInMeta: mainAnalysis.hasWeakKeywordsInMeta,
             tvChannels: mainAnalysis.tvChannels
           };
           if (mainAnalysis.classification === 'anime') {
             finalClassification = 'anime';
-            confidence = mainAnalysis.hasJapaneseChannel ? 0.9 : (mainAnalysis.hasJapaneseKeywords ? 0.75 : 0.6);
+            confidence = mainAnalysis.hasJapaneseChannel ? 0.9 : (mainAnalysis.hasJapaneseKeywordsStrong ? 0.75 : 0.6);
             if (mainAnalysis.hasJapaneseChannel) {
               result.reasons.push('主剧集页检测到日本电视台/平台标识');
-            } else if (mainAnalysis.hasJapaneseKeywordsInBody || mainAnalysis.hasJapaneseKeywordsInMeta) {
-              const mainSourceLabel = mainAnalysis.hasJapaneseKeywordsInBody ? '主剧集页正文' : '主剧集页标题/简介';
+            } else if (mainAnalysis.hasJapaneseKeywordsStrong) {
+              const mainSourceLabel = mainAnalysis.hasStrongKeywordsInBody ? '主剧集页正文' : '主剧集页标题/简介';
               result.reasons.push(`主剧集页检测到 ${mainSourceLabel} 中的日本相关关键词`);
             }
           }
@@ -228,19 +232,26 @@
       const channels = this.extractTVChannels(doc);
       const hasJapaneseChannel = channels.some(channel => this.isJapaneseTVChannel(channel));
       const pageText = this.extractPageText(doc);
-      const hasJapaneseKeywordsInBody = this.hasJapaneseKeywords(pageText);
+      const hasStrongKeywordsInBody = this.containsKeywords(pageText, JAPANESE_KEYWORDS_STRONG);
+      const hasWeakKeywordsInBody = this.containsKeywords(pageText, JAPANESE_KEYWORDS_WEAK);
       const title = (doc && doc.title) || document.title || '';
       const description = this.extractDescription(doc);
-      const hasJapaneseKeywordsInMeta = this.hasJapaneseKeywords(`${title} ${description}`);
-      const hasJapaneseKeywords = hasJapaneseKeywordsInBody || hasJapaneseKeywordsInMeta;
-      const classification = hasJapaneseChannel || hasJapaneseKeywords ? 'anime' : 'tvshow';
+      const metaText = `${title} ${description}`;
+      const hasStrongKeywordsInMeta = this.containsKeywords(metaText, JAPANESE_KEYWORDS_STRONG);
+      const hasWeakKeywordsInMeta = this.containsKeywords(metaText, JAPANESE_KEYWORDS_WEAK);
+      const hasJapaneseKeywordsStrong = hasStrongKeywordsInBody || hasStrongKeywordsInMeta;
+      const hasJapaneseKeywordsWeak = hasWeakKeywordsInBody || hasWeakKeywordsInMeta;
+      const classification = hasJapaneseChannel || hasJapaneseKeywordsStrong ? 'anime' : 'tvshow';
       return {
         classification,
         tvChannels: channels,
         hasJapaneseChannel,
-        hasJapaneseKeywordsInBody,
-        hasJapaneseKeywordsInMeta,
-        hasJapaneseKeywords
+        hasStrongKeywordsInBody,
+        hasStrongKeywordsInMeta,
+        hasWeakKeywordsInBody,
+        hasWeakKeywordsInMeta,
+        hasJapaneseKeywordsStrong,
+        hasJapaneseKeywordsWeak
       };
     }
 
@@ -271,7 +282,7 @@
     }
 
     async getMainPageContent({ onlyWhenNecessary = false, currentAnalysis = null } = {}) {
-      if (onlyWhenNecessary && currentAnalysis && (currentAnalysis.hasJapaneseChannel || currentAnalysis.hasJapaneseKeywords)) {
+      if (onlyWhenNecessary && currentAnalysis && (currentAnalysis.hasJapaneseChannel || currentAnalysis.hasJapaneseKeywordsStrong)) {
         return document;
       }
 
@@ -385,12 +396,12 @@
       }
     }
 
-    hasJapaneseKeywords(text) {
+    containsKeywords(text, keywordSet) {
       if (!text || typeof text !== 'string') {
         return false;
       }
       const lower = text.toLowerCase();
-      for (const keyword of JAPANESE_KEYWORDS) {
+      for (const keyword of keywordSet) {
         if (lower.includes(keyword.toLowerCase())) {
           return true;
         }
