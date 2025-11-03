@@ -15,6 +15,9 @@
   const EDGE_HIDE_MIN_PEEK = 44;
   const EDGE_HIDE_MAX_PEEK = 128;
   const EDGE_HIDE_DEFAULT_PEEK = 64;
+  const INITIAL_PANEL_DELAY_MS = 60;
+  const PANEL_CREATION_RETRY_DELAY_MS = 100;
+  const PANEL_CREATION_MAX_ATTEMPTS = 6;
   const POSTER_PREVIEW_MIN_SCALE = 0.4;
   const POSTER_PREVIEW_MAX_SCALE = 5;
   const POSTER_PREVIEW_ZOOM_STEP = 0.12;
@@ -4426,9 +4429,10 @@
 
   async function createFloatingPanel() {
     if (floatingPanel || panelCreationInProgress) {
-      return;
+      return Boolean(floatingPanel);
     }
     panelCreationInProgress = true;
+    let panelCreated = false;
 
     if (detachWindowResize) {
       detachWindowResize();
@@ -4455,7 +4459,7 @@
       const hasItems = Array.isArray(data.items) && data.items.length > 0;
       const deferredSeasons = Array.isArray(data.deferredSeasons) ? [...data.deferredSeasons] : [];
       if (!hasItems && deferredSeasons.length === 0) {
-        return;
+        return false;
       }
 
       state.pageTitle = data.title || '';
@@ -4686,6 +4690,7 @@
       };
       panel.addEventListener('animationend', handlePanelIntroEnd);
       floatingPanel = panel;
+      panelCreated = true;
       const shouldEdgeHideOnMount = true;
       panelEdgeState = { isHidden: shouldEdgeHideOnMount, side: 'right', peek: EDGE_HIDE_DEFAULT_PEEK };
       pointerInsidePanel = false;
@@ -5616,6 +5621,7 @@
     } finally {
       panelCreationInProgress = false;
     }
+    return panelCreated;
   }
 
   function toggleFloatingPanel() {
@@ -5693,6 +5699,33 @@
     return isSeasonPage() || /\/movies\/\d+\.html/.test(window.location.pathname) || isTvShowPage();
   }
 
+  function scheduleInitialPanelCreation() {
+    let attempts = 0;
+    const tryCreate = async () => {
+      if (floatingPanel || panelCreationInProgress) {
+        return;
+      }
+      attempts += 1;
+      const created = await createFloatingPanel();
+      if (created || floatingPanel) {
+        return;
+      }
+      if (attempts < PANEL_CREATION_MAX_ATTEMPTS) {
+        window.setTimeout(tryCreate, PANEL_CREATION_RETRY_DELAY_MS);
+      }
+    };
+
+    const kickoff = () => {
+      if (INITIAL_PANEL_DELAY_MS <= 0) {
+        tryCreate();
+      } else {
+        window.setTimeout(tryCreate, INITIAL_PANEL_DELAY_MS);
+      }
+    };
+
+    kickoff();
+  }
+
   function init() {
     if (!isSupportedDetailPage()) {
       return;
@@ -5703,10 +5736,10 @@
 
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-          setTimeout(createFloatingPanel, 800);
+          scheduleInitialPanelCreation();
         });
       } else {
-        setTimeout(createFloatingPanel, 800);
+        scheduleInitialPanelCreation();
       }
 
       // 监听 DOM 变化,如果窗口被移除且有资源则重新创建
