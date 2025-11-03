@@ -1,4 +1,5 @@
 import { disableElementDrag } from '../utils/dom.js';
+import { safeStorageGet, safeStorageSet } from '../utils/storage.js';
 
 const PANEL_MARGIN = 16;
 const PANEL_MIN_WIDTH = 360;
@@ -303,9 +304,6 @@ export async function mountPanelShell({
   originLabel,
   theme,
   handleDocumentPointerDown,
-  safeStorageSet,
-  isExtensionContextInvalidated,
-  warnStorageInvalidation,
   constants,
   storageKeys
 }) {
@@ -582,17 +580,7 @@ export async function mountPanelShell({
     return lastKnownPosition;
   };
 
-  let savedState = {};
-  try {
-    savedState = await chrome.storage.local.get([POSITION_KEY, SIZE_KEY]);
-  } catch (error) {
-    if (isExtensionContextInvalidated(error)) {
-      warnStorageInvalidation('Storage read');
-    } else {
-      console.error('[Chaospace Transfer] Failed to restore panel geometry', error);
-    }
-    savedState = {};
-  }
+  const savedState = await safeStorageGet([POSITION_KEY, SIZE_KEY], 'panel geometry');
   const savedSize = savedState[SIZE_KEY];
   if (savedSize && Number.isFinite(savedSize.width) && Number.isFinite(savedSize.height)) {
     applyPanelSize(savedSize.width, savedSize.height);

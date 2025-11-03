@@ -56,6 +56,12 @@ import { mountPanelShell } from './components/panel.js';
 import { showToast } from './components/toast.js';
 import { installZoomPreview } from './components/zoom-preview.js';
 import { disableElementDrag } from './utils/dom.js';
+import {
+  safeStorageGet,
+  safeStorageSet,
+  safeStorageRemove
+} from './utils/storage.js';
+import { formatOriginLabel, sanitizeCssUrl } from './utils/format.js';
 
 // chaospace content entry
 
@@ -1420,25 +1426,6 @@ import { disableElementDrag } from './utils/dom.js';
     };
   }
 
-  function formatOriginLabel(origin) {
-    if (!origin) {
-      return '';
-    }
-    try {
-      const url = new URL(origin, window.location.href);
-      return url.hostname.replace(/^www\./, '');
-    } catch (_error) {
-      return origin;
-    }
-  }
-
-  function sanitizeCssUrl(url) {
-    if (!url) {
-      return '';
-    }
-    return url.replace(/["\n\r]/g, '').trim();
-  }
-
   function updatePanelHeader() {
     const hasPoster = Boolean(state.poster && state.poster.src);
     if (panelDom.showTitle) {
@@ -1504,7 +1491,7 @@ import { disableElementDrag } from './utils/dom.js';
 
   async function loadSettings() {
     try {
-      const stored = await chrome.storage.local.get(STORAGE_KEY);
+      const stored = await safeStorageGet(STORAGE_KEY, 'settings');
       const settings = stored[STORAGE_KEY] || {};
       if (typeof settings.baseDir === 'string') {
         const normalizedBase = normalizeDir(settings.baseDir);
@@ -1561,51 +1548,6 @@ import { disableElementDrag } from './utils/dom.js';
     await safeStorageSet({
       [STORAGE_KEY]: settings
     }, 'settings');
-  }
-
-  let storageInvalidationWarned = false;
-
-  function isExtensionContextInvalidated(error) {
-    if (!error) {
-      return false;
-    }
-    const message = typeof error === 'string' ? error : error.message;
-    if (!message) {
-      return false;
-    }
-    return message.toLowerCase().includes('context invalidated');
-  }
-
-  function warnStorageInvalidation(operation = 'Storage operation') {
-    if (storageInvalidationWarned) {
-      return;
-    }
-    console.warn(`[Chaospace Transfer] ${operation} skipped · extension context invalidated. 请重新加载扩展或页面以继续。`);
-    storageInvalidationWarned = true;
-  }
-
-  async function safeStorageSet(entries, contextLabel = 'storage') {
-    try {
-      await chrome.storage.local.set(entries);
-    } catch (error) {
-      if (isExtensionContextInvalidated(error)) {
-        warnStorageInvalidation('Storage write');
-        return;
-      }
-      console.error(`[Chaospace Transfer] Failed to persist ${contextLabel}`, error);
-    }
-  }
-
-  async function safeStorageRemove(keys, contextLabel = 'storage') {
-    try {
-      await chrome.storage.local.remove(keys);
-    } catch (error) {
-      if (isExtensionContextInvalidated(error)) {
-        warnStorageInvalidation('Storage delete');
-        return;
-      }
-      console.error(`[Chaospace Transfer] Failed to remove ${contextLabel}`, error);
-    }
   }
 
   function ensurePreset(value) {
@@ -2777,9 +2719,6 @@ import { disableElementDrag } from './utils/dom.js';
         originLabel,
         theme: state.theme,
         handleDocumentPointerDown,
-        safeStorageSet,
-        isExtensionContextInvalidated,
-        warnStorageInvalidation,
         constants: {
           EDGE_HIDE_DELAY,
           EDGE_HIDE_DEFAULT_PEEK,

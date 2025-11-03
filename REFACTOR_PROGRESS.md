@@ -87,6 +87,11 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
     - Migrated the settings overlay flow into `src/content/components/settings-modal.js`, covering open/close behavior, form submission, and import/export handlers.
     - `src/content/index.js` now delegates modal wiring to the component, with `clampHistoryRateLimit`/`sanitizePreset` exported for reuse across the entry script and component helpers.
 
+## Latest Session (2025-11-03, late night)
+- Hoisted storage safety helpers (`safeStorageGet/Set/Remove`) into `src/content/utils/storage.js` and updated `content/index.js` plus `components/panel.js` to consume them.
+- Added `src/content/utils/format.js` for `formatOriginLabel` and `sanitizeCssUrl`, trimming related inline helpers from the entry script.
+- Confirmed Vite production build still succeeds after the utility extraction (`npm run build`, 2025-11-03 23:40 UTC-8).
+
 ## Latest Session (2025-11-03, evening)
 - Extracted the resource list UI into `components/resource-list.js`, clearing 400+ LOC from `content/index.js`.
 - Sanitized season labels end-to-end (initial scrape, deferred loads, state hydration) to remove trailing dates/status text that was leaking into the UI and filesystem paths.
@@ -107,11 +112,11 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 - [x] Extract panel shell + drag/resize logic into `components/panel.js` (or similar) and import from entry script.
 - [x] Extract resource list rendering, selection toggles, and pagination into `components/resource-list.js`.
 - [x] Move settings modal logic into `components/settings-modal.js`.
-- [ ] Consolidate remaining DOM helpers (geometry persistence, storage wrappers) into `content/utils/` or dedicated services.
+- [x] Consolidate remaining DOM helpers (geometry persistence, storage wrappers) into `content/utils/` or dedicated services.
 - [ ] Continue trimming `src/content/index.js` so it only orchestrates imports, bootstrapping, and Chrome message wiring.
 
 ### B. Shared Helpers & Services
-- [ ] Move any remaining inline sanitizers (CSS URL, title formatters) into `src/shared/utils/` or `content/utils/` as appropriate.
+- [x] Move any remaining inline sanitizers (CSS URL, title formatters) into `src/shared/utils/` or `content/utils/` as appropriate.
 - [ ] Revisit history batch logic to determine if portions belong in `services/history-service.js` (e.g., selection/filter helpers).
 
 ### C. Styles & Assets
@@ -134,7 +139,7 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 - **Parity validation**: Season directory sanitization/path builder changes need confirmation on fresh transfers (prior runs still showed `– CHAOSPACE` suffix before the latest fix).
 
 ## Manual Verification Status
-- Vite production build succeeds as of 2025-11-03 (`npm run build`).
+- Vite production build succeeds as of 2025-11-03 23:40 (UTC-8) after the latest utility extraction (`npm run build`).
 - Manual Chrome smoke test (2025-11-03) confirms extension loads, icons display, data import & transfers complete, and history rendering works; history detail zoom preview verified after latest fix.
 - Post-cleanup season tab labels and directory names have not yet been re-smoke-tested; schedule a fresh transfer to validate sanitized labels/paths with live data.
 - Settings modal flows (import/export/backups, layout reset, rate limit validation) need a follow-up manual regression pass now that the component extraction is complete.
@@ -149,6 +154,7 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 ## Quick References
 - Entry script: `src/content/index.js`
 - New components: `src/content/components/{toast.js, zoom-preview.js, history-detail.js, history-card.js, panel.js, resource-list.js, settings-modal.js}`
+- Content utilities: `src/content/utils/{dom.js, storage.js, format.js}`
 - Shared history helpers: `src/content/services/history-service.js`
 - Legacy baseline (for parity checks): `chaospace-extension/contentScript.js`
 
