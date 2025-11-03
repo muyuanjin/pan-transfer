@@ -26,6 +26,7 @@
   const POSTER_PREVIEW_VIEWPORT_MARGIN = 64;
   const POSTER_PREVIEW_BASE_MIN_WIDTH = 260;
   const POSTER_PREVIEW_BASE_MIN_HEIGHT = 390;
+  const PAN_DISK_BASE_URL = 'https://pan.baidu.com/disk/main#/index?category=all&path=';
 
   const CLASSIFICATION_PATH_MAP = {
     anime: '/视频/番剧',
@@ -2068,6 +2069,117 @@
     return url.replace(/["\n\r]/g, '').trim();
   }
 
+  function buildPanDirectoryUrl(path) {
+    const normalized = normalizeDir(path || '/');
+    const encoded = encodeURIComponent(normalized).replace(/%2F/g, '/');
+    return `${PAN_DISK_BASE_URL}${encoded}`;
+  }
+
+  function resolveHistoryPanInfo(options = {}) {
+    const { record = null, group = null, seasonId = '' } = options;
+    const baseCandidates = [];
+    const seasonCandidates = [];
+
+    const pushBaseCandidate = value => {
+      if (typeof value !== 'string') {
+        return;
+      }
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return;
+      }
+      const looksAbsolute = trimmed.startsWith('/') || trimmed.startsWith('\\') || trimmed.includes('/');
+      if (!looksAbsolute) {
+        seasonCandidates.push(trimmed);
+        return;
+      }
+      baseCandidates.push(trimmed);
+    };
+
+    const pushSeasonCandidate = value => {
+      if (typeof value !== 'string') {
+        return;
+      }
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return;
+      }
+      seasonCandidates.push(trimmed);
+    };
+
+    if (record && typeof record === 'object') {
+      pushBaseCandidate(record.targetDirectory);
+      pushBaseCandidate(record.baseDir);
+    }
+
+    if (group?.main && typeof group.main === 'object') {
+      pushBaseCandidate(group.main.targetDirectory);
+      pushBaseCandidate(group.main.baseDir);
+    }
+
+    if (seasonId && group?.main && group.main.seasonDirectory && typeof group.main.seasonDirectory === 'object') {
+      pushSeasonCandidate(group.main.seasonDirectory[seasonId]);
+    }
+
+    const normalizedBases = baseCandidates
+      .map(value => normalizeDir(value))
+      .filter(Boolean);
+    let basePath = normalizedBases.find(path => path && path !== '/');
+    if (!basePath) {
+      basePath = normalizedBases[0] || '';
+    }
+
+    const resolveCandidate = (value) => {
+      if (typeof value !== 'string') {
+        return '';
+      }
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return '';
+      }
+      const looksAbsolute = trimmed.startsWith('/') || trimmed.startsWith('\\') || trimmed.includes('/');
+      if (looksAbsolute) {
+        return normalizeDir(trimmed);
+      }
+      const segment = sanitizeSeasonDirSegment(trimmed);
+      if (!segment) {
+        return '';
+      }
+      if (basePath) {
+        const prefix = basePath === '/' ? '' : basePath;
+        return normalizeDir(`${prefix}/${segment}`);
+      }
+      return normalizeDir(segment);
+    };
+
+    for (const candidate of seasonCandidates) {
+      const resolved = resolveCandidate(candidate);
+      if (resolved && resolved !== '/') {
+        return {
+          path: resolved,
+          url: buildPanDirectoryUrl(resolved),
+          isFallback: false
+        };
+      }
+    }
+
+    for (const candidate of normalizedBases) {
+      if (candidate) {
+        return {
+          path: candidate,
+          url: buildPanDirectoryUrl(candidate),
+          isFallback: false
+        };
+      }
+    }
+
+    return {
+      path: '/',
+      url: buildPanDirectoryUrl('/'),
+      isFallback: true
+    };
+  }
+
   function handleSuppressDrag(event) {
     event.preventDefault();
   }
@@ -3270,6 +3382,17 @@
       }
       actions.appendChild(openBtn);
 
+      const panInfo = resolveHistoryPanInfo({ record: mainRecord, group });
+      const panBtn = document.createElement('button');
+      panBtn.type = 'button';
+      panBtn.dataset.action = 'open-pan';
+      panBtn.dataset.url = panInfo.url;
+      panBtn.dataset.path = panInfo.path;
+      panBtn.className = 'chaospace-history-action chaospace-history-action-pan';
+      panBtn.textContent = '进入网盘';
+      panBtn.title = panInfo.path === '/' ? '打开网盘首页' : `打开网盘目录 ${panInfo.path}`;
+      actions.appendChild(panBtn);
+
       if (mainRecord.pageType === 'series') {
         const checkBtn = document.createElement('button');
         checkBtn.type = 'button';
@@ -3372,6 +3495,17 @@
             rowOpen.classList.add('is-disabled');
           }
           rowActions.appendChild(rowOpen);
+
+          const rowPanInfo = resolveHistoryPanInfo({ record: row.record, group, seasonId: row.seasonId });
+          const rowPanBtn = document.createElement('button');
+          rowPanBtn.type = 'button';
+          rowPanBtn.className = 'chaospace-history-action chaospace-history-action-pan';
+          rowPanBtn.dataset.action = 'open-pan';
+          rowPanBtn.dataset.url = rowPanInfo.url;
+          rowPanBtn.dataset.path = rowPanInfo.path;
+          rowPanBtn.textContent = '进入网盘';
+          rowPanBtn.title = rowPanInfo.path === '/' ? '打开网盘首页' : `打开网盘目录 ${rowPanInfo.path}`;
+          rowActions.appendChild(rowPanBtn);
 
           const rowCheck = document.createElement('button');
           rowCheck.type = 'button';
@@ -5397,6 +5531,9 @@
             if (url) {
               window.open(url, '_blank', 'noopener');
             }
+          } else if (action === 'open-pan') {
+            const panUrl = actionButton.dataset.url || buildPanDirectoryUrl('/');
+            window.open(panUrl, '_blank', 'noopener');
           } else if (action === 'check') {
             if (url) {
               triggerHistoryUpdate(url, actionButton);

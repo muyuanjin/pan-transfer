@@ -1540,6 +1540,29 @@ button.chaospace-history-season-poster:hover {
   color: #065f46;
 }
 
+.chaospace-history-action-pan {
+  border-color: rgba(14, 165, 233, 0.45);
+  background: rgba(14, 165, 233, 0.14);
+  color: rgba(14, 165, 233, 0.92);
+}
+
+.chaospace-history-action-pan:hover {
+  background: rgba(14, 165, 233, 0.26);
+  border-color: rgba(14, 165, 233, 0.6);
+  color: #0369a1;
+}
+
+.chaospace-float-panel.theme-light .chaospace-history-action-pan {
+  background: rgba(224, 242, 254, 0.9);
+  border-color: rgba(14, 165, 233, 0.4);
+  color: #0369a1;
+}
+
+.chaospace-float-panel.theme-light .chaospace-history-action-pan:hover {
+  background: rgba(14, 165, 233, 0.32);
+  color: #0c4a6e;
+}
+
 .chaospace-history-action-check {
   border-color: rgba(59, 130, 246, 0.45);
   background: rgba(59, 130, 246, 0.12);
