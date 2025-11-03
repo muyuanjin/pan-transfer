@@ -109,17 +109,19 @@ export function normalizeHistoryDetailResponse(rawDetail, fallback) {
       ? detail.stills
         .map(still => {
           const full = normalizeString(still?.full);
+          const url = normalizeString(still?.url);
           const thumb = normalizeString(still?.thumb);
           const alt = normalizeString(still?.alt) || safeFallback.title;
-          const resolvedFull = full || thumb;
-          const resolvedThumb = thumb || full;
+          const resolvedFull = full || url || thumb;
+          const resolvedThumb = thumb || url || full;
           if (!resolvedFull && !resolvedThumb) {
             return null;
           }
           return {
             full: resolvedFull || resolvedThumb,
             thumb: resolvedThumb || resolvedFull,
-            alt
+            alt,
+            url: url || resolvedFull || resolvedThumb
           };
         })
         .filter(Boolean)

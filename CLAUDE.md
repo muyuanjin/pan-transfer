@@ -15,35 +15,55 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 架构设计
 
+**⚠️ 重要**: 本项目已采用 **Vite** 构建系统,源代码位于 `src/` 目录。`chaospace-extension/` 目录为遗留构建产物,仅供参考,**不应直接修改**。
+
+### 项目结构
+
+```
+src/
+├── background/          # Service Worker 后台逻辑
+│   ├── api/            # 百度网盘和 CHAOSPACE API 封装
+│   ├── services/       # 业务服务(转存、解析、历史记录)
+│   ├── storage/        # 缓存和历史记录存储
+│   └── index.js        # 后台入口
+├── content/            # Content Script 内容脚本
+│   ├── components/     # UI 组件(面板、历史卡片、资源列表)
+│   ├── services/       # 页面解析和历史服务
+│   ├── state/          # 前端状态管理
+│   └── index.js        # 内容脚本入口
+├── shared/             # 共享工具函数
+│   └── utils/          # 工具函数(sanitizers、completion-status、chinese-numeral)
+└── manifest.json       # 扩展清单
+```
+
 ### 核心组件
 
-1. **background.js** (Service Worker)
+1. **background/** (Service Worker)
    - 负责所有后台业务逻辑
    - 百度网盘 API 交互:获取 bdstoken、验证分享密码、列出目录、创建目录、转存文件
    - 持久化缓存管理:`chrome.storage.local` 存储目录缓存和已转存分享链接
    - 历史记录管理:记录每个页面的转存历史,支持增量更新检测
    - 错误处理与重试机制
 
-2. **contentScript.js** (内容脚本)
-   - 注入到 CHAOSPACE 页面(`/seasons/*.html`)
+2. **content/** (内容脚本)
+   - 注入到 CHAOSPACE 页面(`/seasons/*.html`, `/tvshows/*.html`)
    - 解析页面 DOM 结构,提取资源链接、标题、海报等信息
    - 渲染浮动面板 UI
    - 资源选择、排序、路径配置等用户交互
    - 监听后台转存进度并实时更新 UI
 
-3. **popup.js** (弹窗脚本)
-   - 扩展工具栏图标点击后的弹窗界面
-   - 功能与 contentScript 类似,但用于独立弹窗环境
-   - 通过 `chrome.tabs.sendMessage` 与当前标签页通信获取资源列表
+3. **shared/** (共享工具)
+   - 通用工具函数,供 background 和 content 共享
+   - 包含中文数字转换、路径清理、完成状态解析等功能
 
 ### 数据流
 
 ```
 CHAOSPACE 页面
     ↓ (DOM 解析)
-contentScript.js → 提取资源列表
+content/services/page-analyzer.js → 提取资源列表
     ↓ (用户选择)
-background.js → 抓取分享链接详情
+background/services/transfer-service.js → 抓取分享链接详情
     ↓ (验证提取码)
 百度网盘 API → 验证分享密码
     ↓ (获取文件元数据)
@@ -53,6 +73,20 @@ background.js → 抓取分享链接详情
     ↓ (记录历史)
 chrome.storage.local → 持久化缓存
 ```
+
+### 构建与开发
+
+**开发模式**:
+```bash
+npm run dev
+```
+
+**生产构建**:
+```bash
+npm run build
+```
+
+构建产物输出到 `chaospace-extension/` 目录,用于加载到浏览器。
 
 ## 关键技术点
 
@@ -117,24 +151,41 @@ chrome.storage.local → 持久化缓存
 
 ## 开发流程
 
-### 调试扩展
+### 本地开发
 
-1. 打开 `chrome://extensions/` 或 `edge://extensions/`
-2. 启用"开发者模式"
-3. 点击"加载已解压的扩展程序",选择 `chaospace-extension` 目录
-4. 修改代码后,点击扩展卡片上的"刷新"按钮
+1. 安装依赖:
+   ```bash
+   npm install
+   ```
 
-### 调试 Service Worker (background.js)
+2. 启动开发模式(支持热重载):
+   ```bash
+   npm run dev
+   ```
+
+3. 加载扩展:
+   - 打开 `chrome://extensions/` 或 `edge://extensions/`
+   - 启用"开发者模式"
+   - 点击"加载已解压的扩展程序",选择 `chaospace-extension` 目录
+
+4. 修改源代码:
+   - 编辑 `src/` 目录下的文件
+   - Vite 会自动重新构建到 `chaospace-extension/`
+   - 在扩展管理页面点击"刷新"按钮重新加载扩展
+
+### 调试 Service Worker (background)
 
 1. 在扩展管理页面,点击扩展卡片上的"Service Worker"链接
 2. 打开 DevTools 控制台查看日志
 3. 所有日志以 `[Chaospace Transfer]` 前缀
+4. 相关文件: `src/background/index.js`
 
-### 调试内容脚本 (contentScript.js)
+### 调试内容脚本 (content)
 
 1. 打开 CHAOSPACE 页面(如 `https://www.chaospace.cc/seasons/123456.html`)
 2. F12 打开 DevTools,查看控制台日志
 3. 检查浮动面板 DOM 结构和样式
+4. 相关文件: `src/content/index.js`
 
 ### 测试网络请求
 
@@ -165,10 +216,9 @@ chrome.storage.local → 持久化缓存
 - `table tbody tr[id^="link-"]` 选择器是否匹配
 - `/links/*.html` 详情页格式是否变化
 
-相关函数:
-- `locateBaiduPanRows()` (contentScript.js:77-87)
-- `extractLinkInfo()` (contentScript.js:89-116)
-- `parseLinkPage()` (background.js:1027-1071)
+相关文件:
+- `src/content/services/page-analyzer.js` - 页面解析逻辑
+- `src/background/services/parser-service.js` - 链接详情解析
 
 ### 缓存不生效
 
@@ -246,10 +296,10 @@ chrome.tabs.sendMessage(tabId, {
 
 如需添加新功能,建议遵循以下模式:
 
-1. **新增 API 交互**:在 background.js 中实现,使用 `fetchJson()` 辅助函数
-2. **新增 UI 组件**:在 contentScript.js/popup.js 中实现,使用现有的 `render*()` 函数模式
-3. **新增配置项**:添加到 `STORAGE_KEY` 存储对象,在 `loadSettings()`/`saveSettings()` 中处理
-4. **新增缓存数据**:添加到 `persistentCacheState` 或 `historyState`,注意设置合理的上限
+1. **新增 API 交互**:在 `src/background/api/` 中实现,使用统一的错误处理
+2. **新增 UI 组件**:在 `src/content/components/` 中实现,保持模块化
+3. **新增配置项**:在 `src/content/state/` 和 `src/background/storage/` 中处理
+4. **新增共享工具**:放在 `src/shared/utils/` 中,供前后端共用
 
 ## 相关文档
 

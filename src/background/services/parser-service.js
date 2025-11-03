@@ -259,9 +259,12 @@ export function parseHistoryDetailFromHtml(html, pageUrl = '') {
           }
           seen.add(key);
           const altText = extractCleanTitle(decodeHtmlEntities(altRaw || detail.title || ''));
+          const resolvedFull = fullUrl || thumbUrl;
+          const resolvedThumb = thumbUrl || fullUrl;
           detail.stills.push({
-            url: fullUrl || thumbUrl,
-            thumb: thumbUrl || fullUrl,
+            url: resolvedFull,
+            full: resolvedFull,
+            thumb: resolvedThumb,
             alt: altText
           });
         }

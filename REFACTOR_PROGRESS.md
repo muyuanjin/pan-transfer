@@ -83,6 +83,9 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 11. **Season Label Cleanup**
     - Added `normalizeSeasonLabel` so tab labels, item badges, and path previews drop trailing broadcast dates/status badges/ratings.
     - Deferred season hydration, initial scrape results, and persisted state now re-sanitize season names before rendering.
+12. **Settings Modal Component**
+    - Migrated the settings overlay flow into `src/content/components/settings-modal.js`, covering open/close behavior, form submission, and import/export handlers.
+    - `src/content/index.js` now delegates modal wiring to the component, with `clampHistoryRateLimit`/`sanitizePreset` exported for reuse across the entry script and component helpers.
 
 ## Latest Session (2025-11-03, evening)
 - Extracted the resource list UI into `components/resource-list.js`, clearing 400+ LOC from `content/index.js`.
@@ -90,10 +93,12 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 - Updated the build pipeline to skip manifest schema validation and wired `npm run build` to `vite build --mode production`, eliminating the long-blocking schema download.
 - Verified `npm run build` completes locally (~5.5s) and confirmed bundles land in `dist/`.
 - Refreshed AGENTS.md with the new build instructions for future contributors.
+- Extracted the settings modal into `components/settings-modal.js`, moving import/export, layout reset, and open/close handlers out of `content/index.js`.
+- Re-ran `npm run build` (2025-11-03) after the settings refactor to confirm bundles stay green.
 
 ## Work in Progress / Partial Refactors
 - `src/content/index.js` is still ~6k LOC; history list rendering, panel UI, storage persistence, and event wiring remain inline.
-- HistoryDetail/Toast/ZoomPreview/HistoryCard components extracted; `Panel`, `ResourceList`, `SettingsModal`, and related utilities are pending.
+- HistoryDetail/Toast/ZoomPreview/HistoryCard/Panel/ResourceList/SettingsModal components extracted; remaining inline orchestration, storage helpers, and logging utilities still need modularization.
 - Legacy `chaospace-extension/` assets remain untouched for parity until refactor completes.
 
 ## Outstanding Tasks & TODOs
@@ -101,7 +106,7 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 - [x] Extract history list/card rendering into `components/history-card.js` (selection checkboxes, summary, batch controls).
 - [x] Extract panel shell + drag/resize logic into `components/panel.js` (or similar) and import from entry script.
 - [x] Extract resource list rendering, selection toggles, and pagination into `components/resource-list.js`.
-- [ ] Move settings modal logic into `components/settings-modal.js`.
+- [x] Move settings modal logic into `components/settings-modal.js`.
 - [ ] Consolidate remaining DOM helpers (geometry persistence, storage wrappers) into `content/utils/` or dedicated services.
 - [ ] Continue trimming `src/content/index.js` so it only orchestrates imports, bootstrapping, and Chrome message wiring.
 
@@ -132,17 +137,18 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 - Vite production build succeeds as of 2025-11-03 (`npm run build`).
 - Manual Chrome smoke test (2025-11-03) confirms extension loads, icons display, data import & transfers complete, and history rendering works; history detail zoom preview verified after latest fix.
 - Post-cleanup season tab labels and directory names have not yet been re-smoke-tested; schedule a fresh transfer to validate sanitized labels/paths with live data.
+- Settings modal flows (import/export/backups, layout reset, rate limit validation) need a follow-up manual regression pass now that the component extraction is complete.
 
 ## Next Session Checklist
 1. Load the freshly built `dist/` in Chrome, trigger a transfer, and confirm season tabs/items/path preview reflect the sanitized labels (no trailing dates/status/ratings, no `– CHAOSPACE` suffixes).
 2. Smoke-test the new panel shell component (edge-hide, drag/resize, pin behaviour) to confirm parity with the legacy script.
-3. Move settings modal logic into `components/settings-modal.js` and reconnect to entry orchestration.
+3. Regression-test the new settings modal (import/export, layout reset, theme toggles) to confirm parity with legacy behavior.
 4. Re-run `npm run build` after each major extraction to ensure bundling stays green.
 5. Update this archive with progress and any new blockers.
 
 ## Quick References
 - Entry script: `src/content/index.js`
-- New components: `src/content/components/{toast.js, zoom-preview.js, history-detail.js, history-card.js}`
+- New components: `src/content/components/{toast.js, zoom-preview.js, history-detail.js, history-card.js, panel.js, resource-list.js, settings-modal.js}`
 - Shared history helpers: `src/content/services/history-service.js`
 - Legacy baseline (for parity checks): `chaospace-extension/contentScript.js`
 

@@ -13,6 +13,35 @@ import {
   summarizeSeasonCompletion,
   isDateLikeLabel
 } from '../../shared/utils/completion-status.js';
+import {
+  normalizeSeasonLabel as normalizeSeasonLabelUtil
+} from '../../shared/utils/chinese-numeral.js';
+
+const SEASON_TRAILING_NOISE_PATTERNS = [
+  /\s*(?:N[\/-]?A|暂无(?:评分|评价)?|未评分|评分\s*[:：]?\s*待定|豆瓣\s*\d+(?:\.\d+)?|IMDb\s*\d+(?:\.\d+)?|烂番茄\s*\d+(?:\.\d+)?%?|\d+\.\d+(?:\s*分)?|\d+(?:\.\d+)?\s*\/\s*10|\d+(?:\.\d+)?\s*分)\s*$/iu,
+  /\s*(?:已完结\d*|已完结|完结|全集|连载(?:中)?|更新(?:至[^，。；]*)?|更新中|播出中|定档[^，。；]*|收官|暂停(?:更新)?|未播|待播|待定|上映中|首播|即将播出|即将上线)\s*$/u,
+  /\s*(?:\d{4}[./-]\d{1,2}(?:[./-]\d{1,2})?)\s*$/u,
+  /\s*(?:[-–—·•|／]+)\s*$/u
+];
+
+function stripSeasonTrailingNoise(value) {
+  let result = (value || '').trim();
+  if (!result) {
+    return '';
+  }
+  let changed = true;
+  while (changed && result) {
+    changed = false;
+    for (const pattern of SEASON_TRAILING_NOISE_PATTERNS) {
+      const next = result.replace(pattern, '').trim();
+      if (next !== result) {
+        result = next;
+        changed = true;
+      }
+    }
+  }
+  return result;
+}
 
 class ChaospaceClassifier {
   constructor() {
@@ -416,31 +445,43 @@ export function sanitizeSeasonDirSegment(value) {
   if (!text) {
     return '';
   }
+
+  // 第一步：统一空白字符
   let normalized = text.replace(/\s+/g, ' ').trim();
-  // remove common season status annotations inside parentheses
+
+  // 第二步：清理尾部噪音（日期、评分、状态等）
+  normalized = stripSeasonTrailingNoise(normalized);
+
+  // 第三步：移除括号内的状态标注
   normalized = normalized.replace(/[（(][^()（）]*?(完结|更新|连载|上映|首播)[^()（）]*?[)）]/gu, '');
   normalized = normalized.replace(/\s+/g, ' ').trim();
+
+  // 第四步：再次清理尾部噪音
+  normalized = stripSeasonTrailingNoise(normalized);
+
+  // 第五步：替换文件系统非法字符
   normalized = normalized.replace(/[<>:"|?*]+/g, '-');
   normalized = normalized.replace(/[\/\\]+/g, '-');
   normalized = normalized.replace(/-+/g, '-');
   normalized = normalized.replace(/^-+|-+$/g, '');
   normalized = normalized.replace(/\s+/g, ' ').trim();
 
-  // strip trailing date/status fragments such as "2025-07-06已完结9"
-  normalized = normalized.replace(
-    /(?:\s*[-–—·•|]\s*)?(?:\d{4}[./-]\d{1,2}(?:[./-]\d{1,2})?)?(?:\s*(?:已完结\d*|已完结|完结|全集|连载中|更新至.*|更新中|播出中|定档.*))?$/gu,
-    ''
-  ).trim();
+  // 第六步：最后一次清理尾部噪音
+  normalized = stripSeasonTrailingNoise(normalized);
 
-  const seasonMatch = normalized.match(/^(第[\d一二三四五六七八九十百零两]+季)(?:\s+(.+))?$/u);
+  // 第七步：针对"第X季"格式的特殊处理
+  const seasonMatch = normalized.match(/^(第[\d一二三四五六七八九十百零两]+季)(?:\s*(.+))?$/u);
   if (seasonMatch) {
     const suffix = (seasonMatch[2] || '').trim();
     if (suffix) {
-      const keywords = ['完结', '更新', '连载', '全集', '播', '定档', '收官', '暂停'];
-      const looksDate = /\d{4}[./-]\d{1,2}/.test(suffix);
-      const looksNumeric = /^[\d\s]+$/.test(suffix);
-      const hasKeywords = keywords.some(keyword => suffix.includes(keyword));
-      if (looksDate || looksNumeric || hasKeywords) {
+      // 如果后缀看起来是噪音，只保留季标识
+      const cleanedSuffix = suffix.replace(/^[·•|，,，。；;:-]+/u, '').trim();
+      const keywords = ['完结', '更新', '连载', '全集', '播', '定档', '收官', '暂停', '评分', '豆瓣', 'IMDb', '烂番茄', '首播', '上映'];
+      const looksDate = /\d{4}[./-]\d{1,2}/.test(cleanedSuffix);
+      const looksNumeric = /^[\d\s./%-]+$/.test(cleanedSuffix);
+      const looksRating = /^(?:N[\/-]?A|暂无(?:评分|评价)?|未评分|评分\s*[:：]?\s*待定|豆瓣\s*\d+(?:\.\d+)?|IMDb\s*\d+(?:\.\d+)?|烂番茄\s*\d+(?:\.\d+)?%?|\d+\.\d+(?:\s*分)?|\d+(?:\.\d+)?\s*\/\s*10|\d+(?:\.\d+)?\s*分)$/iu.test(cleanedSuffix);
+      const hasKeywords = keywords.some(keyword => cleanedSuffix.includes(keyword));
+      if (looksDate || looksNumeric || looksRating || hasKeywords) {
         normalized = seasonMatch[1];
       }
     } else {
@@ -448,11 +489,21 @@ export function sanitizeSeasonDirSegment(value) {
     }
   }
 
+  // 第八步：将中文数字转换为阿拉伯数字（无论是否匹配seasonMatch）
+  normalized = normalizeSeasonLabelUtil(normalized);
+
   return normalized.trim();
 }
 
 function normalizeSeasonLabel(label, index = 0) {
-  const sanitized = sanitizeSeasonDirSegment(label);
+  // 先清理噪音
+  const cleaned = stripSeasonTrailingNoise(label || '');
+  if (!cleaned) {
+    return `第${Number.isFinite(index) ? index + 1 : 1}季`;
+  }
+
+  // 再进行目录清理和标准化
+  const sanitized = sanitizeSeasonDirSegment(cleaned);
   if (sanitized) {
     const compact = sanitized.replace(/\s+/g, ' ').trim();
     if (/^s\d+$/i.test(compact)) {
@@ -463,14 +514,15 @@ function normalizeSeasonLabel(label, index = 0) {
     }
     return compact;
   }
-  if (typeof label === 'string' && label.trim()) {
-    return label.trim();
-  }
+
+  // 如果清理后为空，使用默认值
   return `第${Number.isFinite(index) ? index + 1 : 1}季`;
 }
 
 export function deriveSeasonDirectory(label, index = 0) {
-  const base = sanitizeSeasonDirSegment(label);
+  // 先清理噪音，再生成目录名
+  const cleaned = stripSeasonTrailingNoise(label || '');
+  const base = sanitizeSeasonDirSegment(cleaned);
   if (base) {
     return base;
   }
@@ -966,7 +1018,9 @@ function deriveSeasonLabel(block, defaultIndex = 0) {
     return `季 ${defaultIndex + 1}`;
   }
   const text = stripHtmlTags(titleSpan.textContent || '');
-  const clean = extractCleanTitle(text);
+  const preliminaryClean = extractCleanTitle(text);
+  // 立即清理噪音：日期、评分、状态等
+  const clean = stripSeasonTrailingNoise(preliminaryClean);
   return clean || `季 ${defaultIndex + 1}`;
 }
 
