@@ -24,6 +24,7 @@
   --cp-shadow: 0 30px 80px rgba(8, 13, 24, 0.45);
   --cp-toast-bg: rgba(17, 24, 39, 0.92);
   --chaospace-float-z-index: 2147483647;
+  --chaospace-toast-z-index: 2147483648;
 }
 
 .chaospace-theme {
@@ -2229,7 +2230,7 @@ button.chaospace-history-season-poster:hover {
   position: fixed;
   top: 28px;
   right: 26px;
-  z-index: 10000;
+  z-index: var(--chaospace-toast-z-index, 2147483648);
   min-width: 260px;
   max-width: 360px;
   padding: 16px 18px;

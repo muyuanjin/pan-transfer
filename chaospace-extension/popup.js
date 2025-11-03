@@ -4,7 +4,7 @@ const DEFAULT_PRESETS = ['/视频/番剧', '/视频/影视', '/视频/电影'];
 const MAX_LOG_ENTRIES = 80;
 const LOG_COLLAPSED_COUNT = 4;
 const HISTORY_DISPLAY_LIMIT = 8;
-const HISTORY_BATCH_RATE_LIMIT_MS = 3500;
+const HISTORY_BATCH_RATE_LIMIT_MS = 1500;
 const HISTORY_FILTERS = ['all', 'series', 'ongoing', 'completed', 'movie'];
 
 const dom = {
