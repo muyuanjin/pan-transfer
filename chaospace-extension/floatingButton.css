@@ -32,9 +32,17 @@
   line-height: 1.5;
   text-rendering: optimizeLegibility;
   font-feature-settings: 'kern' 1, 'liga' 1;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
   color: var(--cp-text-primary);
+}
+
+@media (min-resolution: 2dppx) {
+  .chaospace-theme {
+    /* Preserve the lighter rendering on HiDPI displays while keeping subpixel AA elsewhere */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 }
 
 .chaospace-theme.theme-light,
