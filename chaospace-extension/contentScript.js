@@ -5,6 +5,7 @@
   const DEFAULT_PRESETS = ['/视频/番剧', '/视频/影视', '/视频/电影'];
   const MAX_LOG_ENTRIES = 80;
   const HISTORY_KEY = 'chaospace-transfer-history';
+  const CACHE_KEY = 'chaospace-transfer-cache';
   const HISTORY_DISPLAY_LIMIT = 6;
   const HISTORY_BATCH_RATE_LIMIT_MS = 3500;
   const HISTORY_FILTERS = ['all', 'series', 'ongoing', 'completed', 'movie'];
@@ -19,6 +20,10 @@
   const PANEL_CREATION_RETRY_DELAY_MS = 100;
   const PANEL_CREATION_MAX_ATTEMPTS = 6;
   const PAN_DISK_BASE_URL = 'https://pan.baidu.com/disk/main#/index?category=all&path=';
+  const SETTINGS_EXPORT_VERSION = 1;
+  const DATA_EXPORT_VERSION = 1;
+  const MIN_HISTORY_RATE_LIMIT_MS = 500;
+  const MAX_HISTORY_RATE_LIMIT_MS = 60000;
 
   const CLASSIFICATION_PATH_MAP = {
     anime: '/视频/番剧',
@@ -554,7 +559,10 @@
     historyDetailCache: new Map(),
     seasonDirMap: {},
     seasonResolvedPaths: [],
-    activeSeasonId: null
+    activeSeasonId: null,
+    settingsPanel: {
+      isOpen: false
+    }
   };
 
   const panelDom = {};
@@ -2352,6 +2360,12 @@
       if (settings.theme === 'light' || settings.theme === 'dark') {
         state.theme = settings.theme;
       }
+      const rateLimitMs = Number(settings.historyRateLimitMs);
+      if (Number.isFinite(rateLimitMs)) {
+        state.historyRateLimitMs = clampHistoryRateLimit(rateLimitMs);
+      } else {
+        state.historyRateLimitMs = HISTORY_BATCH_RATE_LIMIT_MS;
+      }
     } catch (error) {
       console.error('[Chaospace Transfer] Failed to load settings', error);
     }
@@ -2362,7 +2376,8 @@
       baseDir: state.baseDir,
       useTitleSubdir: state.useTitleSubdir,
       presets: state.presets,
-      theme: state.theme
+      theme: state.theme,
+      historyRateLimitMs: clampHistoryRateLimit(state.historyRateLimitMs)
     };
     if (state.hasSeasonSubdirPreference) {
       settings.useSeasonSubdir = state.useSeasonSubdir;
@@ -2403,6 +2418,312 @@
       }
       console.error(`[Chaospace Transfer] Failed to persist ${contextLabel}`, error);
     }
+  }
+
+  async function safeStorageRemove(keys, contextLabel = 'storage') {
+    try {
+      await chrome.storage.local.remove(keys);
+    } catch (error) {
+      if (isExtensionContextInvalidated(error)) {
+        warnStorageInvalidation('Storage delete');
+        return;
+      }
+      console.error(`[Chaospace Transfer] Failed to remove ${contextLabel}`, error);
+    }
+  }
+
+  function clampHistoryRateLimit(value) {
+    const ms = Number(value);
+    if (!Number.isFinite(ms) || ms <= 0) {
+      return HISTORY_BATCH_RATE_LIMIT_MS;
+    }
+    return Math.min(
+      MAX_HISTORY_RATE_LIMIT_MS,
+      Math.max(MIN_HISTORY_RATE_LIMIT_MS, Math.round(ms))
+    );
+  }
+
+  function buildSettingsSnapshot() {
+    return {
+      baseDir: state.baseDir,
+      useTitleSubdir: state.useTitleSubdir,
+      useSeasonSubdir: state.useSeasonSubdir,
+      presets: [...state.presets],
+      theme: state.theme,
+      historyRateLimitMs: clampHistoryRateLimit(state.historyRateLimitMs)
+    };
+  }
+
+  function formatExportFilename(prefix) {
+    const now = new Date();
+    const pad = (value) => String(value).padStart(2, '0');
+    const datePart = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+    const timePart = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    return `${prefix}-${datePart}-${timePart}.json`;
+  }
+
+  function downloadJsonFile(filename, payload) {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    requestAnimationFrame(() => {
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  function readFileAsText(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => {
+        reject(new Error('读取文件失败'));
+      };
+      reader.onload = () => {
+        resolve(String(reader.result || ''));
+      };
+      reader.readAsText(file, 'utf-8');
+    });
+  }
+
+  function resetFileInput(input) {
+    if (input) {
+      input.value = '';
+    }
+  }
+
+  function extractSettingsFormValues({ strict = false } = {}) {
+    if (!panelDom.settingsBaseDir) {
+      return null;
+    }
+    const rawBase = panelDom.settingsBaseDir.value || '';
+    const sanitizedBase = normalizeDir(rawBase);
+    const useTitle = panelDom.settingsUseTitle ? panelDom.settingsUseTitle.checked : state.useTitleSubdir;
+    const useSeason = panelDom.settingsUseSeason ? panelDom.settingsUseSeason.checked : state.useSeasonSubdir;
+    const themeValue = panelDom.settingsTheme && panelDom.settingsTheme.value === 'light' ? 'light' : 'dark';
+    const presetsText = panelDom.settingsPresets ? panelDom.settingsPresets.value : '';
+    const presetList = presetsText
+      .split(/\n+/)
+      .map(item => sanitizePreset(item))
+      .filter(Boolean);
+    const rateInput = panelDom.settingsHistoryRate ? parseFloat(panelDom.settingsHistoryRate.value) : Number.NaN;
+    const seconds = Number.isFinite(rateInput) ? rateInput : state.historyRateLimitMs / 1000;
+    if (strict && (seconds < 0.5 || seconds > 60)) {
+      throw new Error('历史批量检测间隔需在 0.5～60 秒之间');
+    }
+    const rateMs = clampHistoryRateLimit(Math.round(seconds * 1000));
+    return {
+      baseDir: sanitizedBase,
+      useTitleSubdir: useTitle,
+      useSeasonSubdir: useSeason,
+      theme: themeValue,
+      presets: presetList,
+      historyRateLimitMs: rateMs
+    };
+  }
+
+  function applySettingsUpdate(nextSettings = {}, { persist = true } = {}) {
+    if (!nextSettings || typeof nextSettings !== 'object') {
+      throw new Error('无效设置对象');
+    }
+    const baseDir = typeof nextSettings.baseDir === 'string'
+      ? normalizeDir(nextSettings.baseDir)
+      : state.baseDir;
+    const useTitle = typeof nextSettings.useTitleSubdir === 'boolean'
+      ? nextSettings.useTitleSubdir
+      : state.useTitleSubdir;
+    const hasSeasonPref = typeof nextSettings.useSeasonSubdir === 'boolean';
+    const useSeason = hasSeasonPref ? Boolean(nextSettings.useSeasonSubdir) : state.useSeasonSubdir;
+    const theme = nextSettings.theme === 'light' || nextSettings.theme === 'dark'
+      ? nextSettings.theme
+      : state.theme;
+    const rateMs = typeof nextSettings.historyRateLimitMs === 'number'
+      ? clampHistoryRateLimit(nextSettings.historyRateLimitMs)
+      : clampHistoryRateLimit(state.historyRateLimitMs);
+    const sourcePresets = Array.isArray(nextSettings.presets)
+      ? nextSettings.presets
+      : state.presets;
+    const sanitizedPresets = Array.from(new Set([
+      ...DEFAULT_PRESETS,
+      ...sourcePresets.map(item => sanitizePreset(item)).filter(Boolean)
+    ]));
+
+    state.presets = sanitizedPresets;
+    state.useTitleSubdir = useTitle;
+    state.historyRateLimitMs = rateMs;
+    if (hasSeasonPref) {
+      state.useSeasonSubdir = useSeason;
+      state.hasSeasonSubdirPreference = true;
+    }
+    const previousTheme = state.theme;
+    state.theme = theme;
+
+    setBaseDir(baseDir, { persist: false });
+    if (panelDom.useTitleCheckbox) {
+      panelDom.useTitleCheckbox.checked = state.useTitleSubdir;
+    }
+    if (panelDom.useSeasonCheckbox) {
+      panelDom.useSeasonCheckbox.checked = state.useSeasonSubdir;
+    }
+    if (floatingPanel) {
+      renderSeasonHint();
+      renderResourceList();
+    }
+    applyPanelTheme();
+    if (persist) {
+      saveSettings();
+    }
+    if (state.settingsPanel.isOpen) {
+      renderSettingsPanel();
+    }
+    return {
+      ...buildSettingsSnapshot(),
+      themeChanged: previousTheme !== state.theme
+    };
+  }
+
+  function renderSettingsPanel() {
+    if (!panelDom.settingsOverlay) {
+      return;
+    }
+    if (panelDom.settingsBaseDir) {
+      panelDom.settingsBaseDir.value = state.baseDir || '/';
+      panelDom.settingsBaseDir.classList.remove('is-invalid');
+    }
+    if (panelDom.settingsUseTitle) {
+      panelDom.settingsUseTitle.checked = state.useTitleSubdir;
+    }
+    if (panelDom.settingsUseSeason) {
+      panelDom.settingsUseSeason.checked = state.useSeasonSubdir;
+    }
+    if (panelDom.settingsTheme) {
+      panelDom.settingsTheme.value = state.theme === 'light' ? 'light' : 'dark';
+    }
+    if (panelDom.settingsPresets) {
+      panelDom.settingsPresets.value = state.presets.join('\n');
+    }
+    if (panelDom.settingsHistoryRate) {
+      const seconds = state.historyRateLimitMs / 1000;
+      panelDom.settingsHistoryRate.value = (Math.round(seconds * 100) / 100).toFixed(2);
+      panelDom.settingsHistoryRate.classList.remove('is-invalid');
+    }
+  }
+
+  async function exportSettingsSnapshot() {
+    try {
+      const payload = {
+        type: 'chaospace-settings-export',
+        version: SETTINGS_EXPORT_VERSION,
+        exportedAt: new Date().toISOString(),
+        settings: buildSettingsSnapshot()
+      };
+      downloadJsonFile(formatExportFilename('chaospace-settings'), payload);
+      showToast('success', '设置已导出', 'JSON 文件可用于快速迁移参数');
+    } catch (error) {
+      console.error('[Chaospace Transfer] Failed to export settings', error);
+      showToast('error', '导出失败', error.message || '无法导出设置');
+    }
+  }
+
+  async function exportFullBackup() {
+    try {
+      const keys = [STORAGE_KEY, HISTORY_KEY, CACHE_KEY, POSITION_KEY, SIZE_KEY];
+      const stored = await chrome.storage.local.get(keys);
+      const payload = {
+        type: 'chaospace-transfer-backup',
+        version: DATA_EXPORT_VERSION,
+        exportedAt: new Date().toISOString(),
+        data: {
+          settings: buildSettingsSnapshot(),
+          history: stored[HISTORY_KEY] || null,
+          cache: stored[CACHE_KEY] || null,
+          panel: {
+            position: stored[POSITION_KEY] || null,
+            size: stored[SIZE_KEY] || null
+          }
+        }
+      };
+      downloadJsonFile(formatExportFilename('chaospace-backup'), payload);
+      showToast('success', '插件数据已导出', '备份包含设置、历史、缓存与面板布局');
+    } catch (error) {
+      console.error('[Chaospace Transfer] Failed to export backup', error);
+      showToast('error', '导出失败', error.message || '无法导出插件数据');
+    }
+  }
+
+  async function importSettingsSnapshot(payload) {
+    if (!payload || typeof payload !== 'object') {
+      throw new Error('文件内容不合法');
+    }
+    const source = payload.settings && typeof payload.settings === 'object'
+      ? payload.settings
+      : payload;
+    applySettingsUpdate(source, { persist: true });
+    showToast('success', '设置已导入', '已更新所有可配置参数');
+  }
+
+  async function importFullBackup(payload) {
+    if (!payload || typeof payload !== 'object') {
+      throw new Error('文件内容不合法');
+    }
+    const source = payload.data && typeof payload.data === 'object'
+      ? payload.data
+      : payload;
+    const entries = {};
+    const removals = [];
+    if ('settings' in source) {
+      if (source.settings && typeof source.settings === 'object') {
+        entries[STORAGE_KEY] = source.settings;
+      } else {
+        removals.push(STORAGE_KEY);
+      }
+    }
+    if ('history' in source) {
+      if (source.history) {
+        entries[HISTORY_KEY] = source.history;
+      } else {
+        removals.push(HISTORY_KEY);
+      }
+    }
+    if ('cache' in source) {
+      if (source.cache) {
+        entries[CACHE_KEY] = source.cache;
+      } else {
+        removals.push(CACHE_KEY);
+      }
+    }
+    const panelData = source.panel && typeof source.panel === 'object' ? source.panel : {};
+    if ('position' in panelData) {
+      if (panelData.position) {
+        entries[POSITION_KEY] = panelData.position;
+      } else {
+        removals.push(POSITION_KEY);
+      }
+    }
+    if ('size' in panelData) {
+      if (panelData.size) {
+        entries[SIZE_KEY] = panelData.size;
+      } else {
+        removals.push(SIZE_KEY);
+      }
+    }
+
+    if (Object.keys(entries).length) {
+      await safeStorageSet(entries, 'data import');
+    }
+    if (removals.length) {
+      await safeStorageRemove(removals, 'data import cleanup');
+    }
+
+    await loadSettings();
+    applySettingsUpdate(buildSettingsSnapshot(), { persist: false });
+    await loadHistory();
+    state.historyDetailCache = new Map();
+    closeHistoryDetail({ hideDelay: 0 });
+    showToast('success', '数据已导入', '备份内容已写入，历史记录与缓存已更新');
   }
 
   function ensurePreset(value) {
@@ -5347,6 +5668,14 @@
             >☀️</button>
             <button
               type="button"
+              class="chaospace-settings-toggle"
+              data-role="settings-toggle"
+              aria-label="打开设置"
+              title="插件设置"
+              aria-expanded="false"
+            >⚙️</button>
+            <button
+              type="button"
               class="chaospace-float-pin"
               data-role="pin-toggle"
               title="固定面板"
@@ -5408,6 +5737,127 @@
             <div class="chaospace-history-overlay-scroll">
               <div class="chaospace-history-empty" data-role="history-empty">还没有转存记录</div>
               <div class="chaospace-history-list" data-role="history-list"></div>
+            </div>
+          </div>
+          <div class="chaospace-settings-overlay" data-role="settings-overlay" aria-hidden="true">
+            <div class="chaospace-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="chaospace-settings-title">
+              <div class="chaospace-settings-header">
+                <div class="chaospace-settings-title" id="chaospace-settings-title">⚙️ 插件设置</div>
+                <button
+                  type="button"
+                  class="chaospace-settings-close"
+                  data-role="settings-close"
+                  aria-label="关闭设置"
+                >✕</button>
+              </div>
+              <form class="chaospace-settings-form" data-role="settings-form">
+                <section class="chaospace-settings-section">
+                  <h3>目录策略</h3>
+                  <div class="chaospace-settings-field">
+                    <label class="chaospace-settings-label" for="chaospace-settings-base-dir">基础转存目录</label>
+                    <input
+                      id="chaospace-settings-base-dir"
+                      type="text"
+                      placeholder="/视频/番剧"
+                      data-role="settings-base-dir"
+                    />
+                    <p class="chaospace-settings-hint">字符串 · 以 / 开头，作为所有转存记录的根目录。</p>
+                  </div>
+                  <div class="chaospace-settings-field">
+                    <label class="chaospace-settings-checkbox" for="chaospace-settings-use-title">
+                      <input type="checkbox" id="chaospace-settings-use-title" data-role="settings-use-title" />
+                      <div>
+                        <span>按剧名创建子目录</span>
+                        <p class="chaospace-settings-hint">布尔值 · 勾选后使用当前页面标题作为子文件夹名称。</p>
+                      </div>
+                    </label>
+                    <label class="chaospace-settings-checkbox" for="chaospace-settings-use-season">
+                      <input type="checkbox" id="chaospace-settings-use-season" data-role="settings-use-season" />
+                      <div>
+                        <span>按季拆分子目录</span>
+                        <p class="chaospace-settings-hint">布尔值 · 勾选后为每季单独创建文件夹。</p>
+                      </div>
+                    </label>
+                  </div>
+                  <div class="chaospace-settings-field">
+                    <label class="chaospace-settings-label" for="chaospace-settings-presets">收藏路径列表</label>
+                    <textarea
+                      id="chaospace-settings-presets"
+                      rows="4"
+                      data-role="settings-presets"
+                      placeholder="/视频/番剧&#10;/视频/影视"
+                    ></textarea>
+                    <p class="chaospace-settings-hint">字符串数组 · 每行一个路径，保存后自动去重并保留默认示例。</p>
+                  </div>
+                </section>
+                <section class="chaospace-settings-section">
+                  <h3>体验与限速</h3>
+                  <div class="chaospace-settings-field">
+                    <label class="chaospace-settings-label" for="chaospace-settings-theme">界面主题</label>
+                    <select id="chaospace-settings-theme" data-role="settings-theme">
+                      <option value="dark">深色</option>
+                      <option value="light">浅色</option>
+                    </select>
+                    <p class="chaospace-settings-hint">枚举值 · 影响浮动面板的背景与文字样式。</p>
+                  </div>
+                  <div class="chaospace-settings-field">
+                    <label class="chaospace-settings-label" for="chaospace-settings-history-rate">批量检测间隔（秒）</label>
+                    <input
+                      id="chaospace-settings-history-rate"
+                      type="number"
+                      min="0.5"
+                      max="60"
+                      step="0.5"
+                      data-role="settings-history-rate"
+                    />
+                    <p class="chaospace-settings-hint">数字 · 控制批量刷新历史时的最小延迟，避免触发风控（0.5～60 秒）。</p>
+                  </div>
+                </section>
+                <section class="chaospace-settings-section">
+                  <h3>导入导出</h3>
+                  <div class="chaospace-settings-row">
+                    <div>
+                      <div class="chaospace-settings-row-title">导出设置</div>
+                      <p class="chaospace-settings-hint">生成 JSON，包含所有可保存的参数。</p>
+                    </div>
+                    <button type="button" data-role="settings-export-config">导出</button>
+                  </div>
+                  <div class="chaospace-settings-row">
+                    <div>
+                      <div class="chaospace-settings-row-title">导出全部数据</div>
+                      <p class="chaospace-settings-hint">包含设置、转存历史、缓存与面板布局。</p>
+                    </div>
+                    <button type="button" data-role="settings-export-data">导出</button>
+                  </div>
+                  <div class="chaospace-settings-row">
+                    <div>
+                      <div class="chaospace-settings-row-title">导入设置</div>
+                      <p class="chaospace-settings-hint">选择先前导出的设置 JSON，立即覆盖当前参数。</p>
+                    </div>
+                    <button type="button" data-role="settings-import-config-trigger">导入</button>
+                  </div>
+                  <div class="chaospace-settings-row">
+                    <div>
+                      <div class="chaospace-settings-row-title">导入全部数据</div>
+                      <p class="chaospace-settings-hint">覆盖设置、历史、缓存与布局，用于完整迁移。</p>
+                    </div>
+                    <button type="button" data-role="settings-import-data-trigger">导入</button>
+                  </div>
+                  <div class="chaospace-settings-row">
+                    <div>
+                      <div class="chaospace-settings-row-title">重置面板布局</div>
+                      <p class="chaospace-settings-hint">清理已保存的大小与位置，恢复默认摆放。</p>
+                    </div>
+                    <button type="button" data-role="settings-reset-layout">重置</button>
+                  </div>
+                </section>
+                <div class="chaospace-settings-footer">
+                  <button type="button" data-role="settings-cancel">取消</button>
+                  <button type="submit" class="chaospace-settings-save">保存设置</button>
+                </div>
+                <input type="file" data-role="settings-import-config" accept="application/json" hidden />
+                <input type="file" data-role="settings-import-data" accept="application/json" hidden />
+              </form>
             </div>
           </div>
           <div class="chaospace-float-main">
@@ -5832,6 +6282,24 @@
       panelDom.presetList = panel.querySelector('[data-role="preset-list"]');
       panelDom.addPresetButton = panel.querySelector('[data-role="add-preset"]');
       panelDom.themeToggle = panel.querySelector('[data-role="theme-toggle"]');
+      panelDom.settingsToggle = panel.querySelector('[data-role="settings-toggle"]');
+      panelDom.settingsOverlay = panel.querySelector('[data-role="settings-overlay"]');
+      panelDom.settingsForm = panel.querySelector('[data-role="settings-form"]');
+      panelDom.settingsClose = panel.querySelector('[data-role="settings-close"]');
+      panelDom.settingsCancel = panel.querySelector('[data-role="settings-cancel"]');
+      panelDom.settingsBaseDir = panel.querySelector('[data-role="settings-base-dir"]');
+      panelDom.settingsUseTitle = panel.querySelector('[data-role="settings-use-title"]');
+      panelDom.settingsUseSeason = panel.querySelector('[data-role="settings-use-season"]');
+      panelDom.settingsTheme = panel.querySelector('[data-role="settings-theme"]');
+      panelDom.settingsPresets = panel.querySelector('[data-role="settings-presets"]');
+      panelDom.settingsHistoryRate = panel.querySelector('[data-role="settings-history-rate"]');
+      panelDom.settingsExportConfig = panel.querySelector('[data-role="settings-export-config"]');
+      panelDom.settingsExportData = panel.querySelector('[data-role="settings-export-data"]');
+      panelDom.settingsImportConfigTrigger = panel.querySelector('[data-role="settings-import-config-trigger"]');
+      panelDom.settingsImportDataTrigger = panel.querySelector('[data-role="settings-import-data-trigger"]');
+      panelDom.settingsImportConfigInput = panel.querySelector('[data-role="settings-import-config"]');
+      panelDom.settingsImportDataInput = panel.querySelector('[data-role="settings-import-data"]');
+      panelDom.settingsResetLayout = panel.querySelector('[data-role="settings-reset-layout"]');
       panelDom.pinBtn = panel.querySelector('[data-role="pin-toggle"]');
       panelDom.logContainer = panel.querySelector('[data-role="log-container"]');
       panelDom.logList = panel.querySelector('[data-role="log-list"]');
@@ -5860,6 +6328,59 @@
       panelDom.transferSpinner = panel.querySelector('[data-role="transfer-spinner"]');
       panelDom.resizeHandle = panel.querySelector('[data-role="resize-handle"]');
 
+      renderSettingsPanel();
+
+      const handleSettingsKeydown = (event) => {
+        if (event.key === 'Escape') {
+          closeSettingsPanel({ restoreFocus: true });
+          event.stopPropagation();
+        }
+      };
+
+      const openSettingsPanel = () => {
+        if (!panelDom.settingsOverlay) {
+          return;
+        }
+        if (state.settingsPanel.isOpen) {
+          renderSettingsPanel();
+          const focusTarget = panelDom.settingsBaseDir || panelDom.settingsHistoryRate || panelDom.settingsTheme;
+          focusTarget?.focus?.({ preventScroll: true });
+          return;
+        }
+        state.settingsPanel.isOpen = true;
+        panelDom.settingsOverlay.classList.add('is-open');
+        panelDom.settingsOverlay.setAttribute('aria-hidden', 'false');
+        panelDom.settingsToggle?.setAttribute('aria-expanded', 'true');
+        floatingPanel?.classList.add('is-settings-open');
+        renderSettingsPanel();
+        const focusTarget = panelDom.settingsBaseDir || panelDom.settingsHistoryRate || panelDom.settingsTheme;
+        focusTarget?.focus?.({ preventScroll: true });
+        pointerInsidePanel = true;
+        cancelEdgeHide({ show: true });
+        document.addEventListener('keydown', handleSettingsKeydown, true);
+      };
+
+      const closeSettingsPanel = ({ restoreFocus = false } = {}) => {
+        if (!state.settingsPanel.isOpen) {
+          return;
+        }
+        state.settingsPanel.isOpen = false;
+        panelDom.settingsOverlay?.classList.remove('is-open');
+        panelDom.settingsOverlay?.setAttribute('aria-hidden', 'true');
+        panelDom.settingsToggle?.setAttribute('aria-expanded', 'false');
+        floatingPanel?.classList.remove('is-settings-open');
+        document.removeEventListener('keydown', handleSettingsKeydown, true);
+        if (!isPanelPinned) {
+          scheduleEdgeHide();
+        }
+        if (restoreFocus) {
+          panelDom.settingsToggle?.focus?.({ preventScroll: true });
+        }
+      };
+
+      panelDom.openSettingsPanel = openSettingsPanel;
+      panelDom.closeSettingsPanel = closeSettingsPanel;
+
       updatePinButton();
 
       if (panelDom.historyTabs) {
@@ -5877,6 +6398,147 @@
             cancelEdgeHide({ show: true });
           } else if (!pointerInsidePanel) {
             scheduleEdgeHide();
+          }
+        });
+      }
+
+      if (panelDom.settingsToggle) {
+        panelDom.settingsToggle.addEventListener('click', () => {
+          if (state.settingsPanel.isOpen) {
+            closeSettingsPanel({ restoreFocus: true });
+          } else {
+            openSettingsPanel();
+          }
+        });
+      }
+
+      if (panelDom.settingsClose) {
+        panelDom.settingsClose.addEventListener('click', () => {
+          closeSettingsPanel({ restoreFocus: true });
+        });
+      }
+
+      if (panelDom.settingsCancel) {
+        panelDom.settingsCancel.addEventListener('click', () => {
+          closeSettingsPanel({ restoreFocus: true });
+        });
+      }
+
+      if (panelDom.settingsOverlay) {
+        panelDom.settingsOverlay.addEventListener('click', (event) => {
+          if (event.target === panelDom.settingsOverlay) {
+            closeSettingsPanel({ restoreFocus: false });
+          }
+        });
+      }
+
+      if (panelDom.settingsForm) {
+        panelDom.settingsForm.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          if (panelDom.settingsHistoryRate) {
+            panelDom.settingsHistoryRate.classList.remove('is-invalid');
+          }
+          try {
+            const update = extractSettingsFormValues({ strict: true });
+            if (!update) {
+              closeSettingsPanel({ restoreFocus: true });
+              return;
+            }
+            applySettingsUpdate(update, { persist: true });
+            showToast('success', '设置已保存', '所有参数已更新并立即生效');
+            closeSettingsPanel({ restoreFocus: true });
+          } catch (error) {
+            console.error('[Chaospace Transfer] Failed to save settings', error);
+            if (panelDom.settingsHistoryRate && error && typeof error.message === 'string' && error.message.includes('间隔')) {
+              panelDom.settingsHistoryRate.classList.add('is-invalid');
+              panelDom.settingsHistoryRate.focus({ preventScroll: true });
+            }
+            showToast('error', '保存失败', error.message || '请检查输入是否正确');
+          }
+        });
+      }
+
+      if (panelDom.settingsExportConfig) {
+        panelDom.settingsExportConfig.addEventListener('click', () => {
+          exportSettingsSnapshot();
+        });
+      }
+
+      if (panelDom.settingsExportData) {
+        panelDom.settingsExportData.addEventListener('click', () => {
+          exportFullBackup();
+        });
+      }
+
+      if (panelDom.settingsImportConfigTrigger && panelDom.settingsImportConfigInput) {
+        panelDom.settingsImportConfigTrigger.addEventListener('click', () => {
+          panelDom.settingsImportConfigInput?.click();
+        });
+        panelDom.settingsImportConfigInput.addEventListener('change', async (event) => {
+          const input = event.currentTarget;
+          const file = input?.files && input.files[0];
+          if (!file) {
+            return;
+          }
+          try {
+            const text = await readFileAsText(file);
+            const parsed = JSON.parse(text);
+            if (parsed.type && parsed.type !== 'chaospace-settings-export') {
+              throw new Error('请选择通过“导出设置”生成的 JSON 文件');
+            }
+            await importSettingsSnapshot(parsed);
+          } catch (error) {
+            console.error('[Chaospace Transfer] Settings import failed', error);
+            showToast('error', '导入失败', error.message || '无法导入设置文件');
+          } finally {
+            resetFileInput(panelDom.settingsImportConfigInput);
+          }
+        });
+      }
+
+      if (panelDom.settingsImportDataTrigger && panelDom.settingsImportDataInput) {
+        panelDom.settingsImportDataTrigger.addEventListener('click', () => {
+          panelDom.settingsImportDataInput?.click();
+        });
+        panelDom.settingsImportDataInput.addEventListener('change', async (event) => {
+          const input = event.currentTarget;
+          const file = input?.files && input.files[0];
+          if (!file) {
+            return;
+          }
+          try {
+            const text = await readFileAsText(file);
+            const parsed = JSON.parse(text);
+            if (parsed.type && parsed.type !== 'chaospace-transfer-backup') {
+              throw new Error('请选择通过“导出全部数据”生成的 JSON 文件');
+            }
+            await importFullBackup(parsed);
+          } catch (error) {
+            console.error('[Chaospace Transfer] Backup import failed', error);
+            showToast('error', '导入失败', error.message || '无法导入数据备份');
+          } finally {
+            resetFileInput(panelDom.settingsImportDataInput);
+          }
+        });
+      }
+
+      if (panelDom.settingsResetLayout) {
+        panelDom.settingsResetLayout.addEventListener('click', async () => {
+          try {
+            await safeStorageRemove([POSITION_KEY, SIZE_KEY], 'panel geometry reset');
+            const bounds = getPanelBounds();
+            const defaultWidth = Math.min(640, bounds.maxWidth);
+            const defaultHeight = Math.min(520, bounds.maxHeight);
+            applyPanelSize(defaultWidth, defaultHeight);
+            const defaultPosition = applyPanelPosition(undefined, undefined);
+            lastKnownPosition = defaultPosition;
+            panelEdgeState.isHidden = false;
+            applyEdgeHiddenPosition();
+            cancelEdgeHide({ show: true });
+            showToast('success', '布局已重置', '面板大小与位置已恢复默认值');
+          } catch (error) {
+            console.error('[Chaospace Transfer] Failed to reset layout', error);
+            showToast('error', '重置失败', error.message || '无法重置面板布局');
           }
         });
       }
@@ -6542,6 +7204,14 @@
         clearTimeout(edgeAnimationTimer);
         edgeAnimationTimer = null;
       }
+      if (typeof panelDom.closeSettingsPanel === 'function') {
+        panelDom.closeSettingsPanel({ restoreFocus: false });
+        delete panelDom.closeSettingsPanel;
+      }
+      if (panelDom.openSettingsPanel) {
+        delete panelDom.openSettingsPanel;
+      }
+      state.settingsPanel.isOpen = false;
       floatingPanel.remove();
       floatingPanel = null;
       if (panelHideTimer) {
@@ -6692,6 +7362,15 @@
       if ((nextTheme === 'light' || nextTheme === 'dark') && nextTheme !== state.theme) {
         state.theme = nextTheme;
         applyPanelTheme();
+      }
+      if (typeof settingsChange.newValue.historyRateLimitMs === 'number') {
+        const nextRate = clampHistoryRateLimit(settingsChange.newValue.historyRateLimitMs);
+        if (nextRate !== state.historyRateLimitMs) {
+          state.historyRateLimitMs = nextRate;
+          if (state.settingsPanel.isOpen) {
+            renderSettingsPanel();
+          }
+        }
       }
     }
     const historyChange = changes[HISTORY_KEY];
