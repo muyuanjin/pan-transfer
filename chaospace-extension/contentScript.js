@@ -4686,13 +4686,16 @@
       };
       panel.addEventListener('animationend', handlePanelIntroEnd);
       floatingPanel = panel;
-      panelEdgeState = { isHidden: false, side: 'right', peek: EDGE_HIDE_DEFAULT_PEEK };
+      const shouldEdgeHideOnMount = true;
+      panelEdgeState = { isHidden: shouldEdgeHideOnMount, side: 'right', peek: EDGE_HIDE_DEFAULT_PEEK };
       pointerInsidePanel = false;
+      lastPointerPosition = { x: Number.NaN, y: Number.NaN };
       isPanelPinned = false;
       if (panelHideTimer) {
         clearTimeout(panelHideTimer);
         panelHideTimer = null;
       }
+      panel.style.transition = 'none';
 
       const clamp = (value, min, max) => {
         return Math.min(Math.max(value, min), max);
@@ -4962,6 +4965,36 @@
         savedPosition && Number.isFinite(savedPosition.left) ? savedPosition.left : undefined,
         savedPosition && Number.isFinite(savedPosition.top) ? savedPosition.top : undefined
       );
+
+      if (shouldEdgeHideOnMount && !isPanelPinned) {
+        const dockSide = panelEdgeState.side;
+        const peekForMount = Number.isFinite(panelEdgeState.peek)
+          ? panelEdgeState.peek
+          : computeEdgePeek();
+        const offscreenBuffer = Math.max(24, peekForMount + 24);
+        const offscreenLeft = dockSide === 'right'
+          ? window.innerWidth + offscreenBuffer
+          : -(panel.offsetWidth + offscreenBuffer);
+        panelEdgeState.peek = peekForMount;
+        panel.style.setProperty('--chaospace-edge-peek', `${peekForMount}px`);
+        panel.style.left = `${offscreenLeft}px`;
+        panel.style.right = 'auto';
+        panel.classList.remove('is-hovering');
+        panel.classList.remove('is-leaving');
+        panel.classList.add('is-edge-hidden');
+      }
+
+      const finalizeInitialLayout = () => {
+        panel.style.removeProperty('transition');
+        if (shouldEdgeHideOnMount && !isPanelPinned) {
+          beginEdgeAnimation();
+          applyEdgeHiddenPosition();
+        } else if (shouldEdgeHideOnMount) {
+          panelEdgeState.isHidden = false;
+          applyEdgeHiddenPosition();
+        }
+      };
+      window.requestAnimationFrame(finalizeInitialLayout);
 
       panelDom.header = panel.querySelector('.chaospace-float-header');
       panelDom.headerArt = panel.querySelector('[data-role="header-art"]');
