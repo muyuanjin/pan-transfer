@@ -18,14 +18,6 @@
   const INITIAL_PANEL_DELAY_MS = 60;
   const PANEL_CREATION_RETRY_DELAY_MS = 100;
   const PANEL_CREATION_MAX_ATTEMPTS = 6;
-  const POSTER_PREVIEW_MIN_SCALE = 0.4;
-  const POSTER_PREVIEW_MAX_SCALE = 5;
-  const POSTER_PREVIEW_ZOOM_STEP = 0.12;
-  const POSTER_PREVIEW_MAX_VIEW_WIDTH = 560;
-  const POSTER_PREVIEW_MAX_VIEW_HEIGHT = 820;
-  const POSTER_PREVIEW_VIEWPORT_MARGIN = 64;
-  const POSTER_PREVIEW_BASE_MIN_WIDTH = 260;
-  const POSTER_PREVIEW_BASE_MIN_HEIGHT = 390;
   const PAN_DISK_BASE_URL = 'https://pan.baidu.com/disk/main#/index?category=all&path=';
 
   const CLASSIFICATION_PATH_MAP = {
@@ -570,12 +562,6 @@
 
   let floatingPanel = null;
   let currentToast = null;
-  let posterPreviewOverlay = null;
-  let posterPreviewInner = null;
-  let posterPreviewImage = null;
-  let posterPreviewScale = 1;
-  let posterPreviewMetrics = null;
-  let posterPreviewLoadHandler = null;
   let lastKnownSize = null;
   let detachWindowResize = null;
   let panelCreationInProgress = false;
@@ -586,7 +572,6 @@
   let isPanelPinned = false;
   let edgeAnimationTimer = null;
   let edgeTransitionUnbind = null;
-  let posterPreviewActive = false;
   let scheduleEdgeHideRef = null;
   let cancelEdgeHideRef = null;
 
@@ -2744,214 +2729,310 @@
     return rows;
   }
 
-  function computePosterPreviewBaseMetrics(image) {
-    if (!image) {
-      const fallbackAspect = POSTER_PREVIEW_BASE_MIN_WIDTH / POSTER_PREVIEW_BASE_MIN_HEIGHT;
-      return { aspect: fallbackAspect, baseWidth: POSTER_PREVIEW_BASE_MIN_WIDTH, baseHeight: POSTER_PREVIEW_BASE_MIN_HEIGHT };
-    }
-    let naturalWidth = Number(image.naturalWidth) || 0;
-    let naturalHeight = Number(image.naturalHeight) || 0;
-    if (naturalWidth <= 1 || naturalHeight <= 1) {
-      const rect = image.getBoundingClientRect();
-      if (rect.width > 1 && rect.height > 1) {
-        naturalWidth = rect.width;
-        naturalHeight = rect.height;
-      }
-    }
-    if (naturalWidth <= 1 || naturalHeight <= 1) {
-      naturalWidth = POSTER_PREVIEW_BASE_MIN_WIDTH;
-      naturalHeight = POSTER_PREVIEW_BASE_MIN_HEIGHT;
-    }
-    const aspect = naturalWidth / naturalHeight;
-    const availableWidth = Math.max(
-      POSTER_PREVIEW_BASE_MIN_WIDTH,
-      Math.min(window.innerWidth - POSTER_PREVIEW_VIEWPORT_MARGIN, POSTER_PREVIEW_MAX_VIEW_WIDTH)
-    );
-    const availableHeight = Math.max(
-      POSTER_PREVIEW_BASE_MIN_HEIGHT,
-      Math.min(window.innerHeight - POSTER_PREVIEW_VIEWPORT_MARGIN, POSTER_PREVIEW_MAX_VIEW_HEIGHT)
-    );
-    let width = Math.min(availableWidth, naturalWidth);
-    let height = width / aspect;
-    if (height > availableHeight) {
-      height = availableHeight;
-      width = height * aspect;
-    }
-    width = Math.max(POSTER_PREVIEW_BASE_MIN_WIDTH, width);
-    height = Math.max(POSTER_PREVIEW_BASE_MIN_HEIGHT, height);
-    return { aspect, baseWidth: width, baseHeight: height };
-  }
+    // ========================================================================
+    // === 全新重构的剧照预览功能 (START) ===
+    // ========================================================================
 
-  function applyPosterPreviewScale(requestedScale, { immediate = false } = {}) {
-    if (!posterPreviewInner || !posterPreviewImage || !posterPreviewMetrics) {
-      posterPreviewScale = 1;
-      return;
-    }
-    const limitedScale = Math.min(POSTER_PREVIEW_MAX_SCALE, Math.max(POSTER_PREVIEW_MIN_SCALE, requestedScale));
-    const availableWidth = Math.max(
-      POSTER_PREVIEW_BASE_MIN_WIDTH,
-      Math.min(window.innerWidth - POSTER_PREVIEW_VIEWPORT_MARGIN, POSTER_PREVIEW_MAX_VIEW_WIDTH)
-    );
-    const availableHeight = Math.max(
-      POSTER_PREVIEW_BASE_MIN_HEIGHT,
-      Math.min(window.innerHeight - POSTER_PREVIEW_VIEWPORT_MARGIN, POSTER_PREVIEW_MAX_VIEW_HEIGHT)
-    );
-    let targetWidth = posterPreviewMetrics.baseWidth * limitedScale;
-    let targetHeight = posterPreviewMetrics.baseHeight * limitedScale;
-    const widthRatio = targetWidth / availableWidth;
-    const heightRatio = targetHeight / availableHeight;
-    if (widthRatio > 1 || heightRatio > 1) {
-      const ratio = Math.max(widthRatio, heightRatio);
-      targetWidth /= ratio;
-      targetHeight /= ratio;
-    }
-    posterPreviewScale = targetWidth / posterPreviewMetrics.baseWidth;
-    if (immediate) {
-      posterPreviewInner.style.transition = 'none';
-    }
-    posterPreviewInner.style.width = `${targetWidth}px`;
-    posterPreviewInner.style.height = `${targetHeight}px`;
-    if (immediate) {
-      void posterPreviewInner.offsetWidth;
-      posterPreviewInner.style.transition = '';
-    }
-  }
+    /* 安装一个全局的 openZoomPreview({src, alt, maxScale?, margin?}) */
+    (function installZoomPreview() {
+        if (window.openZoomPreview) return;
 
-  function handlePosterPreviewWheel(event) {
-    if (!posterPreviewImage) {
-      return;
-    }
-    event.preventDefault();
-    if (event.deltaY === 0) {
-      return;
-    }
-    const zoomFactor = 1 + POSTER_PREVIEW_ZOOM_STEP;
-    const nextScale = event.deltaY < 0
-      ? posterPreviewScale * zoomFactor
-      : posterPreviewScale / zoomFactor;
-    applyPosterPreviewScale(nextScale);
-  }
+        const STYLE_ID = 'zi-preview-style';
+        const EPS = 1e-6;
 
-  function handlePosterPreviewResize() {
-    if (!posterPreviewActive || !posterPreviewImage) {
-      return;
-    }
-    const currentScale = posterPreviewScale || 1;
-    posterPreviewMetrics = computePosterPreviewBaseMetrics(posterPreviewImage);
-    applyPosterPreviewScale(currentScale, { immediate: true });
-  }
+        function injectStyles() {
+            if (document.getElementById(STYLE_ID)) return;
+            const css = `.zi-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.84); z-index: 2147483647; display: flex; align-items: center; justify-content: center; } .zi-stage { position: relative; width: 100%; height: 100%; touch-action: none; display: flex; align-items: center; justify-content: center; user-select: none; } .zi-content { position: absolute; left: 50%; top: 50%; will-change: transform; transform-origin: center center; transform: translate3d(-50%, -50%, 0) scale(1); } .zi-content img { display: block; max-width: none !important; max-height: none !important; user-select: none; pointer-events: none; -webkit-user-drag: none; } .zi-close { position: absolute; top: 16px; right: 16px; width: 36px; height: 36px; border: 0; border-radius: 18px; background: rgba(0,0,0,.4); color: #fff; font-size: 20px; cursor: pointer; } .zi-spinner { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff9; font-size: 14px; } .zi-hidden { display: none !important; }`;
+            const style = document.createElement('style');
+            style.id = STYLE_ID;
+            style.textContent = css;
+            document.head.appendChild(style);
+        }
 
-  function handlePosterPreviewClick(event) {
-    if (!posterPreviewActive || !posterPreviewInner) {
-      return;
-    }
-    if (event.target !== posterPreviewImage && event.target !== posterPreviewInner) {
-      return;
-    }
-    closePosterPreview();
-  }
+        function clamp(v, min, max) { return Math.min(Math.max(v, min), max); }
 
-  function closePosterPreview() {
-    const image = posterPreviewImage;
-    posterPreviewActive = false;
-    if (posterPreviewLoadHandler && image) {
-      image.removeEventListener('load', posterPreviewLoadHandler);
-    }
-    posterPreviewLoadHandler = null;
-    if (posterPreviewInner) {
-      posterPreviewInner.removeEventListener('wheel', handlePosterPreviewWheel);
-      posterPreviewInner.removeEventListener('click', handlePosterPreviewClick);
-    }
-    if (posterPreviewOverlay && posterPreviewOverlay.parentNode) {
-      posterPreviewOverlay.parentNode.removeChild(posterPreviewOverlay);
-    }
-    posterPreviewOverlay = null;
-    posterPreviewInner = null;
-    posterPreviewScale = 1;
-    posterPreviewMetrics = null;
-    if (!pointerInsidePanel && !isPanelPinned && scheduleEdgeHideRef) {
-      scheduleEdgeHideRef();
-    }
-    document.removeEventListener('keydown', handlePosterPreviewKeydown, true);
-    window.removeEventListener('resize', handlePosterPreviewResize);
-    posterPreviewImage = null;
-    if (floatingPanel) {
-      floatingPanel.classList.remove('is-previewing');
-    }
-  }
+        function openZoomPreview(opts) {
+            const src = opts?.src || '';
+            if (!src) return;
+            const alt = opts?.alt || '';
+            const maxScaleInput = Number.isFinite(opts?.maxScale) ? opts.maxScale : 8;
+            const margin = Number.isFinite(opts?.margin) ? opts.margin : 64;
 
-  function handlePosterPreviewKeydown(event) {
-    if (event.key === 'Escape') {
-      closePosterPreview();
-    }
-  }
+            injectStyles();
 
-  function showPosterPreview(options = {}) {
-    const src = options.src || '';
-    if (!src) {
-      return;
-    }
-    closePosterPreview();
-    posterPreviewOverlay = document.createElement('div');
-    posterPreviewOverlay.className = 'chaospace-poster-preview';
-    const inner = document.createElement('div');
-    inner.className = 'chaospace-poster-preview-inner';
-    const img = document.createElement('img');
-    img.src = src;
-    img.alt = options.alt || '';
-    inner.appendChild(img);
-    const closeButton = document.createElement('button');
-    closeButton.type = 'button';
-    closeButton.className = 'chaospace-poster-preview-close';
-    closeButton.textContent = '×';
-    closeButton.addEventListener('click', closePosterPreview);
-    inner.appendChild(closeButton);
-    posterPreviewOverlay.appendChild(inner);
-    posterPreviewOverlay.addEventListener('click', event => {
-      if (event.target === posterPreviewOverlay) {
-        closePosterPreview();
-      }
-    });
-    posterPreviewInner = inner;
-    posterPreviewImage = img;
-    posterPreviewScale = 1;
-    posterPreviewMetrics = null;
-    posterPreviewImage.draggable = false;
-    posterPreviewImage.style.transform = '';
-    posterPreviewInner.style.width = `${POSTER_PREVIEW_BASE_MIN_WIDTH}px`;
-    posterPreviewInner.style.height = `${POSTER_PREVIEW_BASE_MIN_HEIGHT}px`;
-    posterPreviewInner.addEventListener('wheel', handlePosterPreviewWheel, { passive: false });
-    posterPreviewInner.addEventListener('click', handlePosterPreviewClick);
-    posterPreviewActive = true;
-    posterPreviewLoadHandler = null;
-    const initializePreview = () => {
-      if (!posterPreviewActive || posterPreviewImage !== img) {
-        return;
-      }
-      posterPreviewMetrics = computePosterPreviewBaseMetrics(posterPreviewImage);
-      applyPosterPreviewScale(1, { immediate: true });
-      if (posterPreviewLoadHandler && posterPreviewImage) {
-        posterPreviewImage.removeEventListener('load', posterPreviewLoadHandler);
-        posterPreviewLoadHandler = null;
-      }
-    };
-    if (posterPreviewImage.complete && (posterPreviewImage.naturalWidth || posterPreviewImage.naturalHeight)) {
-      initializePreview();
-    } else {
-      posterPreviewLoadHandler = initializePreview;
-      posterPreviewImage.addEventListener('load', posterPreviewLoadHandler, { once: true });
-    }
-    if (floatingPanel) {
-      floatingPanel.classList.remove('is-leaving');
-      floatingPanel.classList.add('is-previewing');
-    }
-    if (cancelEdgeHideRef) {
-      cancelEdgeHideRef({ show: true });
-    }
-    document.body.appendChild(posterPreviewOverlay);
-    document.addEventListener('keydown', handlePosterPreviewKeydown, true);
-    window.addEventListener('resize', handlePosterPreviewResize);
-  }
+            const overlay = document.createElement('div');
+            overlay.className = 'zi-overlay';
+            overlay.setAttribute('role', 'dialog');
+            overlay.setAttribute('aria-modal', 'true');
+
+            const stage = document.createElement('div');
+            stage.className = 'zi-stage';
+
+            const content = document.createElement('div');
+            content.className = 'zi-content';
+
+            const img = document.createElement('img');
+            img.alt = alt;
+            img.draggable = false;
+            img.decoding = 'async';
+            img.referrerPolicy = 'no-referrer';
+            img.src = src;
+
+            const spinner = document.createElement('div');
+            spinner.className = 'zi-spinner';
+            spinner.textContent = '加载中…';
+
+            const closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className = 'zi-close';
+            closeBtn.textContent = '✕';
+
+            content.appendChild(img);
+            stage.appendChild(content);
+            stage.appendChild(spinner);
+            stage.appendChild(closeBtn);
+            overlay.appendChild(stage);
+            document.body.appendChild(overlay);
+            overlay.addEventListener('dragstart', e => {
+                e.preventDefault();
+            });
+
+            const state = {
+                vw: window.innerWidth,
+                vh: window.innerHeight,
+                iw: 0, ih: 0,
+                minScale: 1, maxScale: maxScaleInput,
+                scale: 1,
+                x: 0, y: 0,
+                pointers: new Map(),
+                dragging: false,
+                pinch: false,
+                dragStart: null,
+                pinchStart: null,
+                moved: false,
+                alive: true
+            };
+
+            function fitAndInit() {
+                if (!state.alive) return;
+                state.vw = window.innerWidth;
+                state.vh = window.innerHeight;
+
+                const availW = Math.max(0, state.vw - margin * 2);
+                const availH = Math.max(0, state.vh - margin * 2);
+
+                const scaleToFit = Math.min(availW / state.iw, availH / state.ih);
+                state.minScale = Math.min(1, isFinite(scaleToFit) ? scaleToFit : 1);
+                state.scale = state.minScale;
+                state.x = 0;
+                state.y = 0;
+
+                applyTransform();
+            }
+
+            function overflow() {
+                const availW = Math.max(0, state.vw - margin * 2);
+                const availH = Math.max(0, state.vh - margin * 2);
+                const cw = state.iw * state.scale;
+                const ch = state.ih * state.scale;
+                return {
+                    ox: Math.max(0, (cw - availW) / 2),
+                    oy: Math.max(0, (ch - availH) / 2)
+                };
+            }
+
+            function clampPan() {
+                const { ox, oy } = overflow();
+                state.x = ox === 0 ? 0 : clamp(state.x, -ox, ox);
+                state.y = oy === 0 ? 0 : clamp(state.y, -oy, oy);
+            }
+
+            function applyTransform() {
+                clampPan();
+                content.style.transform = `translate3d(-50%, -50%, 0) translate3d(${state.x}px, ${state.y}px, 0) scale(${state.scale})`;
+            }
+
+            function setScale(next, pivot) {
+                const prev = state.scale;
+                const clamped = clamp(next, state.minScale, state.maxScale);
+                const changed = Math.abs(clamped - prev) > EPS;
+
+                if (changed) {
+                    const cx = state.vw / 2;
+                    const cy = state.vh / 2;
+                    const px = (pivot?.x ?? cx) - cx;
+                    const py = (pivot?.y ?? cy) - cy;
+                    const r = clamped / prev;
+                    state.x = r * state.x + (1 - r) * px;
+                    state.y = r * state.y + (1 - r) * py;
+                    state.scale = clamped;
+                } else {
+                    state.scale = clamped;
+                }
+                applyTransform();
+            }
+
+            function wheelToScale(e) {
+                e.preventDefault();
+                const unit = e.deltaMode === 1 ? 16 : (e.deltaMode === 2 ? window.innerHeight : 1);
+                const dy = e.deltaY * unit;
+                const k = e.ctrlKey ? 0.004 : 0.0022;
+                const factor = Math.exp(-dy * k);
+                setScale(state.scale * factor, { x: e.clientX, y: e.clientY });
+            }
+
+            function updatePointer(e) {
+                state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            }
+            function removePointer(e) {
+                state.pointers.delete(e.pointerId);
+            }
+            function twoPoints() {
+                const arr = [...state.pointers.values()];
+                return arr.length >= 2 ? arr.slice(0, 2) : null;
+            }
+            function dist(p1, p2) {
+                const dx = p1.x - p2.x, dy = p1.y - p2.y;
+                return Math.hypot(dx, dy);
+            }
+            function mid(p1, p2) {
+                return { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+            }
+
+            function onPointerDown(e) {
+                if (!state.alive) return;
+                e.preventDefault();
+                stage.setPointerCapture?.(e.pointerId);
+                updatePointer(e);
+                state.moved = false;
+
+                if (state.pointers.size === 1) {
+                    state.dragging = true;
+                    state.dragStart = { x: e.clientX, y: e.clientY, sx: state.x, sy: state.y };
+                } else if (state.pointers.size === 2) {
+                    state.dragging = false;
+                    const [a, b] = twoPoints();
+                    state.pinch = true;
+                    state.pinchStart = {
+                        dist: dist(a, b),
+                        scale: state.scale,
+                        mid: mid(a, b)
+                    };
+                }
+            }
+
+            function onPointerMove(e) {
+                if (!state.alive) return;
+                updatePointer(e);
+
+                if (state.pinch && state.pointers.size >= 2) {
+                    const [a, b] = twoPoints();
+                    const d = Math.max(1, dist(a, b));
+                    const r = d / Math.max(1, state.pinchStart.dist);
+                    const next = state.pinchStart.scale * r;
+                    setScale(next, state.pinchStart.mid);
+                    state.moved = true;
+                    return;
+                }
+
+                if (state.dragging && state.pointers.size === 1) {
+                    const dx = e.clientX - state.dragStart.x;
+                    const dy = e.clientY - state.dragStart.y;
+                    state.x = state.dragStart.sx + dx;
+                    state.y = state.dragStart.sy + dy;
+                    state.moved = state.moved || Math.abs(dx) + Math.abs(dy) > 2;
+                    applyTransform();
+                }
+            }
+
+            function onPointerUp(e) {
+                const isCancel = e.type === 'pointercancel';
+                removePointer(e);
+                if (state.pinch && state.pointers.size < 2) {
+                    state.pinch = false;
+                    state.pinchStart = null;
+                }
+                if (state.dragging && state.pointers.size === 0) {
+                    state.dragging = false;
+                    state.dragStart = null;
+                }
+                if (!state.alive || isCancel) return;
+                if (state.pointers.size === 0 && !state.dragging && !state.pinch && !state.moved) {
+                    if (e.pointerType === 'mouse' && e.button !== 0) return;
+                    close();
+                }
+            }
+
+            function onResize() {
+                if (!state.alive || !state.iw || !state.ih) return;
+                const oldMin = state.minScale;
+                fitAndInit();
+                const ratio = oldMin > 0 ? state.scale / oldMin : 1;
+                setScale(state.minScale * Math.max(1, ratio));
+            }
+
+            function close() {
+                if (!state.alive) return;
+                state.alive = false;
+                window.removeEventListener('resize', onResize);
+                window.removeEventListener('keydown', onKeydown, true);
+                stage.removeEventListener('wheel', wheelToScale, { passive: false });
+                stage.removeEventListener('pointerdown', onPointerDown);
+                stage.removeEventListener('pointermove', onPointerMove);
+                stage.removeEventListener('pointerup', onPointerUp);
+                stage.removeEventListener('pointercancel', onPointerUp);
+                overlay.removeEventListener('click', onOverlayClick);
+                overlay.remove();
+            }
+
+            function onKeydown(e) {
+                if (e.key === 'Escape') close();
+            }
+
+            function onOverlayClick(e) {
+                if (!state.alive) return;
+                if (e.target !== overlay) return;
+                if (!state.moved) close();
+            }
+
+            window.addEventListener('resize', onResize);
+            window.addEventListener('keydown', onKeydown, true);
+            stage.addEventListener('wheel', wheelToScale, { passive: false });
+            stage.addEventListener('pointerdown', onPointerDown);
+            stage.addEventListener('pointermove', onPointerMove);
+            stage.addEventListener('pointerup', onPointerUp);
+            stage.addEventListener('pointercancel', onPointerUp);
+            overlay.addEventListener('click', onOverlayClick);
+            closeBtn.addEventListener('click', e => {
+                e.stopPropagation();
+                close();
+            });
+
+            function initOnLoad() {
+                spinner.classList.add('zi-hidden');
+                state.iw = img.naturalWidth || img.width || 1;
+                state.ih = img.naturalHeight || img.height || 1;
+                fitAndInit();
+            }
+            if (img.complete && (img.naturalWidth || img.width)) {
+                initOnLoad();
+            } else {
+                img.addEventListener('load', initOnLoad, { once: true });
+                img.addEventListener('error', () => {
+                    spinner.textContent = '加载失败';
+                }, { once: true });
+            }
+
+            return { close };
+        }
+
+        window.openZoomPreview = openZoomPreview;
+    })();
+
+
+    // ========================================================================
+    // === 全新重构的剧照预览功能 (END) ===
+    // ========================================================================
 
   function applyHistoryToCurrentPage() {
     const normalizedUrl = normalizePageUrl(state.pageUrl || window.location.href);
@@ -3946,10 +4027,29 @@
       detailDom.poster.addEventListener('click', () => {
         const src = detailDom.poster.dataset.previewSrc || detailDom.poster.src;
         if (src) {
-          showPosterPreview({
+          window.openZoomPreview({
             src,
             alt: detailDom.poster.alt || detailDom.title?.textContent || ''
           });
+        }
+      });
+    }
+    if (detailDom.modal) {
+      detailDom.modal.addEventListener('click', event => {
+        const actionButton = event.target.closest('button[data-action]');
+        if (actionButton) {
+          const action = actionButton.dataset.action;
+          if (action === 'preview-poster') {
+            if (!actionButton.disabled) {
+              const src = actionButton.dataset.src;
+              if (src) {
+                window.openZoomPreview({
+                  src,
+                  alt: actionButton.dataset.alt || ''
+                });
+              }
+            }
+          }
         }
       });
     }
@@ -4103,20 +4203,22 @@
       const stills = Array.isArray(data.stills) ? data.stills : [];
       if (stills.length) {
         stills.slice(0, 12).forEach(still => {
-          const link = document.createElement('a');
-          link.className = 'chaospace-history-detail-still';
-          link.href = still.full || still.thumb || '#';
-          link.target = '_blank';
-          link.rel = 'noopener';
-          link.title = still.alt || data.title || '剧照';
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'chaospace-history-detail-still';
+          button.dataset.action = 'preview-poster';
+          button.dataset.src = still.full || still.thumb || '';
+          button.dataset.alt = still.alt || data.title || '剧照';
+          button.title = still.alt || data.title || '剧照';
           const img = document.createElement('img');
           img.src = still.thumb || still.full || '';
           img.alt = still.alt || data.title || '';
           img.loading = 'lazy';
           img.decoding = 'async';
           disableElementDrag(img);
-          link.appendChild(img);
-          detailDom.stills.appendChild(link);
+          button.appendChild(img);
+          disableElementDrag(button);
+          detailDom.stills.appendChild(button);
         });
         detailDom.stills.classList.remove('is-empty');
       } else {
@@ -5532,7 +5634,7 @@
       };
 
       const hidePanelToEdge = () => {
-        if (!floatingPanel || isPanelPinned || posterPreviewActive || isDragging || isResizing) {
+        if (!floatingPanel || isPanelPinned || isDragging || isResizing) {
           return;
         }
         panel.classList.remove('is-hovering');
@@ -5544,7 +5646,7 @@
       };
 
       const scheduleEdgeHide = (delay = EDGE_HIDE_DELAY) => {
-        if (!floatingPanel || isPanelPinned || posterPreviewActive || isDragging || isResizing) {
+        if (!floatingPanel || isPanelPinned || isDragging || isResizing) {
           return;
         }
         if (panelHideTimer) {
@@ -5730,7 +5832,7 @@
         panelDom.headerPoster.addEventListener('click', () => {
           const src = panelDom.headerPoster.dataset.src;
           if (src) {
-            showPosterPreview({
+            window.openZoomPreview({
               src,
               alt: panelDom.headerPoster.dataset.alt || panelDom.headerPoster.alt || state.pageTitle || ''
             });
@@ -6037,7 +6139,7 @@
               if (!actionButton.disabled) {
                 const src = actionButton.dataset.src;
                 if (src) {
-                  showPosterPreview({
+                  window.openZoomPreview({
                     src,
                     alt: actionButton.dataset.alt || actionButton.getAttribute('aria-label') || ''
                   });
