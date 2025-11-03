@@ -24,8 +24,480 @@
   const POSTER_PREVIEW_BASE_MIN_WIDTH = 260;
   const POSTER_PREVIEW_BASE_MIN_HEIGHT = 390;
 
+  const CLASSIFICATION_PATH_MAP = {
+    anime: '/视频/番剧',
+    tvshow: '/视频/影视',
+    movie: '/视频/电影'
+  };
+
+  const JAPANESE_TV_CHANNELS = new Set([
+    'NHK', 'NHK-G', 'NHK-E', 'NHK-BS', 'NHK-BS4K', 'NHK-BS8K',
+    'Nippon TV', 'NTV', 'Yomiuri TV', 'ytv',
+    'TV Asahi', 'EX', 'ABC', 'ANN',
+    'TBS', 'TBS TV', 'BS-TBS', 'CS-TBS',
+    'TV Tokyo', 'TX', 'BS Japan', 'AT-X',
+    'Fuji TV', 'CX', 'BS Fuji', 'BS-Fuji',
+    'Tokyo MX', 'Tokyo Metropolitan Television', 'MXTV',
+    'Kansai TV', 'KTV',
+    'Chubu-Nippon Broadcasting', 'CBC',
+    'Mainichi Broadcasting System', 'MBS',
+    'Asahi Broadcasting Corporation', 'ABC',
+    'Osaka Television', 'OTV',
+    'Kyoto Broadcasting System', 'KBS',
+    'BS11', 'BS-TBS', 'BS Japan', 'BS Fuji', 'BS Asahi', 'BS NTV',
+    'BS11 digital', 'BS11 デジタル',
+    'AT-X', 'ATX', 'AT-Xアニメ', 'AT-X Anime',
+    'Kids Station', 'キッズステーション',
+    'Animax', 'アニマックス',
+    'Bandai Channel', 'バンダイチャンネル',
+    'Gunma TV', '群馬テレビ',
+    'Tochigi TV', '栃木テレビ',
+    'Chiba TV', '千葉テレビ',
+    'TV Saitama', '埼玉テレビ',
+    'TV Kanagawa', 'tvk', '神奈川テレビ',
+    'Sun TV', 'サンテレビ',
+    'KBS Kyoto', '京都放送',
+    'ABC Asahi', '朝日放送',
+    'MBS Mainichi', '毎日放送',
+    'AbemaTV', 'Abema', 'アベマTV',
+    'dアニメストア', 'd Anime Store',
+    'Amazon Prime Video', 'Amazon Video',
+    'Netflix', 'ネットフリックス',
+    'Hulu', 'フールー',
+    'U-NEXT', 'ユーネクスト',
+    'FOD', 'フジテレビオンデマンド',
+    'TVer', 'ティーバー',
+    'Gyao!', 'GYAO!',
+    'Niconico', 'ニコニコ動画',
+    'Bilibili', 'ビリビリ',
+    '日テレ', 'テレビ朝日', 'TBSテレビ', 'フジテレビ',
+    'テレビ東京', 'NHK総合', 'NHK-Eテレ',
+    'BS日テレ', 'BS朝日', 'BSフジ'
+  ]);
+
+  const JAPANESE_KEYWORDS = new Set([
+    '日本', '日剧', '日漫', '动漫', '动画', 'anime', 'アニメ',
+    '番剧', '新番', '季番', '年番', '半年番',
+    '声优', '声優', 'seiyu', '声優さん',
+    '原作', '漫画', 'まんが', 'manga',
+    '轻小说', 'ライトノベル', 'light novel',
+    '游戏改编', 'ゲーム原作', 'game original',
+    '小说改编', '小説原作', 'novel original'
+  ]);
+
+  class ChaospaceClassifier {
+    constructor() {
+      this.cachedMainDoc = null;
+      this.cachedMainDocUrl = '';
+    }
+
+    async classifyCurrentPage() {
+      const url = window.location.href || '';
+      if (this.isMoviePage(url)) {
+        return 'movie';
+      }
+      if (!this.isTvShowPage(url)) {
+        return 'unknown';
+      }
+
+      const primaryAnalysis = this.analyzeDocument(document);
+      if (primaryAnalysis.classification === 'anime') {
+        return 'anime';
+      }
+      if (this.isSeasonPage(url)) {
+        const mainDoc = await this.getMainPageContent({ onlyWhenNecessary: true, currentAnalysis: primaryAnalysis });
+        if (mainDoc && mainDoc !== document) {
+          const mainAnalysis = this.analyzeDocument(mainDoc);
+          if (mainAnalysis.classification === 'anime') {
+            return 'anime';
+          }
+        }
+      }
+      return 'tvshow';
+    }
+
+    async getDetailedClassification() {
+      const result = {
+        url: window.location.href || '',
+        classification: 'unknown',
+        confidence: 0,
+        reasons: [],
+        debug: {
+          isMovie: false,
+          isTvShow: false,
+          isSeason: false,
+          primary: {
+            hasJapaneseChannel: false,
+            hasJapaneseKeywordsInBody: false,
+            hasJapaneseKeywordsInMeta: false,
+            tvChannels: []
+          },
+          mainPageLoaded: false,
+          main: {
+            hasJapaneseChannel: false,
+            hasJapaneseKeywordsInBody: false,
+            hasJapaneseKeywordsInMeta: false,
+            tvChannels: []
+          }
+        }
+      };
+
+      const url = window.location.href || '';
+      result.debug.isMovie = this.isMoviePage(url);
+      if (result.debug.isMovie) {
+        result.classification = 'movie';
+        result.confidence = 1;
+        result.reasons.push('URL 包含 /movies/ 路径');
+        return result;
+      }
+
+      result.debug.isTvShow = this.isTvShowPage(url);
+      result.debug.isSeason = this.isSeasonPage(url);
+      if (!result.debug.isTvShow) {
+        result.reasons.push('URL 未匹配剧集路径');
+        return result;
+      }
+
+      const primaryAnalysis = this.analyzeDocument(document);
+      result.debug.primary = {
+        hasJapaneseChannel: primaryAnalysis.hasJapaneseChannel,
+        hasJapaneseKeywordsInBody: primaryAnalysis.hasJapaneseKeywordsInBody,
+        hasJapaneseKeywordsInMeta: primaryAnalysis.hasJapaneseKeywordsInMeta,
+        tvChannels: primaryAnalysis.tvChannels
+      };
+
+      let finalClassification = primaryAnalysis.classification;
+      let confidence = primaryAnalysis.hasJapaneseChannel ? 0.9 : (primaryAnalysis.hasJapaneseKeywords ? 0.7 : 0.6);
+
+      if (primaryAnalysis.hasJapaneseChannel) {
+        result.reasons.push('检测到日本电视台/平台标识');
+      } else if (primaryAnalysis.hasJapaneseKeywordsInBody || primaryAnalysis.hasJapaneseKeywordsInMeta) {
+        const sourceLabel = primaryAnalysis.hasJapaneseKeywordsInBody ? '页面正文' : '标题/简介';
+        result.reasons.push(`检测到 ${sourceLabel} 中的日本相关关键词`);
+      }
+
+      if (finalClassification !== 'anime' && result.debug.isSeason) {
+        const mainDoc = await this.getMainPageContent({ onlyWhenNecessary: true, currentAnalysis: primaryAnalysis });
+        if (mainDoc && mainDoc !== document) {
+          result.debug.mainPageLoaded = true;
+          const mainAnalysis = this.analyzeDocument(mainDoc);
+          result.debug.main = {
+            hasJapaneseChannel: mainAnalysis.hasJapaneseChannel,
+            hasJapaneseKeywordsInBody: mainAnalysis.hasJapaneseKeywordsInBody,
+            hasJapaneseKeywordsInMeta: mainAnalysis.hasJapaneseKeywordsInMeta,
+            tvChannels: mainAnalysis.tvChannels
+          };
+          if (mainAnalysis.classification === 'anime') {
+            finalClassification = 'anime';
+            confidence = mainAnalysis.hasJapaneseChannel ? 0.9 : (mainAnalysis.hasJapaneseKeywords ? 0.75 : 0.6);
+            if (mainAnalysis.hasJapaneseChannel) {
+              result.reasons.push('主剧集页检测到日本电视台/平台标识');
+            } else if (mainAnalysis.hasJapaneseKeywordsInBody || mainAnalysis.hasJapaneseKeywordsInMeta) {
+              const mainSourceLabel = mainAnalysis.hasJapaneseKeywordsInBody ? '主剧集页正文' : '主剧集页标题/简介';
+              result.reasons.push(`主剧集页检测到 ${mainSourceLabel} 中的日本相关关键词`);
+            }
+          }
+        }
+      }
+
+      if (finalClassification !== 'anime') {
+        result.reasons.push('未匹配番剧特征，归类为普通影视');
+      }
+
+      result.classification = finalClassification;
+      result.confidence = confidence;
+      return result;
+    }
+
+    isMoviePage(url) {
+      return typeof url === 'string' && url.includes('/movies/');
+    }
+
+    isTvShowPage(url) {
+      if (typeof url !== 'string') {
+        return false;
+      }
+      return url.includes('/tvshows/') || url.includes('/seasons/');
+    }
+
+    isSeasonPage(url) {
+      return typeof url === 'string' && url.includes('/seasons/');
+    }
+
+    analyzeDocument(doc) {
+      const channels = this.extractTVChannels(doc);
+      const hasJapaneseChannel = channels.some(channel => this.isJapaneseTVChannel(channel));
+      const pageText = this.extractPageText(doc);
+      const hasJapaneseKeywordsInBody = this.hasJapaneseKeywords(pageText);
+      const title = (doc && doc.title) || document.title || '';
+      const description = this.extractDescription(doc);
+      const hasJapaneseKeywordsInMeta = this.hasJapaneseKeywords(`${title} ${description}`);
+      const hasJapaneseKeywords = hasJapaneseKeywordsInBody || hasJapaneseKeywordsInMeta;
+      const classification = hasJapaneseChannel || hasJapaneseKeywords ? 'anime' : 'tvshow';
+      return {
+        classification,
+        tvChannels: channels,
+        hasJapaneseChannel,
+        hasJapaneseKeywordsInBody,
+        hasJapaneseKeywordsInMeta,
+        hasJapaneseKeywords
+      };
+    }
+
+    isAnimePage(doc) {
+      const analysis = this.analyzeDocument(doc);
+      return analysis.classification === 'anime';
+    }
+
+    findMainPageUrl() {
+      try {
+        const container = document.querySelector('.sgeneros');
+        if (container) {
+          const anchor = container.querySelector('a[href*="/tvshows/"]');
+          if (anchor && anchor.href) {
+            return anchor.href;
+          }
+        }
+      } catch (error) {
+        console.warn('[Chaospace Transfer] Failed to resolve main page via .sgeneros', error);
+      }
+
+      const seasonPathMatch = window.location.pathname.match(/\/seasons\/(\d+)/i);
+      if (seasonPathMatch && seasonPathMatch[1]) {
+        return `${window.location.origin}/tvshows/${seasonPathMatch[1]}.html`;
+      }
+
+      return null;
+    }
+
+    async getMainPageContent({ onlyWhenNecessary = false, currentAnalysis = null } = {}) {
+      if (onlyWhenNecessary && currentAnalysis && (currentAnalysis.hasJapaneseChannel || currentAnalysis.hasJapaneseKeywords)) {
+        return document;
+      }
+
+      const mainUrl = this.findMainPageUrl();
+      if (!mainUrl) {
+        return document;
+      }
+      if (this.cachedMainDoc && this.cachedMainDocUrl === mainUrl) {
+        return this.cachedMainDoc;
+      }
+
+      try {
+        const response = await fetch(mainUrl, {
+          method: 'GET',
+          headers: {
+            Accept: 'text/html',
+            'User-Agent': navigator.userAgent
+          },
+          credentials: 'include'
+        });
+        if (!response.ok) {
+          return document;
+        }
+        const html = await response.text();
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        this.cachedMainDoc = doc;
+        this.cachedMainDocUrl = mainUrl;
+        return doc;
+      } catch (error) {
+        console.warn('[Chaospace Transfer] Failed to load main page for classification', error);
+        return document;
+      }
+    }
+
+    extractTVChannels(doc) {
+      const channels = [];
+      const root = doc && typeof doc.querySelectorAll === 'function' ? doc : document;
+      const selectors = [
+        '.extra a[href*="/network/"]',
+        '.extra a[href*="/channel/"]',
+        'a[href*="/network/"]',
+        'a[href*="/channel/"]',
+        '.network a',
+        '.channel a',
+        '.tv-channel a'
+      ];
+
+      selectors.forEach(selector => {
+        try {
+          const elements = root.querySelectorAll(selector);
+          elements.forEach(el => {
+            const text = el.textContent?.trim();
+            if (text && text.length > 0 && text.length < 64) {
+              channels.push(text);
+            }
+            const href = el.getAttribute('href');
+            if (href) {
+              const match = href.match(/\/(network|channel)\/([^\/]+)/);
+              if (match && match[2]) {
+                const channelName = decodeURIComponent(match[2]);
+                if (channelName && channelName.length < 64) {
+                  channels.push(channelName);
+                }
+              }
+            }
+          });
+        } catch (error) {
+          console.warn('[Chaospace Transfer] Failed to scan TV channel selector', selector, error);
+        }
+      });
+
+      const text = this.extractPageText(doc);
+      const patterns = [
+        /[A-Z]{2,}-?TV/gi,
+        /[A-Z]{2,}\s+TV/gi,
+        /BS\d+/gi,
+        /[A-Z]{2,}-\d+/gi
+      ];
+
+      patterns.forEach(pattern => {
+        const matches = text.match(pattern);
+        if (matches) {
+          matches.forEach(match => {
+            if (match && match.length > 2 && match.length < 64) {
+              channels.push(match);
+            }
+          });
+        }
+      });
+
+      return Array.from(new Set(channels));
+    }
+
+    extractPageText(doc) {
+      try {
+        const sourceRoot = doc?.body || doc?.documentElement || document.body;
+        if (!sourceRoot) {
+          return '';
+        }
+        const clone = sourceRoot.cloneNode(true);
+        if (!clone || typeof clone.querySelectorAll !== 'function') {
+          return '';
+        }
+        clone.querySelectorAll('script, style, nav, footer, header').forEach(node => node.remove());
+        const text = clone.textContent || '';
+        return text.replace(/\s+/g, ' ').trim();
+      } catch (error) {
+        console.warn('[Chaospace Transfer] Failed to extract page text', error);
+        return '';
+      }
+    }
+
+    hasJapaneseKeywords(text) {
+      if (!text || typeof text !== 'string') {
+        return false;
+      }
+      const lower = text.toLowerCase();
+      for (const keyword of JAPANESE_KEYWORDS) {
+        if (lower.includes(keyword.toLowerCase())) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    isJapaneseTVChannel(channel) {
+      if (!channel || typeof channel !== 'string') {
+        return false;
+      }
+      const trimmed = channel.trim();
+      if (!trimmed) {
+        return false;
+      }
+      if (JAPANESE_TV_CHANNELS.has(trimmed)) {
+        return true;
+      }
+      const lower = trimmed.toLowerCase();
+      const known = [...JAPANESE_TV_CHANNELS].some(name => name.toLowerCase() === lower);
+      if (known) {
+        return true;
+      }
+      const patterns = [
+        /^(at-x|atx|at_x)$/i,
+        /^(bs\d+|bs\d+\s*\w*)$/i,
+        /^(tokyo\s*mx|mx\s*tv)$/i,
+        /^(gunma\s*tv|群馬テレビ)$/i,
+        /^(tochigi\s*tv|栃木テレビ)$/i,
+        /^(nippon\s*tv|ntv|日テレ)$/i,
+        /^(tv\s*asahi|asahi|テレビ朝日)$/i,
+        /^(tbs\s*tv|tbs)$/i,
+        /^(tv\s*tokyo|tx|テレビ東京)$/i,
+        /^(fuji\s*tv|cx|フジテレビ)$/i,
+        /^(nhk\s*\w*|nhk)$/i,
+        /^(animax|アニマックス)$/i,
+        /^(abema|アベマ)$/i
+      ];
+      return patterns.some(pattern => pattern.test(trimmed));
+    }
+
+    extractDescription(doc) {
+      try {
+        const root = doc && typeof doc.querySelector === 'function' ? doc : document;
+        const metaDescription = root.querySelector('meta[name="description"]');
+        if (metaDescription && metaDescription.getAttribute('content')) {
+          return metaDescription.getAttribute('content') || '';
+        }
+        const ogDescription = root.querySelector('meta[property="og:description"]');
+        if (ogDescription && ogDescription.getAttribute('content')) {
+          return ogDescription.getAttribute('content') || '';
+        }
+        return '';
+      } catch (error) {
+        console.warn('[Chaospace Transfer] Failed to extract description', error);
+        return '';
+      }
+    }
+  }
+
+  let pageClassificationPromise = null;
+  let pageClassificationUrl = null;
+
+  async function getPageClassification({ detailed = false } = {}) {
+    const currentUrl = window.location.href || '';
+    if (pageClassificationUrl !== currentUrl) {
+      pageClassificationPromise = null;
+      pageClassificationUrl = currentUrl;
+    }
+    if (!pageClassificationPromise) {
+      const classifier = new ChaospaceClassifier();
+      pageClassificationPromise = classifier.getDetailedClassification().catch(error => {
+        console.error('[Chaospace Transfer] Page classification failed', error);
+        return {
+          url: window.location.href || '',
+          classification: 'unknown',
+          confidence: 0,
+          reasons: ['分类器执行出错'],
+          debug: {}
+        };
+      });
+      pageClassificationUrl = currentUrl;
+    }
+    const result = await pageClassificationPromise;
+    return detailed ? result : result?.classification || 'unknown';
+  }
+
+  function suggestDirectoryFromClassification(classification) {
+    if (!classification) {
+      return null;
+    }
+    if (typeof classification === 'string') {
+      return CLASSIFICATION_PATH_MAP[classification] || null;
+    }
+    if (classification && typeof classification === 'object') {
+      const key = classification.classification || classification.type;
+      return CLASSIFICATION_PATH_MAP[key] || null;
+    }
+    return null;
+  }
+
   const state = {
     baseDir: '/',
+    baseDirLocked: false,
+    autoSuggestedDir: null,
+    classification: 'unknown',
+    classificationDetails: null,
     useTitleSubdir: true,
     useSeasonSubdir: false,
     hasSeasonSubdirPreference: false,
@@ -1506,6 +1978,9 @@
       if (!completion && items.length === 0) {
         completion = null;
       }
+
+      const classificationDetail = await getPageClassification({ detailed: true });
+
       return {
         ...baseResult,
         items,
@@ -1514,11 +1989,18 @@
         deferredSeasons,
         totalSeasons,
         loadedSeasons,
-        seasonEntries
+        seasonEntries,
+        classification: classificationDetail?.classification || 'unknown',
+        classificationDetail
       };
     } catch (error) {
       console.error('[Chaospace Transfer] Failed to collect links', error);
-      return baseResult;
+      const classificationDetail = await getPageClassification({ detailed: true }).catch(() => null);
+      return {
+        ...baseResult,
+        classification: classificationDetail?.classification || 'unknown',
+        classificationDetail
+      };
     }
   }
 
@@ -1661,6 +2143,11 @@
     return normalized;
   }
 
+  function isDefaultDirectory(value) {
+    const normalized = normalizeDir(value);
+    return normalized === '/' || DEFAULT_PRESETS.includes(normalized);
+  }
+
   function sanitizePreset(value) {
     if (!value) {
       return '';
@@ -1682,8 +2169,16 @@
       const stored = await chrome.storage.local.get(STORAGE_KEY);
       const settings = stored[STORAGE_KEY] || {};
       if (typeof settings.baseDir === 'string') {
-        state.baseDir = normalizeDir(settings.baseDir);
+        const normalizedBase = normalizeDir(settings.baseDir);
+        state.baseDir = normalizedBase;
+        state.baseDirLocked = !isDefaultDirectory(normalizedBase);
+      } else {
+        state.baseDir = '/';
+        state.baseDirLocked = false;
       }
+      state.autoSuggestedDir = null;
+      state.classification = 'unknown';
+      state.classificationDetails = null;
       if (typeof settings.useTitleSubdir === 'boolean') {
         state.useTitleSubdir = settings.useTitleSubdir;
       }
@@ -3648,19 +4143,58 @@
     panelDom.transferLabel.textContent = isRunning ? '正在转存...' : (count > 0 ? `转存选中 ${count} 项` : '请选择资源');
   }
 
-  function setBaseDir(value, { fromPreset = false } = {}) {
+  function setBaseDir(value, { fromPreset = false, persist = true, lockOverride = null } = {}) {
     const normalized = normalizeDir(value);
     state.baseDir = normalized;
-    if (panelDom.baseDirInput && panelDom.baseDirInput.value !== normalized) {
-      panelDom.baseDirInput.value = normalized;
+    const shouldLock = typeof lockOverride === 'boolean'
+      ? lockOverride
+      : !isDefaultDirectory(normalized);
+    state.baseDirLocked = shouldLock;
+
+    if (panelDom.baseDirInput) {
+      if (panelDom.baseDirInput.value !== normalized) {
+        panelDom.baseDirInput.value = normalized;
+      }
+      if (!shouldLock) {
+        delete panelDom.baseDirInput.dataset.dirty;
+      }
     }
+
     if (fromPreset) {
       // 选中 preset 时不立即追加, 但保持已存在
       ensurePreset(normalized);
     }
-    saveSettings();
+
+    if (persist) {
+      saveSettings();
+    }
     renderPresets();
     renderPathPreview();
+  }
+
+  function applyAutoBaseDir(classificationInput, { persist = false } = {}) {
+    const detail = classificationInput && typeof classificationInput === 'object'
+      ? classificationInput
+      : { classification: typeof classificationInput === 'string' ? classificationInput : 'unknown' };
+    const type = detail.classification || detail.type || 'unknown';
+    state.classification = type || 'unknown';
+    state.classificationDetails = detail;
+
+    const suggestion = suggestDirectoryFromClassification(detail);
+    state.autoSuggestedDir = suggestion;
+
+    if (!suggestion) {
+      return false;
+    }
+    if (state.baseDirLocked && state.baseDir !== suggestion) {
+      return false;
+    }
+    if (state.baseDir === suggestion) {
+      return false;
+    }
+
+    setBaseDir(suggestion, { persist, lockOverride: false });
+    return true;
   }
 
   function setSelectionAll(selected) {
@@ -3933,6 +4467,10 @@
           hasItems: Boolean(entry.hasItems)
         }))
         : [];
+      state.classification = data.classification || 'unknown';
+      state.classificationDetails = data.classificationDetail || null;
+      state.autoSuggestedDir = suggestDirectoryFromClassification(state.classificationDetails || state.classification);
+      applyAutoBaseDir(state.classificationDetails || state.classification);
       state.items = (Array.isArray(data.items) ? data.items : []).map((item, index) => ({
         ...item,
         order: typeof item.order === 'number' ? item.order : index

@@ -1,6 +1,11 @@
 const STORAGE_KEY = 'chaospace-transfer-settings';
 const HISTORY_KEY = 'chaospace-transfer-history';
 const DEFAULT_PRESETS = ['/视频/番剧', '/视频/影视', '/视频/电影'];
+const CLASSIFICATION_PATH_MAP = {
+  anime: '/视频/番剧',
+  tvshow: '/视频/影视',
+  movie: '/视频/电影'
+};
 const MAX_LOG_ENTRIES = 80;
 const LOG_COLLAPSED_COUNT = 4;
 const HISTORY_DISPLAY_LIMIT = 8;
@@ -59,6 +64,10 @@ const state = {
   poster: null,
   items: [],
   baseDir: '/',
+  baseDirLocked: false,
+  autoSuggestedDir: null,
+  classification: 'unknown',
+  classificationDetail: null,
   useTitleSubdir: true,
   presets: [...DEFAULT_PRESETS],
   selectedIds: new Set(),
@@ -99,6 +108,25 @@ function normalizeDir(value) {
     normalized = normalized.slice(0, -1);
   }
   return normalized;
+}
+
+function isDefaultDirectory(value) {
+  const normalized = normalizeDir(value);
+  return normalized === '/' || DEFAULT_PRESETS.includes(normalized);
+}
+
+function suggestDirectoryFromClassification(classification) {
+  if (!classification) {
+    return null;
+  }
+  if (typeof classification === 'string') {
+    return CLASSIFICATION_PATH_MAP[classification] || null;
+  }
+  if (classification && typeof classification === 'object') {
+    const key = classification.classification || classification.type;
+    return CLASSIFICATION_PATH_MAP[key] || null;
+  }
+  return null;
 }
 
 function sanitizePreset(value) {
@@ -165,8 +193,16 @@ async function loadSettings() {
     const stored = await chrome.storage.local.get(STORAGE_KEY);
     const settings = stored[STORAGE_KEY] || {};
     if (typeof settings.baseDir === 'string') {
-      state.baseDir = normalizeDir(settings.baseDir);
+      const normalizedBase = normalizeDir(settings.baseDir);
+      state.baseDir = normalizedBase;
+      state.baseDirLocked = !isDefaultDirectory(normalizedBase);
+    } else {
+      state.baseDir = '/';
+      state.baseDirLocked = false;
     }
+    state.autoSuggestedDir = null;
+    state.classification = 'unknown';
+    state.classificationDetail = null;
     if (typeof settings.useTitleSubdir === 'boolean') {
       state.useTitleSubdir = settings.useTitleSubdir;
     }
@@ -1438,18 +1474,61 @@ function updateTransferButton() {
   dom.transferLabel.textContent = isRunning ? '正在转存...' : (count > 0 ? `转存选中 ${count} 项` : '请选择资源');
 }
 
-function setBaseDir(value, { fromPreset = false } = {}) {
+function setBaseDir(value, { fromPreset = false, persist = true, lockOverride = null } = {}) {
   const normalized = normalizeDir(value);
   state.baseDir = normalized;
-  if (dom.baseDir && dom.baseDir.value !== normalized) {
-    dom.baseDir.value = normalized;
+  const shouldLock = typeof lockOverride === 'boolean'
+    ? lockOverride
+    : !isDefaultDirectory(normalized);
+  state.baseDirLocked = shouldLock;
+  if (dom.baseDir) {
+    if (dom.baseDir.value !== normalized) {
+      dom.baseDir.value = normalized;
+    }
+    if (!shouldLock) {
+      delete dom.baseDir.dataset.dirty;
+    }
   }
   if (fromPreset) {
     ensurePreset(normalized);
   }
-  saveSettings();
+  if (persist) {
+    saveSettings();
+  }
   renderPresets();
   renderPathPreview();
+}
+
+function applyAutoBaseDir(classificationInput, { persist = false } = {}) {
+  if (!classificationInput) {
+    state.classification = 'unknown';
+    state.classificationDetail = null;
+    state.autoSuggestedDir = null;
+    return false;
+  }
+
+  const detail = typeof classificationInput === 'object'
+    ? classificationInput
+    : { classification: classificationInput };
+  const type = detail.classification || detail.type || 'unknown';
+  state.classification = type;
+  state.classificationDetail = detail;
+
+  const suggestion = suggestDirectoryFromClassification(detail);
+  state.autoSuggestedDir = suggestion;
+
+  if (!suggestion) {
+    return false;
+  }
+  if (state.baseDirLocked && state.baseDir !== suggestion) {
+    return false;
+  }
+  if (state.baseDir === suggestion) {
+    return false;
+  }
+
+  setBaseDir(suggestion, { persist, lockOverride: false });
+  return true;
 }
 
 function setControlsDisabled(disabled) {
@@ -1583,25 +1662,42 @@ async function refreshItems() {
       ? response.seasonCompletion
       : {};
 
+    const resolveOrigin = () => {
+      if (response?.origin) {
+        return response.origin;
+      }
+      try {
+        return tab.url ? new URL(tab.url).origin : '';
+      } catch (_error) {
+        return '';
+      }
+    };
+
+    state.origin = resolveOrigin();
+    state.pageTitle = response?.title || tab.title || '';
+    state.poster = response?.poster || null;
+
+    const classificationInput = response?.classificationDetail || response?.classification || null;
+    if (classificationInput) {
+      applyAutoBaseDir(classificationInput);
+    } else {
+      applyAutoBaseDir(null);
+    }
+
     if (!response || !Array.isArray(response.items) || !response.items.length) {
       state.items = [];
       state.selectedIds = new Set();
-      state.origin = response?.origin || new URL(tab.url || '').origin;
-      state.pageTitle = response?.title || tab.title || '';
-      state.poster = response?.poster || null;
       renderPageInfo();
       renderItems();
       applyHistoryToCurrentPage();
       renderHistoryCard();
+      renderPathPreview();
       renderSelectionSummary();
       updateTransferButton();
       showMessage('未从页面中解析到资源链接。', 'info');
       return;
     }
 
-    state.origin = response.origin || new URL(tab.url || '').origin;
-    state.pageTitle = response.title || tab.title || '';
-    state.poster = response.poster || null;
     state.items = response.items.map((item, index) => ({
       ...item,
       order: typeof item.order === 'number' ? item.order : index
@@ -1622,9 +1718,11 @@ async function refreshItems() {
     state.poster = null;
     state.completion = null;
     state.seasonCompletion = {};
+    applyAutoBaseDir(null);
     renderPageInfo();
     renderItems();
     renderHistoryCard();
+    renderPathPreview();
     renderSelectionSummary();
     updateTransferButton();
     showMessage(`无法获取页面资源：${error.message}`);
