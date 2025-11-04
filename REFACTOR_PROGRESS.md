@@ -91,6 +91,12 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
     - Moved the title normalizer into `src/content/utils/title.js` so both the season manager and entry script consume the same helper.
     - Updated resource list/settings integrations to call into the new service; ran `npm run build` (2025-11-03 23:58 UTC-8) to confirm bundles stay green.
 
+## Latest Session (2025-11-04, morning)
+- Extracted deferred season hydration/loader logic into `src/content/services/season-loader.js`, exposing `ensureDeferredSeasonLoading` and `resetSeasonLoader`.
+- Refactored `src/content/index.js` to consume the new service, pass render/update hooks, and reset loader state when the floating panel mounts or tears down.
+- Replaced the inline `summarizeSeasonCompletion` helper with the shared implementation from `src/shared/utils/completion-status.js` to remove duplication.
+- Re-ran `npm run build` (2025-11-04, UTC-8) to confirm Vite bundles remain green after the extraction.
+
 ## Latest Session (2025-11-03, afternoon)
 - Shifted history group completion/type helpers and filter normalization into `src/content/services/history-service.js` so `content/index.js` retains orchestration duties only.
 - Updated `src/content/index.js` to consume the new helpers (`filterHistoryGroups`, `normalizeHistoryFilter`, `canCheckHistoryGroup`, `isHistoryGroupCompleted`) and dropped the duplicated inline implementations.
@@ -128,7 +134,7 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 - [x] Move settings modal logic into `components/settings-modal.js`.
 - [x] Consolidate remaining DOM helpers (geometry persistence, storage wrappers) into `content/utils/` or dedicated services.
 - [ ] Continue trimming `src/content/index.js` so it only orchestrates imports, bootstrapping, and Chrome message wiring.
-- [ ] Lift deferred season hydration/loader logic into a dedicated module (e.g., `services/season-loader.js`) and integrate with the season manager.
+- [x] Lift deferred season hydration/loader logic into a dedicated module (e.g., `services/season-loader.js`) and integrate with the season manager.
 
 ### B. Shared Helpers & Services
 - [x] Move any remaining inline sanitizers (CSS URL, title formatters) into `src/shared/utils/` or `content/utils/` as appropriate.
@@ -154,7 +160,7 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 - **Parity validation**: Season directory sanitization/path builder changes need confirmation on fresh transfers (prior runs still showed `– CHAOSPACE` suffix before the latest fix).
 
 ## Manual Verification Status
-- Vite production build succeeds as of 2025-11-03 23:58 (UTC-8) after the season manager extraction (`npm run build`).
+- Vite production build succeeds as of 2025-11-04 (UTC-8) after introducing the season loader service (`npm run build`).
 - Manual Chrome smoke test (2025-11-03) confirms extension loads, icons display, data import & transfers complete, and history rendering works; history detail zoom preview verified after latest fix.
 - Post-cleanup season tab labels and directory names have not yet been re-smoke-tested; schedule a fresh transfer to validate sanitized labels/paths with live data.
 - Settings modal flows (import/export/backups, layout reset, rate limit validation) need a follow-up manual regression pass now that the component extraction is complete.
@@ -163,7 +169,7 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 1. Load the freshly built `dist/` in Chrome, trigger a transfer, and confirm season tabs/items/path preview reflect the sanitized labels (no trailing dates/status/ratings, no `– CHAOSPACE` suffixes).
 2. Smoke-test the new panel shell component (edge-hide, drag/resize, pin behaviour) to confirm parity with the legacy script.
 3. Regression-test the new settings modal (import/export, layout reset, theme toggles) to confirm parity with legacy behavior.
-4. Carve out deferred season hydration into a standalone service and rewire entry points to reduce `content/index.js` branching.
+4. ✅ Carved out deferred season hydration into `src/content/services/season-loader.js`; continue monitoring `content/index.js` for remaining orchestration logic.
 5. Re-run `npm run build` after each major extraction to ensure bundling stays green.
 6. Update this archive with progress and any new blockers.
 
