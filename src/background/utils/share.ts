@@ -1,32 +1,32 @@
 export function buildSurl(linkUrl: string | null | undefined): string {
   if (!linkUrl) {
-    return '';
+    return ''
   }
   try {
-    const url = new URL(linkUrl);
+    const url = new URL(linkUrl)
     if (url.pathname.startsWith('/s/')) {
-      let segment = url.pathname.replace('/s/', '');
+      let segment = url.pathname.replace('/s/', '')
       if (segment.startsWith('1')) {
-        segment = segment.substring(1);
+        segment = segment.substring(1)
       }
-      return segment;
+      return segment
     }
     if (url.pathname.startsWith('/share/init')) {
-      const surl = url.searchParams.get('surl');
+      const surl = url.searchParams.get('surl')
       if (surl) {
-        return surl;
+        return surl
       }
     }
   } catch (error) {
-    console.warn('无法解析 surl', linkUrl, error);
+    console.warn('无法解析 surl', linkUrl, error)
   }
-  return '';
+  return ''
 }
 
 export function extractPassCodeFromText(text: string | null | undefined): string {
   if (!text) {
-    return '';
+    return ''
   }
-  const match = text.match(/提取码[：:]*\s*([0-9a-zA-Z]+)/);
-  return match?.[1] ?? '';
+  const match = text.match(/提取码[：:]*\s*([0-9a-zA-Z]+)/)
+  return match?.[1] ?? ''
 }

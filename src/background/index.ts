@@ -1,50 +1,50 @@
-import { handleTransfer, setProgressHandlers } from './services/transfer-service';
-import { handleCheckUpdates, handleHistoryDetail } from './services/history-service';
+import { handleTransfer, setProgressHandlers } from './services/transfer-service'
+import { handleCheckUpdates, handleHistoryDetail } from './services/history-service'
 import {
   deleteHistoryRecords,
   clearHistoryRecords,
-  ensureHistoryLoaded
-} from './storage/history-store';
-import { ensureCacheLoaded } from './storage/cache-store';
-import type { TransferRequestPayload } from '../shared/types/transfer';
+  ensureHistoryLoaded,
+} from './storage/history-store'
+import { ensureCacheLoaded } from './storage/cache-store'
+import type { TransferRequestPayload } from '../shared/types/transfer'
 
 interface JobContext {
-  tabId?: number;
-  frameId?: number;
+  tabId?: number
+  frameId?: number
 }
 
-type ProgressPayload = Record<string, unknown>;
+type ProgressPayload = Record<string, unknown>
 
 interface HistoryDeleteMessage {
-  type: 'chaospace:history-delete';
+  type: 'chaospace:history-delete'
   payload?: {
-    urls?: unknown;
-  };
+    urls?: unknown
+  }
 }
 
 interface HistoryClearMessage {
-  type: 'chaospace:history-clear';
-  payload?: undefined;
+  type: 'chaospace:history-clear'
+  payload?: undefined
 }
 
 interface HistoryDetailMessage {
-  type: 'chaospace:history-detail';
+  type: 'chaospace:history-detail'
   payload?: {
-    pageUrl?: unknown;
-  };
+    pageUrl?: unknown
+  }
 }
 
 interface CheckUpdatesMessage {
-  type: 'chaospace:check-updates';
+  type: 'chaospace:check-updates'
   payload?: {
-    pageUrl?: unknown;
-    targetDirectory?: unknown;
-  };
+    pageUrl?: unknown
+    targetDirectory?: unknown
+  }
 }
 
 interface TransferMessage {
-  type: 'chaospace:transfer';
-  payload?: TransferRequestPayload;
+  type: 'chaospace:transfer'
+  payload?: TransferRequestPayload
 }
 
 type BackgroundMessage =
@@ -54,216 +54,220 @@ type BackgroundMessage =
   | CheckUpdatesMessage
   | TransferMessage
   | {
-    type?: string;
-    payload?: unknown;
-  };
+      type?: string
+      payload?: unknown
+    }
 
 const isHistoryDeleteMessage = (message: BackgroundMessage): message is HistoryDeleteMessage =>
-  message?.type === 'chaospace:history-delete';
+  message?.type === 'chaospace:history-delete'
 
 const isHistoryClearMessage = (message: BackgroundMessage): message is HistoryClearMessage =>
-  message?.type === 'chaospace:history-clear';
+  message?.type === 'chaospace:history-clear'
 
 const isHistoryDetailMessage = (message: BackgroundMessage): message is HistoryDetailMessage =>
-  message?.type === 'chaospace:history-detail';
+  message?.type === 'chaospace:history-detail'
 
 const isCheckUpdatesMessage = (message: BackgroundMessage): message is CheckUpdatesMessage =>
-  message?.type === 'chaospace:check-updates';
+  message?.type === 'chaospace:check-updates'
 
 const isTransferMessage = (message: BackgroundMessage): message is TransferMessage =>
-  message?.type === 'chaospace:transfer';
+  message?.type === 'chaospace:transfer'
 
-const jobContexts = new Map<string, JobContext>();
+const jobContexts = new Map<string, JobContext>()
 
 function isIgnorableMessageError(error: unknown): boolean {
   if (!error) {
-    return true;
+    return true
   }
-  const message = typeof error === 'string' ? error : (error as Error)?.message;
+  const message = typeof error === 'string' ? error : (error as Error)?.message
   if (!message) {
-    return false;
+    return false
   }
-  return message.includes('Receiving end does not exist') ||
-    message.includes('The message port closed before a response was received.');
+  return (
+    message.includes('Receiving end does not exist') ||
+    message.includes('The message port closed before a response was received.')
+  )
 }
 
 type TransferProgressMessage = {
-  type: 'chaospace:transfer-progress';
-  jobId: string;
-} & ProgressPayload;
+  type: 'chaospace:transfer-progress'
+  jobId: string
+} & ProgressPayload
 
 function emitProgress(jobId: string | undefined, data: ProgressPayload = {}): void {
   if (!jobId) {
-    return;
+    return
   }
   const message: TransferProgressMessage = {
     type: 'chaospace:transfer-progress',
     jobId,
-    ...data
-  };
-  const context = jobContexts.get(jobId);
+    ...data,
+  }
+  const context = jobContexts.get(jobId)
 
   if (context && typeof context.tabId === 'number') {
     const callback = (): void => {
-      const error = chrome.runtime.lastError;
+      const error = chrome.runtime.lastError
       if (error && !isIgnorableMessageError(error)) {
         console.warn('[Chaospace Transfer] Failed to post progress to tab', {
           jobId,
           tabId: context.tabId,
-          message: error.message
-        });
+          message: error.message,
+        })
       }
       if (error && error.message && error.message.includes('No tab with id')) {
-        jobContexts.delete(jobId);
+        jobContexts.delete(jobId)
       }
-    };
+    }
     try {
       if (typeof context.frameId === 'number') {
-        chrome.tabs.sendMessage(context.tabId, message, { frameId: context.frameId }, callback);
+        chrome.tabs.sendMessage(context.tabId, message, { frameId: context.frameId }, callback)
       } else {
-        chrome.tabs.sendMessage(context.tabId, message, callback);
+        chrome.tabs.sendMessage(context.tabId, message, callback)
       }
     } catch (error) {
-      const err = error as Error;
+      const err = error as Error
       console.warn('[Chaospace Transfer] tabs.sendMessage threw', {
         jobId,
         tabId: context.tabId,
-        message: err.message
-      });
+        message: err.message,
+      })
     }
   }
 
   chrome.runtime.sendMessage(message, () => {
-    const error = chrome.runtime.lastError;
+    const error = chrome.runtime.lastError
     if (error && !isIgnorableMessageError(error)) {
       console.warn('[Chaospace Transfer] Failed to post progress via runtime message', {
         jobId,
-        message: error.message
-      });
+        message: error.message,
+      })
     }
-  });
+  })
 }
 
 function logStage(
   jobId: string | undefined,
   stage: string,
   message: string,
-  extra: ProgressPayload = {}
+  extra: ProgressPayload = {},
 ): void {
   if (!jobId) {
-    return;
+    return
   }
   emitProgress(jobId, {
     stage,
     message,
-    ...extra
-  });
+    ...extra,
+  })
 }
 
-setProgressHandlers({ emitProgress, logStage });
+setProgressHandlers({ emitProgress, logStage })
 
 async function bootstrapStores(): Promise<void> {
   try {
-    await ensureCacheLoaded();
+    await ensureCacheLoaded()
   } catch (error) {
-    console.warn('[Chaospace Transfer] Failed to preload cache store', error);
+    console.warn('[Chaospace Transfer] Failed to preload cache store', error)
   }
   try {
-    await ensureHistoryLoaded();
+    await ensureHistoryLoaded()
   } catch (error) {
-    console.warn('[Chaospace Transfer] Failed to preload history store', error);
+    console.warn('[Chaospace Transfer] Failed to preload history store', error)
   }
 }
 
-bootstrapStores();
+bootstrapStores()
 
 chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendResponse) => {
   if (isHistoryDeleteMessage(message)) {
-    const urlsInput = message.payload?.urls;
+    const urlsInput = message.payload?.urls
     const urls = Array.isArray(urlsInput)
       ? urlsInput.filter((url): url is string => typeof url === 'string' && url.length > 0)
-      : [];
+      : []
     deleteHistoryRecords(urls)
-      .then(result => sendResponse(result))
-      .catch(error => sendResponse({ ok: false, error: error.message || '删除历史记录失败' }));
-    return true;
+      .then((result) => sendResponse(result))
+      .catch((error) => sendResponse({ ok: false, error: error.message || '删除历史记录失败' }))
+    return true
   }
 
   if (isHistoryClearMessage(message)) {
     clearHistoryRecords()
-      .then(result => sendResponse(result))
-      .catch(error => sendResponse({ ok: false, error: error.message || '清空历史失败' }));
-    return true;
+      .then((result) => sendResponse(result))
+      .catch((error) => sendResponse({ ok: false, error: error.message || '清空历史失败' }))
+    return true
   }
 
   if (isHistoryDetailMessage(message)) {
-    const pageUrl = typeof message.payload?.pageUrl === 'string' ? message.payload.pageUrl : '';
+    const pageUrl = typeof message.payload?.pageUrl === 'string' ? message.payload.pageUrl : ''
     handleHistoryDetail({ pageUrl })
-      .then(result => sendResponse(result))
-      .catch(error => sendResponse({ ok: false, error: error.message || '获取详情失败' }));
-    return true;
+      .then((result) => sendResponse(result))
+      .catch((error) => sendResponse({ ok: false, error: error.message || '获取详情失败' }))
+    return true
   }
 
   if (isCheckUpdatesMessage(message)) {
     const updatesPayload: Parameters<typeof handleCheckUpdates>[0] = {
-      pageUrl: typeof message.payload?.pageUrl === 'string' ? message.payload.pageUrl : ''
-    };
+      pageUrl: typeof message.payload?.pageUrl === 'string' ? message.payload.pageUrl : '',
+    }
     if (typeof message.payload?.targetDirectory === 'string') {
-      updatesPayload.targetDirectory = message.payload.targetDirectory;
+      updatesPayload.targetDirectory = message.payload.targetDirectory
     }
     handleCheckUpdates(updatesPayload)
-      .then(result => sendResponse(result))
-      .catch(error => sendResponse({ ok: false, error: error.message || '检测更新失败' }));
-    return true;
+      .then((result) => sendResponse(result))
+      .catch((error) => sendResponse({ ok: false, error: error.message || '检测更新失败' }))
+    return true
   }
 
   if (isTransferMessage(message)) {
-    const payload = message.payload;
+    const payload = message.payload
     if (!payload || !Array.isArray(payload.items)) {
-      sendResponse({ ok: false, error: '缺少任务信息' });
-      return false;
+      sendResponse({ ok: false, error: '缺少任务信息' })
+      return false
     }
     if (payload.jobId) {
-      const context: JobContext = {};
+      const context: JobContext = {}
       if (typeof sender?.tab?.id === 'number') {
-        context.tabId = sender.tab.id;
+        context.tabId = sender.tab.id
       }
       if (typeof sender?.frameId === 'number') {
-        context.frameId = sender.frameId;
+        context.frameId = sender.frameId
       }
-      jobContexts.set(payload.jobId, context);
+      jobContexts.set(payload.jobId, context)
     }
     handleTransfer(payload)
-      .then(result => sendResponse({ ok: true, ...result }))
-      .catch(error => sendResponse({ ok: false, error: error.message || '转存失败' }))
+      .then((result) => sendResponse({ ok: true, ...result }))
+      .catch((error) => sendResponse({ ok: false, error: error.message || '转存失败' }))
       .finally(() => {
         if (payload.jobId) {
-          jobContexts.delete(payload.jobId);
+          jobContexts.delete(payload.jobId)
         }
-      });
-    return true;
+      })
+    return true
   }
 
-  return false;
-});
+  return false
+})
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.declarativeNetRequest.updateDynamicRules({
     removeRuleIds: [1],
-    addRules: [{
-      id: 1,
-      priority: 1,
-      action: {
-        type: 'modifyHeaders',
-        requestHeaders: [
-          { header: 'Referer', operation: 'set', value: 'https://pan.baidu.com' },
-          { header: 'Origin', operation: 'set', value: 'https://pan.baidu.com' }
-        ]
+    addRules: [
+      {
+        id: 1,
+        priority: 1,
+        action: {
+          type: 'modifyHeaders',
+          requestHeaders: [
+            { header: 'Referer', operation: 'set', value: 'https://pan.baidu.com' },
+            { header: 'Origin', operation: 'set', value: 'https://pan.baidu.com' },
+          ],
+        },
+        condition: {
+          urlFilter: 'pan.baidu.com/*',
+          resourceTypes: ['xmlhttprequest'],
+        },
       },
-      condition: {
-        urlFilter: 'pan.baidu.com/*',
-        resourceTypes: ['xmlhttprequest']
-      }
-    }]
-  });
-});
+    ],
+  })
+})

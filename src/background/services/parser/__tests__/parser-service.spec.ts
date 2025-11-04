@@ -1,12 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest'
 import {
   parseCompletionFromHtml,
   parseHistoryDetailFromHtml,
   parseItemsFromHtml,
   parseLinkPage,
   parseTvShowSeasonCompletionFromHtml,
-  parseTvShowSeasonEntriesFromHtml
-} from '../../parser-service';
+  parseTvShowSeasonEntriesFromHtml,
+} from '../../parser-service'
 
 const detailHtml = `
   <div class="sheader">
@@ -60,7 +60,7 @@ const detailHtml = `
       <span class="date">完结</span>
     </div>
   </div>
-`;
+`
 
 const seasonsHtml = `
   <div id="seasons">
@@ -85,7 +85,7 @@ const seasonsHtml = `
       <img data-src="https://cdn.example.com/season2.jpg" alt="">
     </div>
   </div>
-`;
+`
 
 const downloadHtml = `
   <div id="download">
@@ -104,110 +104,113 @@ const downloadHtml = `
       </tbody>
     </table>
   </div>
-`;
+`
 
 describe('parser-service', () => {
   it('parses link page and extracts passcode', () => {
-    const html = `<a href="https://pan.baidu.com/s/foobar?pwd=abcd">Download</a>`;
-    const result = parseLinkPage(html);
+    const html = `<a href="https://pan.baidu.com/s/foobar?pwd=abcd">Download</a>`
+    const result = parseLinkPage(html)
     expect(result).toEqual({
       linkUrl: 'https://pan.baidu.com/s/foobar?pwd=abcd',
-      passCode: 'abcd'
-    });
-  });
+      passCode: 'abcd',
+    })
+  })
 
   it('parses history detail sections into structured data', () => {
-    const detail = parseHistoryDetailFromHtml(detailHtml, 'https://chaospace.tv/shows/example.html');
-    expect(detail.title).toBe('Example Title');
-    expect(detail.poster?.src).toBe('https://chaospace.tv/images/poster.jpg');
-    expect(detail.releaseDate).toBe('2024-09-01');
-    expect(detail.country).toBe('Japan');
-    expect(detail.runtime).toBe('120 分钟');
+    const detail = parseHistoryDetailFromHtml(detailHtml, 'https://chaospace.tv/shows/example.html')
+    expect(detail.title).toBe('Example Title')
+    expect(detail.poster?.src).toBe('https://chaospace.tv/images/poster.jpg')
+    expect(detail.releaseDate).toBe('2024-09-01')
+    expect(detail.country).toBe('Japan')
+    expect(detail.runtime).toBe('120 分钟')
     expect(detail.rating).toEqual({
       value: '8.5',
       votes: '1000 votes',
       label: 'Excellent',
-      scale: 10
-    });
-    expect(detail.genres).toEqual(['Drama', 'Action']);
-    expect(detail.synopsis).toContain('Synopsis text');
-    expect(detail.stills).toHaveLength(2);
-    const [firstStill, secondStill] = detail.stills;
+      scale: 10,
+    })
+    expect(detail.genres).toEqual(['Drama', 'Action'])
+    expect(detail.synopsis).toContain('Synopsis text')
+    expect(detail.stills).toHaveLength(2)
+    const [firstStill, secondStill] = detail.stills
     if (!firstStill || !secondStill) {
-      throw new Error('Expected history stills to be populated');
+      throw new Error('Expected history stills to be populated')
     }
     expect(firstStill).toMatchObject({
       url: 'https://chaospace.tv/full.jpg',
       thumb: 'https://chaospace.tv/thumb.jpg',
-      alt: 'Still One'
-    });
+      alt: 'Still One',
+    })
     expect(secondStill).toMatchObject({
       url: 'https://cdn.example.com/full2.jpg',
       thumb: 'https://cdn.example.com/thumb2.jpg',
-      alt: 'Example Title'
-    });
+      alt: 'Example Title',
+    })
     expect(detail.info).toEqual([
       { label: 'Director', value: 'John Doe' },
-      { label: 'Cast', value: 'Jane Doe' }
-    ]);
-    expect(detail.completion?.state).toBe('completed');
-    expect(detail.completion?.label).toBe('完结');
-  });
+      { label: 'Cast', value: 'Jane Doe' },
+    ])
+    expect(detail.completion?.state).toBe('completed')
+    expect(detail.completion?.label).toBe('完结')
+  })
 
   it('parses season entries including poster URLs', () => {
-    const entries = parseTvShowSeasonEntriesFromHtml(seasonsHtml, 'https://chaospace.tv/tvshows/1.html');
-    expect(entries).toHaveLength(2);
-    const [firstEntry, secondEntry] = entries;
+    const entries = parseTvShowSeasonEntriesFromHtml(
+      seasonsHtml,
+      'https://chaospace.tv/tvshows/1.html',
+    )
+    expect(entries).toHaveLength(2)
+    const [firstEntry, secondEntry] = entries
     if (!firstEntry || !secondEntry) {
-      throw new Error('Expected season entries to be populated');
+      throw new Error('Expected season entries to be populated')
     }
     expect(firstEntry).toMatchObject({
       seasonId: '123',
       url: 'https://chaospace.tv/seasons/123.html',
       label: '2024 完结',
-      seasonIndex: 0
-    });
-    expect(firstEntry.poster?.src).toBe('https://chaospace.tv/images/season1.jpg');
-    expect(secondEntry.seasonId).toBe('456');
-    expect(secondEntry.poster?.src).toBe('https://cdn.example.com/season2.jpg');
-  });
+      seasonIndex: 0,
+    })
+    expect(firstEntry.poster?.src).toBe('https://chaospace.tv/images/season1.jpg')
+    expect(secondEntry.seasonId).toBe('456')
+    expect(secondEntry.poster?.src).toBe('https://cdn.example.com/season2.jpg')
+  })
 
   it('parses completion labels from season listings', () => {
-    const completion = parseTvShowSeasonCompletionFromHtml(seasonsHtml);
-    expect(completion['123']?.state).toBe('completed');
-    expect(completion['123']?.label).toBe('完结');
-  });
+    const completion = parseTvShowSeasonCompletionFromHtml(seasonsHtml)
+    expect(completion['123']?.state).toBe('completed')
+    expect(completion['123']?.label).toBe('完结')
+  })
 
   it('extracts items from download tables using history fallback', () => {
     const history = {
-      '1': { linkUrl: 'https://pan.baidu.com/s/123', passCode: 'abcd' }
-    };
-    const items = parseItemsFromHtml(downloadHtml, history);
+      '1': { linkUrl: 'https://pan.baidu.com/s/123', passCode: 'abcd' },
+    }
+    const items = parseItemsFromHtml(downloadHtml, history)
     expect(items).toEqual([
       {
         id: '1',
         title: '资源 1',
         linkUrl: 'https://pan.baidu.com/s/123',
-        passCode: 'abcd'
+        passCode: 'abcd',
       },
       {
         id: '2',
         title: '资源 2',
         linkUrl: '',
-        passCode: ''
-      }
-    ]);
-  });
+        passCode: '',
+      },
+    ])
+  })
 
   it('derives completion state from arbitrary detail markup', () => {
     const completion = parseCompletionFromHtml(
       `<div class="extra"><span class="date">2024-10-01</span><span class="date">更新至 10</span></div>`,
-      'detail-meta'
-    );
+      'detail-meta',
+    )
     expect(completion).toMatchObject({
       label: '更新至 10',
       state: 'ongoing',
-      source: 'detail-meta'
-    });
-  });
-});
+      source: 'detail-meta',
+    })
+  })
+})

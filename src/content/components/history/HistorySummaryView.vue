@@ -31,16 +31,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed } from 'vue'
 
 const props = defineProps<{
   summary: {
-    title: string;
-    metaParts: string[];
-  } | null;
-  historyExpanded: boolean;
-  emptyMessage?: string;
-}>();
+    title: string
+    metaParts: string[]
+  } | null
+  historyExpanded: boolean
+  emptyMessage?: string
+}>()
 
-const emptyMessage = computed<string>(() => props.emptyMessage || '暂无其他转存记录');
+const emptyMessage = computed<string>(() => props.emptyMessage || '暂无其他转存记录')
 </script>

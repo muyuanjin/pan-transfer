@@ -5,7 +5,7 @@
       :class="{
         'is-selected': entry.isSelected,
         'is-current': entry.isCurrent,
-        'is-season-expanded': entry.seasonExpanded
+        'is-season-expanded': entry.seasonExpanded,
       }"
       data-detail-trigger="group"
       :data-group-key="entry.group.key"
@@ -73,7 +73,9 @@
             data-action="open-pan"
             :data-url="entry.panInfo.url"
             :data-path="entry.panInfo.path"
-            :title="entry.panInfo.path === '/' ? '打开网盘首页' : `打开网盘目录 ${entry.panInfo.path}`"
+            :title="
+              entry.panInfo.path === '/' ? '打开网盘首页' : `打开网盘目录 ${entry.panInfo.path}`
+            "
           >
             进入网盘
           </button>
@@ -168,7 +170,9 @@
               data-action="open-pan"
               :data-url="season.panInfo.url"
               :data-path="season.panInfo.path"
-              :title="season.panInfo.path === '/' ? '打开网盘首页' : `打开网盘目录 ${season.panInfo.path}`"
+              :title="
+                season.panInfo.path === '/' ? '打开网盘首页' : `打开网盘目录 ${season.panInfo.path}`
+              "
             >
               进入网盘
             </button>
@@ -191,88 +195,88 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { buildHistoryGroupSeasonRows } from '../../services/history-service';
-import type { HistoryGroup, HistoryGroupSeasonRow } from '../../types';
+import { computed } from 'vue'
+import { buildHistoryGroupSeasonRows } from '../../services/history-service'
+import type { HistoryGroup, HistoryGroupSeasonRow } from '../../types'
 import {
   deriveHistoryGroupMeta,
   deriveSeasonRow,
   resolveHistoryPanInfo,
-  type HistoryStatusBadge
-} from './history-card.helpers';
+  type HistoryStatusBadge,
+} from './history-card.helpers'
 
 const props = defineProps<{
-  entries: HistoryGroup[];
-  currentUrl: string;
-  selectedKeys: string[];
-  seasonExpandedKeys: string[];
-  historyBatchRunning: boolean;
-  isHistoryGroupCompleted?: ((group: HistoryGroup) => boolean) | undefined;
-}>();
+  entries: HistoryGroup[]
+  currentUrl: string
+  selectedKeys: string[]
+  seasonExpandedKeys: string[]
+  historyBatchRunning: boolean
+  isHistoryGroupCompleted?: ((group: HistoryGroup) => boolean) | undefined
+}>()
 
-const selectedSet = computed(() => new Set(props.selectedKeys));
-const expandedSet = computed(() => new Set(props.seasonExpandedKeys));
+const selectedSet = computed(() => new Set(props.selectedKeys))
+const expandedSet = computed(() => new Set(props.seasonExpandedKeys))
 
 interface DerivedSeasonView {
-  row: HistoryGroupSeasonRow;
-  timestampLabel: string;
-  panInfo: ReturnType<typeof resolveHistoryPanInfo>;
-  statusBadge: HistoryStatusBadge | null;
-  statusBadgeClass: Record<string, boolean>;
-  checkLabel: string;
-  checkDisabled: boolean;
-  checkDisabledReason: string | undefined;
-  posterAttrs: Record<string, unknown>;
+  row: HistoryGroupSeasonRow
+  timestampLabel: string
+  panInfo: ReturnType<typeof resolveHistoryPanInfo>
+  statusBadge: HistoryStatusBadge | null
+  statusBadgeClass: Record<string, boolean>
+  checkLabel: string
+  checkDisabled: boolean
+  checkDisabledReason: string | undefined
+  posterAttrs: Record<string, unknown>
 }
 
 interface DerivedEntryView {
-  group: HistoryGroup;
-  title: string;
-  mainRecord: HistoryGroup['main'] & Record<string, any>;
-  panInfo: ReturnType<typeof resolveHistoryPanInfo>;
-  statusBadge: HistoryStatusBadge | null;
-  statusBadgeClass: Record<string, boolean>;
-  isSelected: boolean;
-  isCurrent: boolean;
-  metaParts: string[];
-  seasonRows: DerivedSeasonView[];
-  seasonExpanded: boolean;
-  showCheck: boolean;
-  checkLabel: string;
-  checkDisabled: boolean;
-  checkDisabledReason: string | undefined;
-  poster: HistoryGroup['poster'] | null;
-  posterAttrs: Record<string, unknown>;
+  group: HistoryGroup
+  title: string
+  mainRecord: HistoryGroup['main'] & Record<string, any>
+  panInfo: ReturnType<typeof resolveHistoryPanInfo>
+  statusBadge: HistoryStatusBadge | null
+  statusBadgeClass: Record<string, boolean>
+  isSelected: boolean
+  isCurrent: boolean
+  metaParts: string[]
+  seasonRows: DerivedSeasonView[]
+  seasonExpanded: boolean
+  showCheck: boolean
+  checkLabel: string
+  checkDisabled: boolean
+  checkDisabledReason: string | undefined
+  poster: HistoryGroup['poster'] | null
+  posterAttrs: Record<string, unknown>
 }
 
 const derivedEntries = computed<DerivedEntryView[]>(() => {
   return props.entries.map((group) => {
-    const mainRecord = (group.main ?? {}) as DerivedEntryView['mainRecord'];
-    const meta = deriveHistoryGroupMeta(group);
-    const panInfo = resolveHistoryPanInfo({ record: mainRecord, group });
-    const isSelected = selectedSet.value.has(group.key);
+    const mainRecord = (group.main ?? {}) as DerivedEntryView['mainRecord']
+    const meta = deriveHistoryGroupMeta(group)
+    const panInfo = resolveHistoryPanInfo({ record: mainRecord, group })
+    const isSelected = selectedSet.value.has(group.key)
     const isCurrent = Array.isArray(group.urls)
-      ? group.urls.some(url => normalizeUrl(url) === normalizeUrl(props.currentUrl))
-      : false;
-    const seasonRowsRaw = buildHistoryGroupSeasonRows(group) as HistoryGroupSeasonRow[];
-    const seasonRows: DerivedSeasonView[] = seasonRowsRaw.map(row => {
-      const derived = deriveSeasonRow(group, row);
-      const canCheckSeason = row.canCheck && Boolean(row.url);
-      let checkLabel = '检测新篇';
-      let checkDisabled = !canCheckSeason;
-      let checkDisabledReason: string | undefined;
+      ? group.urls.some((url) => normalizeUrl(url) === normalizeUrl(props.currentUrl))
+      : false
+    const seasonRowsRaw = buildHistoryGroupSeasonRows(group) as HistoryGroupSeasonRow[]
+    const seasonRows: DerivedSeasonView[] = seasonRowsRaw.map((row) => {
+      const derived = deriveSeasonRow(group, row)
+      const canCheckSeason = row.canCheck && Boolean(row.url)
+      let checkLabel = '检测新篇'
+      let checkDisabled = !canCheckSeason
+      let checkDisabledReason: string | undefined
       if (!row.url) {
-        checkLabel = '无链接';
-        checkDisabled = true;
+        checkLabel = '无链接'
+        checkDisabled = true
       } else if (!row.canCheck) {
-        checkLabel = '无法检测';
-        checkDisabled = true;
+        checkLabel = '无法检测'
+        checkDisabled = true
       } else if (derived.completed) {
-        checkLabel = '已完结';
-        checkDisabled = true;
-        checkDisabledReason = 'completed';
+        checkLabel = '已完结'
+        checkDisabled = true
+        checkDisabledReason = 'completed'
       }
-      const badgeClass = buildStatusBadgeClass(derived.statusBadge);
+      const badgeClass = buildStatusBadgeClass(derived.statusBadge)
       return {
         row,
         timestampLabel: derived.timestampLabel ? `更新于 ${derived.timestampLabel}` : '',
@@ -287,29 +291,29 @@ const derivedEntries = computed<DerivedEntryView[]>(() => {
               type: 'button',
               'data-action': 'preview-poster',
               'data-src': derived.row.poster.src,
-              'data-alt': derived.row.poster.alt || derived.row.label || ''
+              'data-alt': derived.row.poster.alt || derived.row.label || '',
             }
-          : {}
-      };
-    });
-    const seasonExpanded = expandedSet.value.has(group.key);
+          : {},
+      }
+    })
+    const seasonExpanded = expandedSet.value.has(group.key)
 
-    let checkLabel = '检测新篇';
-    let checkDisabled = false;
-    let checkDisabledReason: string | undefined;
-    const pageType = typeof mainRecord.pageType === 'string' ? mainRecord.pageType : undefined;
-    const showCheck = pageType === 'series';
+    let checkLabel = '检测新篇'
+    let checkDisabled = false
+    let checkDisabledReason: string | undefined
+    const pageType = typeof mainRecord.pageType === 'string' ? mainRecord.pageType : undefined
+    const showCheck = pageType === 'series'
     if (showCheck) {
       const completed = props.isHistoryGroupCompleted
         ? Boolean(props.isHistoryGroupCompleted(group))
-        : false;
+        : false
       if (completed) {
-        checkDisabled = true;
-        checkDisabledReason = 'completed';
-        checkLabel = '已完结';
+        checkDisabled = true
+        checkDisabledReason = 'completed'
+        checkLabel = '已完结'
       } else if (!mainRecord.pageUrl || typeof mainRecord.pageUrl !== 'string') {
-        checkDisabled = true;
-        checkLabel = '无链接';
+        checkDisabled = true
+        checkLabel = '无链接'
       }
     }
     const posterAttrs = group.poster?.src
@@ -317,13 +321,14 @@ const derivedEntries = computed<DerivedEntryView[]>(() => {
           type: 'button',
           'data-action': 'preview-poster',
           'data-src': group.poster.src,
-          'data-alt': group.poster.alt || group.title || ''
+          'data-alt': group.poster.alt || group.title || '',
         }
-      : {};
+      : {}
 
     return {
       group,
-      title: group.title ||
+      title:
+        group.title ||
         (typeof mainRecord.pageTitle === 'string' ? mainRecord.pageTitle : '') ||
         '未命名资源',
       mainRecord,
@@ -340,39 +345,39 @@ const derivedEntries = computed<DerivedEntryView[]>(() => {
       checkDisabled,
       checkDisabledReason,
       poster: group.poster || null,
-      posterAttrs
-    };
-  });
-});
+      posterAttrs,
+    }
+  })
+})
 
 function statusEmoji(state: string | undefined): string {
   const map = {
     completed: '✅',
     ongoing: '📡',
     upcoming: '🕒',
-    unknown: 'ℹ️'
-  } as const;
-  const key = (state ?? 'unknown') as keyof typeof map;
-  return map[key];
+    unknown: 'ℹ️',
+  } as const
+  const key = (state ?? 'unknown') as keyof typeof map
+  return map[key]
 }
 
 function buildStatusBadgeClass(badge: HistoryStatusBadge | null): Record<string, boolean> {
   if (!badge) {
-    return {};
+    return {}
   }
   return {
-    [`is-${badge.state || 'unknown'}`]: true
-  };
+    [`is-${badge.state || 'unknown'}`]: true,
+  }
 }
 
 function normalizeUrl(url: string | undefined | null): string {
   if (!url) {
-    return '';
+    return ''
   }
   try {
-    return new URL(url, window.location.href).href;
-  } catch (_error) {
-    return url;
+    return new URL(url, window.location.href).href
+  } catch {
+    return url
   }
 }
 </script>

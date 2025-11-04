@@ -1,49 +1,52 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const FIXTURE_DIR = resolve(__dirname, '__fixtures__');
-const ORIGINAL_FETCH = globalThis.fetch;
-const EMPTY_DOCUMENT = '<!DOCTYPE html><html lang="zh-CN"><head></head><body></body></html>';
+const FIXTURE_DIR = resolve(__dirname, '__fixtures__')
+const ORIGINAL_FETCH = globalThis.fetch
+const EMPTY_DOCUMENT = '<!DOCTYPE html><html lang="zh-CN"><head></head><body></body></html>'
 
 function readFixture(name: string): string {
-  return readFileSync(resolve(FIXTURE_DIR, name), 'utf-8');
+  return readFileSync(resolve(FIXTURE_DIR, name), 'utf-8')
 }
 
 function stripScripts(html: string): string {
-  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
 }
 
-function materializeDownloadAnchors(root: Document | Element, origin = 'https://www.chaospace.cc'): void {
-  const rows = root.querySelectorAll<HTMLElement>('#download tr[id^="link-"]');
-  rows.forEach(row => {
-    const anchor = row.querySelector<HTMLAnchorElement>('a');
+function materializeDownloadAnchors(
+  root: Document | Element,
+  origin = 'https://www.chaospace.cc',
+): void {
+  const rows = root.querySelectorAll<HTMLElement>('#download tr[id^="link-"]')
+  rows.forEach((row) => {
+    const anchor = row.querySelector<HTMLAnchorElement>('a')
     if (!anchor) {
-      return;
+      return
     }
-    const idMatch = row.id.match(/link-(\d+)/);
+    const idMatch = row.id.match(/link-(\d+)/)
     if (!idMatch) {
-      return;
+      return
     }
-    const linkId = idMatch[1];
-    anchor.setAttribute('href', `${origin}/links/${linkId}.html`);
-    anchor.classList.remove('clicklogin');
-  });
+    const linkId = idMatch[1]
+    anchor.setAttribute('href', `${origin}/links/${linkId}.html`)
+    anchor.classList.remove('clicklogin')
+  })
 }
 
 function patchHtmlDownloadLinks(html: string, origin = 'https://www.chaospace.cc'): string {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  materializeDownloadAnchors(doc, origin);
-  return doc.documentElement.outerHTML;
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(html, 'text/html')
+  materializeDownloadAnchors(doc, origin)
+  return doc.documentElement.outerHTML
 }
 
 function resetDocument(html = EMPTY_DOCUMENT, url = 'https://www.chaospace.cc/'): void {
-  document.open();
-  document.write(html);
-  document.close();
+  document.open()
+  document.write(html)
+  document.close()
   try {
-    window.history.replaceState({}, '', url);
+    window.history.replaceState({}, '', url)
   } catch {
     Object.defineProperty(window, 'location', {
       configurable: true,
@@ -54,131 +57,140 @@ function resetDocument(html = EMPTY_DOCUMENT, url = 'https://www.chaospace.cc/')
         search: new URL(url).search,
         hash: new URL(url).hash,
         toString() {
-          return url;
+          return url
         },
         assign: vi.fn(),
         replace: vi.fn(),
-        reload: vi.fn()
-      }
-    });
+        reload: vi.fn(),
+      },
+    })
   }
-  materializeDownloadAnchors(document);
+  materializeDownloadAnchors(document)
 }
 
 function loadFixtureIntoDocument(name: string, url: string): string {
-  const sanitized = patchHtmlDownloadLinks(stripScripts(readFixture(name)));
-  resetDocument(sanitized, url);
-  return sanitized;
+  const sanitized = patchHtmlDownloadLinks(stripScripts(readFixture(name)))
+  resetDocument(sanitized, url)
+  return sanitized
 }
 
 function stubFetch(resolvedHtml: Record<string, string> = {}): void {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-    const html = resolvedHtml[url];
+    const url =
+      typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+    const html = resolvedHtml[url]
     if (!html) {
       return {
         ok: false,
         status: 404,
         text: async () => '',
-        headers: new Headers()
-      } as unknown as Response;
+        headers: new Headers(),
+      } as unknown as Response
     }
     return {
       ok: true,
       status: 200,
       text: async () => patchHtmlDownloadLinks(html),
-      headers: new Headers({ 'content-type': 'text/html; charset=utf-8' })
-    } as unknown as Response;
-  });
-  vi.stubGlobal('fetch', fetchMock);
+      headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
+    } as unknown as Response
+  })
+  vi.stubGlobal('fetch', fetchMock)
 }
 
 describe('page-analyzer 使用 chaospace 真实页面', () => {
   beforeEach(() => {
-    vi.resetModules();
-    vi.restoreAllMocks();
+    vi.resetModules()
+    vi.restoreAllMocks()
     if (ORIGINAL_FETCH) {
-      globalThis.fetch = ORIGINAL_FETCH.bind(globalThis);
+      globalThis.fetch = ORIGINAL_FETCH.bind(globalThis)
     } else {
       // @ts-expect-error - 清理测试替换
-      delete globalThis.fetch;
+      delete globalThis.fetch
     }
-    resetDocument();
-  });
+    resetDocument()
+  })
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    vi.restoreAllMocks()
     if (ORIGINAL_FETCH) {
-      globalThis.fetch = ORIGINAL_FETCH.bind(globalThis);
+      globalThis.fetch = ORIGINAL_FETCH.bind(globalThis)
     } else {
       // @ts-expect-error - 清理测试替换
-      delete globalThis.fetch;
+      delete globalThis.fetch
     }
-    resetDocument();
-  });
+    resetDocument()
+  })
 
   it('分析电影详情页时应提取全部网盘条目并归类为电影', async () => {
-    const movieUrl = 'https://www.chaospace.cc/movies/432912.html';
-    loadFixtureIntoDocument('chaospace-movie-432912.html', movieUrl);
-    const { analyzePage, suggestDirectoryFromClassification } = await import('./page-analyzer');
+    const movieUrl = 'https://www.chaospace.cc/movies/432912.html'
+    loadFixtureIntoDocument('chaospace-movie-432912.html', movieUrl)
+    const { analyzePage, suggestDirectoryFromClassification } = await import('./page-analyzer')
 
-    const result = await analyzePage();
+    const result = await analyzePage()
 
-    expect(result.url).toBe(movieUrl);
-    expect(result.origin).toBe('https://www.chaospace.cc');
-    expect(result.classification).toBe('movie');
-    expect(suggestDirectoryFromClassification(result.classification)).toBe('/视频/电影');
-    expect(result.title).not.toHaveLength(0);
-    expect(result.poster?.src).toMatch(/^https?:\/\//);
-    expect(result.items.length).toBeGreaterThan(0);
-    expect(result.items.every(item => typeof item.linkUrl === 'string' && item.linkUrl.includes('/links/'))).toBe(true);
-    expect(result.deferredSeasons).toHaveLength(0);
-    expect(result.seasonEntries).toHaveLength(0);
-  });
+    expect(result.url).toBe(movieUrl)
+    expect(result.origin).toBe('https://www.chaospace.cc')
+    expect(result.classification).toBe('movie')
+    expect(suggestDirectoryFromClassification(result.classification)).toBe('/视频/电影')
+    expect(result.title).not.toHaveLength(0)
+    expect(result.poster?.src).toMatch(/^https?:\/\//)
+    expect(result.items.length).toBeGreaterThan(0)
+    expect(
+      result.items.every(
+        (item) => typeof item.linkUrl === 'string' && item.linkUrl.includes('/links/'),
+      ),
+    ).toBe(true)
+    expect(result.deferredSeasons).toHaveLength(0)
+    expect(result.seasonEntries).toHaveLength(0)
+  })
 
   it('剧集详情页应识别日本电视台并归类为番剧，同时拉取首批季资源', async () => {
-    const showUrl = 'https://www.chaospace.cc/tvshows/429052.html';
-    loadFixtureIntoDocument('chaospace-tvshow-429052.html', showUrl);
-    const seasonUrl = 'https://www.chaospace.cc/seasons/429054.html';
-    const seasonHtml = stripScripts(readFixture('chaospace-season-429054.html'));
-    stubFetch({ [seasonUrl]: seasonHtml });
+    const showUrl = 'https://www.chaospace.cc/tvshows/429052.html'
+    loadFixtureIntoDocument('chaospace-tvshow-429052.html', showUrl)
+    const seasonUrl = 'https://www.chaospace.cc/seasons/429054.html'
+    const seasonHtml = stripScripts(readFixture('chaospace-season-429054.html'))
+    stubFetch({ [seasonUrl]: seasonHtml })
 
-    const { analyzePage, suggestDirectoryFromClassification } = await import('./page-analyzer');
+    const { analyzePage, suggestDirectoryFromClassification } = await import('./page-analyzer')
 
-    const result = await analyzePage({ deferTvSeasons: false });
+    const result = await analyzePage({ deferTvSeasons: false })
 
-    expect(result.url).toBe(showUrl);
-    expect(result.classification).toBe('anime');
-    expect(result.classificationDetail?.debug.primary.tvChannels).toContain('TV Tokyo');
-    expect(result.classificationDetail?.reasons.some(reason => reason.includes('日本'))).toBe(true);
-    expect(suggestDirectoryFromClassification(result.classificationDetail)).toBe('/视频/番剧');
-    expect(result.seasonEntries).toHaveLength(1);
-    expect(result.items.length).toBeGreaterThan(0);
-    expect(result.items.every(item => item.seasonLabel === '第1季')).toBe(true);
-    expect(result.seasonEntries[0]?.poster?.src).toMatch(/^https?:\/\//);
-    expect(result.deferredSeasons).toHaveLength(0);
-  });
+    expect(result.url).toBe(showUrl)
+    expect(result.classification).toBe('anime')
+    expect(result.classificationDetail?.debug.primary.tvChannels).toContain('TV Tokyo')
+    expect(result.classificationDetail?.reasons.some((reason) => reason.includes('日本'))).toBe(
+      true,
+    )
+    expect(suggestDirectoryFromClassification(result.classificationDetail)).toBe('/视频/番剧')
+    expect(result.seasonEntries).toHaveLength(1)
+    expect(result.items.length).toBeGreaterThan(0)
+    expect(result.items.every((item) => item.seasonLabel === '第1季')).toBe(true)
+    expect(result.seasonEntries[0]?.poster?.src).toMatch(/^https?:\/\//)
+    expect(result.deferredSeasons).toHaveLength(0)
+  })
 
   it('fetchSeasonDetail 应从季页面提取全部网盘资源及完成度信息', async () => {
-    const seasonUrl = 'https://www.chaospace.cc/seasons/428609.html';
-    const html = stripScripts(readFixture('chaospace-season-428609.html'));
-    stubFetch({ [seasonUrl]: html });
+    const seasonUrl = 'https://www.chaospace.cc/seasons/428609.html'
+    const html = stripScripts(readFixture('chaospace-season-428609.html'))
+    stubFetch({ [seasonUrl]: html })
 
-    const { fetchSeasonDetail } = await import('./page-analyzer');
+    const { fetchSeasonDetail } = await import('./page-analyzer')
 
     const detail = await fetchSeasonDetail({
       seasonId: '428609',
       label: '第一季 2025-10-07更新至E05N/A',
       url: seasonUrl,
-      index: 0
-    });
+      index: 0,
+    })
 
-    expect(detail.items.length).toBeGreaterThan(0);
-    expect(detail.items.every(item => item.linkUrl?.includes('/links/'))).toBe(true);
-    expect(detail.items.every(item => typeof item.id === 'string' || typeof item.id === 'number')).toBe(true);
-    expect(detail.completion?.label || '').not.toHaveLength(0);
-    expect(detail.poster?.src).toMatch(/^https?:\/\//);
-  });
+    expect(detail.items.length).toBeGreaterThan(0)
+    expect(detail.items.every((item) => item.linkUrl?.includes('/links/'))).toBe(true)
+    expect(
+      detail.items.every((item) => typeof item.id === 'string' || typeof item.id === 'number'),
+    ).toBe(true)
+    expect(detail.completion?.label || '').not.toHaveLength(0)
+    expect(detail.poster?.src).toMatch(/^https?:\/\//)
+  })
 
   it('extractItemsFromDocument 应为需登录的资源构建链接并保留提取码', async () => {
     document.body.innerHTML = `
@@ -195,27 +207,27 @@ describe('page-analyzer 使用 chaospace 真实页面', () => {
           </tbody>
         </table>
       </div>
-    `;
+    `
 
-    const { extractItemsFromDocument } = await import('./page-analyzer');
+    const { extractItemsFromDocument } = await import('./page-analyzer')
 
-    const items = extractItemsFromDocument(document);
+    const items = extractItemsFromDocument(document)
 
-    expect(items).toHaveLength(1);
-    expect(items[0]?.linkUrl).toBe('https://www.chaospace.cc/links/424242.html');
-    expect(items[0]?.passCode).toBe('aB12');
-    expect((items[0] as Record<string, unknown>)['requiresLogin']).toBe(true);
-  });
+    expect(items).toHaveLength(1)
+    expect(items[0]?.linkUrl).toBe('https://www.chaospace.cc/links/424242.html')
+    expect(items[0]?.passCode).toBe('aB12')
+    expect((items[0] as Record<string, unknown>)['requiresLogin']).toBe(true)
+  })
 
   it('sanitizeSeasonDirSegment 应将混合状态标签标准化为第1季', async () => {
-    const tvHtml = readFixture('chaospace-tvshow-428607.html');
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(stripScripts(tvHtml), 'text/html');
-    const titleNode = doc.querySelector('#seasons .se-c .se-q .title');
-    const rawLabel = titleNode?.textContent?.trim() || '';
+    const tvHtml = readFixture('chaospace-tvshow-428607.html')
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(stripScripts(tvHtml), 'text/html')
+    const titleNode = doc.querySelector('#seasons .se-c .se-q .title')
+    const rawLabel = titleNode?.textContent?.trim() || ''
 
-    const { sanitizeSeasonDirSegment } = await import('./page-analyzer');
+    const { sanitizeSeasonDirSegment } = await import('./page-analyzer')
 
-    expect(sanitizeSeasonDirSegment(rawLabel)).toBe('第1季');
-  });
-});
+    expect(sanitizeSeasonDirSegment(rawLabel)).toBe('第1季')
+  })
+})

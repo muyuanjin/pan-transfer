@@ -3,6 +3,7 @@
 [English](#english) | [中文](#中文)
 
 <a name="english"></a>
+
 ## English Version
 
 ### Project Overview
@@ -23,6 +24,7 @@ The CHAOSPACE Transfer Assistant is a Chrome/Edge browser extension designed to 
 ### Installation
 
 #### Method 1: Developer Mode
+
 1. Download or clone this repository
 2. Open Chrome/Edge and navigate to `chrome://extensions/` or `edge://extensions/`
 3. Enable "Developer mode" in the top-right corner
@@ -32,6 +34,7 @@ The CHAOSPACE Transfer Assistant is a Chrome/Edge browser extension designed to 
 ### Building
 
 This is a simple Chrome extension without a build process. To use it:
+
 1. Clone or download the repository
 2. Use the `chaospace-extension` directory directly for installation
 3. No compilation or bundling required
@@ -39,19 +42,21 @@ This is a simple Chrome extension without a build process. To use it:
 ### Usage Instructions
 
 #### Basic Workflow
+
 1. **Login to Baidu Netdisk**: Ensure you're logged into pan.baidu.com in your browser
 2. **Navigate to CHAOSPACE**: Visit a series page (e.g., `https://www.chaospace.cc/seasons/xxxxxx.html`)
 3. **Open Extension**: Click the extension icon in the toolbar or use the floating panel
 4. **Configure Settings**:
-    - Set target directory (e.g., `/视频/番剧`)
-    - Choose whether to create subdirectories for each resource
-    - Select resources to transfer (all, invert, or new only)
+   - Set target directory (e.g., `/视频/番剧`)
+   - Choose whether to create subdirectories for each resource
+   - Select resources to transfer (all, invert, or new only)
 5. **Start Transfer**: Click "Transfer Selected Resources" and monitor progress
 6. **Review Results**: Check transfer summary and logs
 
 #### Interface Components
 
 **Floating Panel** (Appears on CHAOSPACE pages):
+
 - Resource list with selection options
 - Directory configuration and presets
 - Real-time transfer logs
@@ -59,6 +64,7 @@ This is a simple Chrome extension without a build process. To use it:
 - Status indicators
 
 **Popup Interface** (Toolbar click):
+
 - Similar functionality to floating panel
 - Compact interface for quick access
 - Theme customization
@@ -68,22 +74,22 @@ This is a simple Chrome extension without a build process. To use it:
 #### Core Components
 
 1. **Background Script** (`background.js`)
-    - Manages Baidu Netdisk API interactions
-    - Handles authentication (bdstoken management)
-    - Processes file transfers with retry logic
-    - Manages persistent caching and history
-    - Error handling and progress tracking
+   - Manages Baidu Netdisk API interactions
+   - Handles authentication (bdstoken management)
+   - Processes file transfers with retry logic
+   - Manages persistent caching and history
+   - Error handling and progress tracking
 
 2. **Content Script** (`contentScript.js`)
-    - Injects into CHAOSPACE pages
-    - Parses DOM to extract resource information
-    - Renders floating panel interface
-    - Handles user interactions and UI updates
+   - Injects into CHAOSPACE pages
+   - Parses DOM to extract resource information
+   - Renders floating panel interface
+   - Handles user interactions and UI updates
 
 3. **Popup Interface** (`popup.html/css/js`)
-    - Provides alternative access point via toolbar
-    - Communicates with current tab for resource data
-    - Offers theme customization options
+   - Provides alternative access point via toolbar
+   - Communicates with current tab for resource data
+   - Offers theme customization options
 
 #### Key Technologies
 
@@ -95,16 +101,19 @@ This is a simple Chrome extension without a build process. To use it:
 ### Configuration Options
 
 #### Directory Management
+
 - **Base Directory**: Root path for all transfers (default: `/`)
 - **Subdirectory Creation**: Option to create folders using resource titles
 - **Path Presets**: Save frequently used paths for quick access
 
 #### Transfer Settings
+
 - **Auto-selection**: Options to select all, invert, or only new resources
 - **Sorting**: Sort resources by page order or title (ascending/descending)
 - **Retry Logic**: Automatic retry for temporary failures (max 3 attempts)
 
 #### Theme Customization
+
 - **Dark Theme**: Default optimized for media browsing
 - **Light Theme**: Alternative for bright environments
 - **Persistent Settings**: Preferences saved across sessions
@@ -131,6 +140,7 @@ The extension provides detailed error messages for common issues:
 This extension does not require a build process. All files are ready to use as-is.
 
 #### Project Structure
+
 - **background.js**: Service Worker handling Baidu Netdisk API calls and caching
 - **contentScript.js**: Injected into CHAOSPACE pages for UI and resource extraction
 - **popup.js/html/css**: Extension popup interface
@@ -138,6 +148,7 @@ This extension does not require a build process. All files are ready to use as-i
 - **manifest.json**: Extension configuration
 
 #### File Structure
+
 ```
 Tookit/
 ├── chaospace-extension/       # Extension source code directory
@@ -154,6 +165,7 @@ Tookit/
 ```
 
 #### Testing
+
 - **Manual Testing**: Load the extension in developer mode and test on CHAOSPACE pages
 - **Debug Mode**: Use Chrome DevTools to debug background script and content script
   - Background: Click "Service Worker" link in chrome://extensions
@@ -164,23 +176,23 @@ Tookit/
 #### Common Issues
 
 1. **"Login Invalid" Error**
-    - Ensure you're logged into pan.baidu.com in the same browser
-    - Try refreshing the Baidu Netdisk page first
+   - Ensure you're logged into pan.baidu.com in the same browser
+   - Try refreshing the Baidu Netdisk page first
 
 2. **No Resources Detected**
-    - Verify you're on a valid CHAOSPACE series page
-    - Check if the page structure has changed
-    - Use the refresh button to re-scan the page
+   - Verify you're on a valid CHAOSPACE series page
+   - Check if the page structure has changed
+   - Use the refresh button to re-scan the page
 
 3. **Transfer Failures**
-    - Check available space in your Baidu Netdisk
-    - Verify extraction codes are correct
-    - Look for specific error codes in the logs
+   - Check available space in your Baidu Netdisk
+   - Verify extraction codes are correct
+   - Look for specific error codes in the logs
 
 4. **Extension Not Loading**
-    - Ensure Developer Mode is enabled
-    - Check for error messages in chrome://extensions/
-    - Try removing and re-adding the extension
+   - Ensure Developer Mode is enabled
+   - Check for error messages in chrome://extensions/
+   - Try removing and re-adding the extension
 
 #### Getting Help
 
@@ -191,6 +203,7 @@ Tookit/
 ### Contributing
 
 We welcome contributions! Please see the CONTRIBUTING.md file for guidelines on:
+
 - Code style and standards
 - Pull request process
 - Testing requirements
@@ -203,6 +216,7 @@ This project is licensed under the [MIT License](LICENSE) - see the LICENSE file
 ### Changelog
 
 #### Version 1.0.0 (Current)
+
 - Initial release with core transfer functionality
 - Floating panel and popup interfaces
 - Persistent caching and history tracking
@@ -217,6 +231,7 @@ This project is licensed under the [MIT License](LICENSE) - see the LICENSE file
 ---
 
 <a name="中文"></a>
+
 ## 中文版本
 
 ### 项目概述
@@ -237,6 +252,7 @@ CHAOSPACE 转存助手是一个 Chrome/Edge 浏览器扩展，用于自动化从
 ### 安装方法
 
 #### 方法一：开发者模式
+
 1. 下载或克隆本仓库
 2. 打开 Chrome/Edge 浏览器，访问 `chrome://extensions/` 或 `edge://extensions/`
 3. 右上角开启"开发者模式"
@@ -246,6 +262,7 @@ CHAOSPACE 转存助手是一个 Chrome/Edge 浏览器扩展，用于自动化从
 ### 构建说明
 
 本扩展无需构建过程，直接使用即可：
+
 1. 克隆或下载本仓库
 2. 直接使用 `chaospace-extension` 目录进行安装
 3. 无需编译或打包
@@ -253,19 +270,21 @@ CHAOSPACE 转存助手是一个 Chrome/Edge 浏览器扩展，用于自动化从
 ### 使用说明
 
 #### 基本工作流程
+
 1. **登录百度网盘**: 确保浏览器中已登录 pan.baidu.com
 2. **访问 CHAOSPACE**: 打开剧集页面（如 `https://www.chaospace.cc/seasons/xxxxxx.html`）
 3. **打开扩展**: 点击工具栏中的扩展图标或使用浮动面板
 4. **配置设置**:
-    - 设置目标目录（如 `/视频/番剧`）
-    - 选择是否为每个资源创建子目录
-    - 选择要转存的资源（全部、反选或仅新增）
+   - 设置目标目录（如 `/视频/番剧`）
+   - 选择是否为每个资源创建子目录
+   - 选择要转存的资源（全部、反选或仅新增）
 5. **开始转存**: 点击"转存选中资源"并监控进度
 6. **查看结果**: 检查转存摘要和日志
 
 #### 界面组件
 
 **浮动面板**（在 CHAOSPACE 页面显示）:
+
 - 资源列表和选择选项
 - 目录配置和预设路径
 - 实时转存日志
@@ -273,6 +292,7 @@ CHAOSPACE 转存助手是一个 Chrome/Edge 浏览器扩展，用于自动化从
 - 状态指示器
 
 **弹窗界面**（工具栏点击）:
+
 - 与浮动面板类似的功能
 - 紧凑界面便于快速访问
 - 主题定制选项
@@ -282,22 +302,22 @@ CHAOSPACE 转存助手是一个 Chrome/Edge 浏览器扩展，用于自动化从
 #### 核心组件
 
 1. **后台脚本** (`background.js`)
-    - 管理百度网盘 API 交互
-    - 处理认证（bdstoken 管理）
-    - 处理文件转存和重试逻辑
-    - 管理持久化缓存和历史记录
-    - 错误处理和进度跟踪
+   - 管理百度网盘 API 交互
+   - 处理认证（bdstoken 管理）
+   - 处理文件转存和重试逻辑
+   - 管理持久化缓存和历史记录
+   - 错误处理和进度跟踪
 
 2. **内容脚本** (`contentScript.js`)
-    - 注入到 CHAOSPACE 页面
-    - 解析 DOM 提取资源信息
-    - 渲染浮动面板界面
-    - 处理用户交互和 UI 更新
+   - 注入到 CHAOSPACE 页面
+   - 解析 DOM 提取资源信息
+   - 渲染浮动面板界面
+   - 处理用户交互和 UI 更新
 
 3. **弹窗界面** (`popup.html/css/js`)
-    - 通过工具栏提供替代访问点
-    - 与当前标签页通信获取资源数据
-    - 提供主题定制选项
+   - 通过工具栏提供替代访问点
+   - 与当前标签页通信获取资源数据
+   - 提供主题定制选项
 
 #### 关键技术
 
@@ -309,16 +329,19 @@ CHAOSPACE 转存助手是一个 Chrome/Edge 浏览器扩展，用于自动化从
 ### 配置选项
 
 #### 目录管理
+
 - **基础目录**: 所有转存的根路径（默认：`/`）
 - **子目录创建**: 选择是否使用资源标题创建文件夹
 - **路径预设**: 保存常用路径以便快速访问
 
 #### 转存设置
+
 - **自动选择**: 全选、反选或仅选新增资源的选项
 - **排序**: 按页面顺序或标题排序（升序/降序）
 - **重试逻辑**: 临时失败时自动重试（最多 3 次）
 
 #### 主题定制
+
 - **深色主题**: 默认优化用于媒体浏览
 - **浅色主题**: 明亮环境的替代方案
 - **持久化设置**: 跨会话保存偏好设置
@@ -345,6 +368,7 @@ CHAOSPACE 转存助手是一个 Chrome/Edge 浏览器扩展，用于自动化从
 本扩展无需构建过程，所有文件可直接使用。
 
 #### 项目结构
+
 - **background.js**: Service Worker，处理百度网盘 API 调用和缓存管理
 - **contentScript.js**: 注入到 CHAOSPACE 页面，负责 UI 和资源提取
 - **popup.js/html/css**: 扩展弹窗界面
@@ -352,6 +376,7 @@ CHAOSPACE 转存助手是一个 Chrome/Edge 浏览器扩展，用于自动化从
 - **manifest.json**: 扩展配置文件
 
 #### 文件结构
+
 ```
 Tookit/
 ├── chaospace-extension/       # 扩展源码目录
@@ -368,6 +393,7 @@ Tookit/
 ```
 
 #### 测试
+
 - **手动测试**: 以开发者模式加载扩展，并在 CHAOSPACE 页面上测试
 - **调试模式**: 使用 Chrome DevTools 调试后台脚本和内容脚本
   - 后台脚本: 在 chrome://extensions 点击"Service Worker"链接
@@ -378,23 +404,23 @@ Tookit/
 #### 常见问题
 
 1. **"登录无效"错误**
-    - 确保在同一浏览器中登录了 pan.baidu.com
-    - 尝试先刷新百度网盘页面
+   - 确保在同一浏览器中登录了 pan.baidu.com
+   - 尝试先刷新百度网盘页面
 
 2. **未检测到资源**
-    - 确认您在有效的 CHAOSPACE 剧集页面上
-    - 检查页面结构是否已更改
-    - 使用刷新按钮重新扫描页面
+   - 确认您在有效的 CHAOSPACE 剧集页面上
+   - 检查页面结构是否已更改
+   - 使用刷新按钮重新扫描页面
 
 3. **转存失败**
-    - 检查百度网盘可用空间
-    - 验证提取码是否正确
-    - 查看日志中的具体错误代码
+   - 检查百度网盘可用空间
+   - 验证提取码是否正确
+   - 查看日志中的具体错误代码
 
 4. **扩展未加载**
-    - 确保已启用开发者模式
-    - 检查 chrome://extensions/ 中的错误消息
-    - 尝试删除并重新添加扩展
+   - 确保已启用开发者模式
+   - 检查 chrome://extensions/ 中的错误消息
+   - 尝试删除并重新添加扩展
 
 #### 获取帮助
 
@@ -405,6 +431,7 @@ Tookit/
 ### 贡献指南
 
 我们欢迎贡献！请参阅 CONTRIBUTING.md 文件了解以下指南：
+
 - 代码风格和标准
 - Pull request 流程
 - 测试要求
@@ -417,6 +444,7 @@ Tookit/
 ### 更新日志
 
 #### 版本 1.0.0（当前）
+
 - 初始版本，包含核心转存功能
 - 浮动面板和弹窗界面
 - 持久化缓存和历史记录跟踪

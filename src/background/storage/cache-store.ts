@@ -2,141 +2,143 @@ import {
   CACHE_VERSION,
   MAX_DIRECTORY_CACHE_ENTRIES,
   MAX_SHARE_CACHE_ENTRIES,
-  STORAGE_KEYS
-} from '../common/constants';
-import { storageGet, storageSet } from './utils';
+  STORAGE_KEYS,
+} from '../common/constants'
+import { storageGet, storageSet } from './utils'
 
 interface DirectoryCacheEntry {
-  files: string[];
-  updatedAt: number;
+  files: string[]
+  updatedAt: number
 }
 
 interface CacheState {
-  version: number;
-  directories: Record<string, DirectoryCacheEntry>;
-  ensured: Record<string, number>;
-  completedShares: Record<string, number>;
+  version: number
+  directories: Record<string, DirectoryCacheEntry>
+  ensured: Record<string, number>
+  completedShares: Record<string, number>
 }
 
-const ensuredDirectories = new Set<string>(['/']);
-const directoryFileCache = new Map<string, Set<string>>();
-const completedShareCache = new Map<string, number>();
-let persistentCacheState: CacheState | null = null;
-let cacheLoadPromise: Promise<void> | null = null;
+const ensuredDirectories = new Set<string>(['/'])
+const directoryFileCache = new Map<string, Set<string>>()
+const completedShareCache = new Map<string, number>()
+let persistentCacheState: CacheState | null = null
+let cacheLoadPromise: Promise<void> | null = null
 
-const nowTs = (): number => Date.now();
+const nowTs = (): number => Date.now()
 
 function createDefaultCacheState(): CacheState {
   return {
     version: CACHE_VERSION,
     directories: {},
     ensured: { '/': nowTs() },
-    completedShares: {}
-  };
+    completedShares: {},
+  }
 }
 
 function pruneDirectoryCacheIfNeeded(): void {
   if (!persistentCacheState) {
-    return;
+    return
   }
-  const entries = Object.entries(persistentCacheState.directories || {});
+  const entries = Object.entries(persistentCacheState.directories || {})
   if (entries.length <= MAX_DIRECTORY_CACHE_ENTRIES) {
-    return;
+    return
   }
   entries
     .sort((a, b) => {
-      const tsA = a[1]?.updatedAt || 0;
-      const tsB = b[1]?.updatedAt || 0;
-      return tsA - tsB;
+      const tsA = a[1]?.updatedAt || 0
+      const tsB = b[1]?.updatedAt || 0
+      return tsA - tsB
     })
     .slice(0, Math.max(0, entries.length - MAX_DIRECTORY_CACHE_ENTRIES))
     .forEach(([path]) => {
-      delete persistentCacheState!.directories[path];
-      directoryFileCache.delete(path);
-    });
+      delete persistentCacheState!.directories[path]
+      directoryFileCache.delete(path)
+    })
 }
 
 function pruneCompletedShareCacheIfNeeded(): void {
   if (!persistentCacheState || !persistentCacheState.completedShares) {
-    return;
+    return
   }
-  const entries = Object.entries(persistentCacheState.completedShares);
+  const entries = Object.entries(persistentCacheState.completedShares)
   if (entries.length <= MAX_SHARE_CACHE_ENTRIES) {
-    return;
+    return
   }
   entries
     .sort((a, b) => {
-      const tsA = a[1] || 0;
-      const tsB = b[1] || 0;
-      return tsA - tsB;
+      const tsA = a[1] || 0
+      const tsB = b[1] || 0
+      return tsA - tsB
     })
     .slice(0, Math.max(0, entries.length - MAX_SHARE_CACHE_ENTRIES))
     .forEach(([surl]) => {
-      delete persistentCacheState!.completedShares[surl];
-      completedShareCache.delete(surl);
-    });
+      delete persistentCacheState!.completedShares[surl]
+      completedShareCache.delete(surl)
+    })
 }
 
 export async function ensureCacheLoaded(): Promise<void> {
   if (cacheLoadPromise) {
-    await cacheLoadPromise;
-    return;
+    await cacheLoadPromise
+    return
   }
   cacheLoadPromise = (async () => {
     try {
-      const stored = await storageGet<{ [STORAGE_KEYS.cache]: CacheState | undefined }>([STORAGE_KEYS.cache]);
-      const raw = stored[STORAGE_KEYS.cache];
+      const stored = await storageGet<{ [STORAGE_KEYS.cache]: CacheState | undefined }>([
+        STORAGE_KEYS.cache,
+      ])
+      const raw = stored[STORAGE_KEYS.cache]
       if (raw && raw.version === CACHE_VERSION && raw.directories && raw.ensured) {
         persistentCacheState = {
           version: CACHE_VERSION,
           directories: raw.directories || {},
           ensured: { ...raw.ensured },
-          completedShares: raw.completedShares || {}
-        };
+          completedShares: raw.completedShares || {},
+        }
       } else {
-        persistentCacheState = createDefaultCacheState();
+        persistentCacheState = createDefaultCacheState()
       }
     } catch (error) {
-      console.warn('[Chaospace Transfer] Failed to load persistent cache', error);
-      persistentCacheState = createDefaultCacheState();
+      console.warn('[Chaospace Transfer] Failed to load persistent cache', error)
+      persistentCacheState = createDefaultCacheState()
     }
 
-    ensuredDirectories.clear();
-    ensuredDirectories.add('/');
+    ensuredDirectories.clear()
+    ensuredDirectories.add('/')
     if (persistentCacheState && persistentCacheState.ensured) {
-      Object.keys(persistentCacheState.ensured).forEach(path => {
+      Object.keys(persistentCacheState.ensured).forEach((path) => {
         if (path) {
-          ensuredDirectories.add(path);
+          ensuredDirectories.add(path)
         }
-      });
+      })
     }
 
-    directoryFileCache.clear();
+    directoryFileCache.clear()
     if (persistentCacheState && persistentCacheState.directories) {
       Object.entries(persistentCacheState.directories).forEach(([path, entry]) => {
         if (!path || !entry || !Array.isArray(entry.files)) {
-          return;
+          return
         }
-        directoryFileCache.set(path, new Set(entry.files));
-      });
+        directoryFileCache.set(path, new Set(entry.files))
+      })
     }
 
-    completedShareCache.clear();
+    completedShareCache.clear()
     if (persistentCacheState && persistentCacheState.completedShares) {
       Object.entries(persistentCacheState.completedShares).forEach(([surl, ts]) => {
         if (surl) {
-          completedShareCache.set(surl, ts || 0);
+          completedShareCache.set(surl, ts || 0)
         }
-      });
+      })
     }
-  })();
-  await cacheLoadPromise;
+  })()
+  await cacheLoadPromise
 }
 
 export async function persistCacheNow(): Promise<void> {
-  await ensureCacheLoaded();
+  await ensureCacheLoaded()
   if (!persistentCacheState) {
-    persistentCacheState = createDefaultCacheState();
+    persistentCacheState = createDefaultCacheState()
   }
   try {
     await storageSet({
@@ -144,68 +146,71 @@ export async function persistCacheNow(): Promise<void> {
         version: CACHE_VERSION,
         directories: persistentCacheState.directories,
         ensured: persistentCacheState.ensured,
-        completedShares: persistentCacheState.completedShares || {}
-      }
-    });
+        completedShares: persistentCacheState.completedShares || {},
+      },
+    })
   } catch (error) {
-    console.warn('[Chaospace Transfer] Failed to persist directory cache', error);
+    console.warn('[Chaospace Transfer] Failed to persist directory cache', error)
   }
 }
 
 export function isDirectoryEnsured(path: string): boolean {
-  return ensuredDirectories.has(path);
+  return ensuredDirectories.has(path)
 }
 
 export function markDirectoryEnsured(path: string): void {
   if (!path) {
-    return;
+    return
   }
-  ensuredDirectories.add(path);
+  ensuredDirectories.add(path)
   if (!persistentCacheState) {
-    persistentCacheState = createDefaultCacheState();
+    persistentCacheState = createDefaultCacheState()
   }
-  persistentCacheState.ensured[path] = nowTs();
+  persistentCacheState.ensured[path] = nowTs()
 }
 
 export function getCachedDirectoryEntries(path: string): Set<string> | null {
-  return directoryFileCache.get(path) || null;
+  return directoryFileCache.get(path) || null
 }
 
-export function recordDirectoryCache(path: string, names: Iterable<string> | null | undefined): void {
+export function recordDirectoryCache(
+  path: string,
+  names: Iterable<string> | null | undefined,
+): void {
   if (!path) {
-    return;
+    return
   }
   if (!persistentCacheState) {
-    persistentCacheState = createDefaultCacheState();
+    persistentCacheState = createDefaultCacheState()
   }
-  const files = Array.from(names || []).filter(name => typeof name === 'string' && name);
-  directoryFileCache.set(path, new Set(files));
+  const files = Array.from(names || []).filter((name) => typeof name === 'string' && name)
+  directoryFileCache.set(path, new Set(files))
   persistentCacheState.directories[path] = {
     files,
-    updatedAt: nowTs()
-  };
-  pruneDirectoryCacheIfNeeded();
+    updatedAt: nowTs(),
+  }
+  pruneDirectoryCacheIfNeeded()
 }
 
 export function hasCompletedShare(surl: string | null | undefined): boolean {
   if (!surl) {
-    return false;
+    return false
   }
-  return completedShareCache.has(surl);
+  return completedShareCache.has(surl)
 }
 
 export function recordCompletedShare(surl: string | null | undefined): void {
   if (!surl) {
-    return;
+    return
   }
-  const timestamp = nowTs();
-  completedShareCache.set(surl, timestamp);
+  const timestamp = nowTs()
+  completedShareCache.set(surl, timestamp)
   if (!persistentCacheState) {
-    persistentCacheState = createDefaultCacheState();
+    persistentCacheState = createDefaultCacheState()
   }
   if (!persistentCacheState.completedShares) {
-    persistentCacheState.completedShares = {};
+    persistentCacheState.completedShares = {}
   }
-  persistentCacheState.completedShares[surl] = timestamp;
-  pruneCompletedShareCacheIfNeeded();
+  persistentCacheState.completedShares[surl] = timestamp
+  pruneCompletedShareCacheIfNeeded()
 }

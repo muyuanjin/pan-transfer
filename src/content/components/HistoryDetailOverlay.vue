@@ -19,12 +19,14 @@
         data-role="history-detail-close"
         aria-label="关闭详情"
         @click="emitClose"
-      >✕</button>
+      >
+        ✕
+      </button>
       <div class="chaospace-history-detail-header">
         <div class="chaospace-history-detail-poster" :class="{ 'is-empty': !detail.poster }">
           <img
-            data-role="history-detail-poster"
             v-if="detail.poster"
+            data-role="history-detail-poster"
             :src="detail.poster.src"
             :alt="detail.poster.alt || detail.title"
             draggable="false"
@@ -32,23 +34,29 @@
           />
         </div>
         <div class="chaospace-history-detail-summary">
-          <h3 class="chaospace-history-detail-title" data-role="history-detail-title">{{ detail.title }}</h3>
+          <h3 class="chaospace-history-detail-title" data-role="history-detail-title">
+            {{ detail.title }}
+          </h3>
           <div class="chaospace-history-detail-tags">
-            <span data-role="history-detail-date" v-show="dateLabel">{{ dateLabel }}</span>
-            <span data-role="history-detail-country" v-show="countryLabel">{{ countryLabel }}</span>
-            <span data-role="history-detail-runtime" v-show="runtimeLabel">{{ runtimeLabel }}</span>
-            <span data-role="history-detail-rating" v-show="ratingLabel">{{ ratingLabel }}</span>
+            <span v-show="dateLabel" data-role="history-detail-date">{{ dateLabel }}</span>
+            <span v-show="countryLabel" data-role="history-detail-country">{{ countryLabel }}</span>
+            <span v-show="runtimeLabel" data-role="history-detail-runtime">{{ runtimeLabel }}</span>
+            <span v-show="ratingLabel" data-role="history-detail-rating">{{ ratingLabel }}</span>
           </div>
-          <div class="chaospace-history-detail-genres" data-role="history-detail-genres" v-show="genres.length">
-            <span
-              v-for="genre in genres"
-              :key="genre"
-              class="chaospace-history-detail-genre"
-            >
+          <div
+            v-show="genres.length"
+            class="chaospace-history-detail-genres"
+            data-role="history-detail-genres"
+          >
+            <span v-for="genre in genres" :key="genre" class="chaospace-history-detail-genre">
               {{ genre }}
             </span>
           </div>
-          <div class="chaospace-history-detail-info" data-role="history-detail-info" v-show="info.length">
+          <div
+            v-show="info.length"
+            class="chaospace-history-detail-info"
+            data-role="history-detail-info"
+          >
             <div
               v-for="entry in info"
               :key="entry.label + entry.value"
@@ -60,7 +68,11 @@
           </div>
         </div>
       </div>
-      <div class="chaospace-history-detail-body" data-role="history-detail-body" v-show="!state.error || !!detail">
+      <div
+        v-show="!state.error || !!detail"
+        class="chaospace-history-detail-body"
+        data-role="history-detail-body"
+      >
         <div class="chaospace-history-detail-section">
           <div class="chaospace-history-detail-section-title">剧情简介</div>
           <div
@@ -73,7 +85,11 @@
         </div>
         <div class="chaospace-history-detail-section">
           <div class="chaospace-history-detail-section-title">剧照</div>
-          <div class="chaospace-history-detail-stills" data-role="history-detail-stills" :class="{ 'is-empty': !stills.length }">
+          <div
+            class="chaospace-history-detail-stills"
+            data-role="history-detail-stills"
+            :class="{ 'is-empty': !stills.length }"
+          >
             <template v-if="stills.length">
               <button
                 v-for="still in stills"
@@ -99,10 +115,18 @@
           </div>
         </div>
       </div>
-      <div class="chaospace-history-detail-loading" data-role="history-detail-loading" v-show="state.loading">
+      <div
+        v-show="state.loading"
+        class="chaospace-history-detail-loading"
+        data-role="history-detail-loading"
+      >
         正在加载详情...
       </div>
-      <div class="chaospace-history-detail-error" data-role="history-detail-error" v-show="state.error">
+      <div
+        v-show="state.error"
+        class="chaospace-history-detail-error"
+        data-role="history-detail-error"
+      >
         加载失败：{{ state.error }}
       </div>
     </div>
@@ -110,81 +134,87 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import type { HistoryDetailData } from './history-detail';
+import { computed } from 'vue'
+import type { HistoryDetailData } from './history-detail'
 
 interface HistoryDetailOverlayState {
-  visible: boolean;
-  loading: boolean;
-  error: string;
-  data: HistoryDetailData | null;
-  fallback: HistoryDetailData | null;
+  visible: boolean
+  loading: boolean
+  error: string
+  data: HistoryDetailData | null
+  fallback: HistoryDetailData | null
 }
 
 const props = defineProps<{
-  state: HistoryDetailOverlayState;
-}>();
+  state: HistoryDetailOverlayState
+}>()
 
 const emit = defineEmits<{
-  (event: 'close'): void;
-}>();
+  close: []
+}>()
 
 const detail = computed<HistoryDetailData>(() => {
-  return props.state.data || props.state.fallback || {
-    title: '转存记录',
-    poster: null,
-    releaseDate: '',
-    country: '',
-    runtime: '',
-    rating: null,
-    genres: [],
-    info: [],
-    synopsis: '',
-    stills: []
-  };
-});
+  return (
+    props.state.data ||
+    props.state.fallback || {
+      title: '转存记录',
+      poster: null,
+      releaseDate: '',
+      country: '',
+      runtime: '',
+      rating: null,
+      genres: [],
+      info: [],
+      synopsis: '',
+      stills: [],
+    }
+  )
+})
 
-const dateLabel = computed(() => detail.value.releaseDate ? `📅 ${detail.value.releaseDate}` : '');
-const countryLabel = computed(() => detail.value.country ? `🌍 ${detail.value.country}` : '');
-const runtimeLabel = computed(() => detail.value.runtime ? `⏱️ ${detail.value.runtime}` : '');
+const dateLabel = computed(() => (detail.value.releaseDate ? `📅 ${detail.value.releaseDate}` : ''))
+const countryLabel = computed(() => (detail.value.country ? `🌍 ${detail.value.country}` : ''))
+const runtimeLabel = computed(() => (detail.value.runtime ? `⏱️ ${detail.value.runtime}` : ''))
 const ratingLabel = computed(() => {
-  const rating = detail.value.rating;
+  const rating = detail.value.rating
   if (!rating || !rating.value) {
-    return '';
+    return ''
   }
-  const pieces = [`⭐ ${rating.value}`];
+  const pieces = [`⭐ ${rating.value}`]
   if (rating.votes && rating.label) {
-    pieces.push(`· ${rating.votes} ${rating.label}`);
+    pieces.push(`· ${rating.votes} ${rating.label}`)
   } else if (rating.votes) {
-    pieces.push(`· ${rating.votes}`);
+    pieces.push(`· ${rating.votes}`)
   } else if (rating.label) {
-    pieces.push(`· ${rating.label}`);
+    pieces.push(`· ${rating.label}`)
   }
-  return pieces.join(' ');
-});
+  return pieces.join(' ')
+})
 
-const genres = computed<string[]>(() => detail.value.genres?.slice(0, 12) ?? []);
-const info = computed<HistoryDetailData['info']>(() => detail.value.info?.slice(0, 12) ?? []);
-const stills = computed<HistoryDetailData['stills']>(() => detail.value.stills?.slice(0, 12).map(still => ({
-  full: still.full || still.url || still.thumb || '',
-  thumb: still.thumb || still.url || still.full || '',
-  alt: still.alt || detail.value.title || '剧照',
-  url: still.url || still.full || still.thumb || ''
-})) ?? []);
+const genres = computed<string[]>(() => detail.value.genres?.slice(0, 12) ?? [])
+const info = computed<HistoryDetailData['info']>(() => detail.value.info?.slice(0, 12) ?? [])
+const stills = computed<HistoryDetailData['stills']>(
+  () =>
+    detail.value.stills?.slice(0, 12).map((still) => ({
+      full: still.full || still.url || still.thumb || '',
+      thumb: still.thumb || still.url || still.full || '',
+      alt: still.alt || detail.value.title || '剧照',
+      url: still.url || still.full || still.thumb || '',
+    })) ?? [],
+)
 
 function emitClose(): void {
-  emit('close');
+  emit('close')
 }
 
 function previewImage(src: string | undefined, alt: string | undefined): void {
   if (!src) {
-    return;
+    return
   }
   if (typeof window.openZoomPreview === 'function') {
     window.openZoomPreview({
       src,
-      alt: alt || ''
-    });
+      alt: alt || '',
+    })
   }
 }
 </script>

@@ -8,5 +8,13 @@
     "types": ["node"],
     "allowJs": true
   },
-  "include": ["vite.config.ts"]
+  "include": [
+    "vite.config.ts",
+    "vitest.config.ts",
+    "playwright.config.ts",
+    "eslint.config.mjs",
+    "*.config.ts",
+    "*.config.mjs",
+    "tests/**/*.ts"
+  ]
 }

@@ -1,16 +1,7 @@
-import {
-  DEFAULT_PRESETS,
-  HISTORY_BATCH_RATE_LIMIT_MS
-} from '../constants';
-import type {
-  ContentState,
-  PanelDomRefs,
-  DetailDomRefs
-} from '../types';
+import { DEFAULT_PRESETS, HISTORY_BATCH_RATE_LIMIT_MS } from '../constants'
+import type { ContentState, PanelDomRefs, DetailDomRefs } from '../types'
 
-type StateKey = keyof ContentState;
-
-type StateValue<K extends StateKey> = ContentState[K];
+type StateKey = keyof ContentState
 
 const initialState: ContentState = {
   baseDir: '/',
@@ -62,50 +53,50 @@ const initialState: ContentState = {
     pageUrl: '',
     data: null,
     error: '',
-    fallback: null
+    fallback: null,
   },
   historyDetailCache: new Map<string, unknown>(),
   seasonDirMap: {},
   seasonResolvedPaths: [],
   activeSeasonId: null,
   settingsPanel: {
-    isOpen: false
-  }
-};
+    isOpen: false,
+  },
+}
 
-export const state: ContentState = initialState;
+export const state: ContentState = initialState
 
-export const panelDom: PanelDomRefs = {} as PanelDomRefs;
-export const detailDom: DetailDomRefs = {} as DetailDomRefs;
+export const panelDom: PanelDomRefs = {} as PanelDomRefs
+export const detailDom: DetailDomRefs = {} as DetailDomRefs
 
 export function overwriteState(nextState: Partial<ContentState>): void {
-  (Object.keys(state) as StateKey[]).forEach((key) => {
+  ;(Object.keys(state) as StateKey[]).forEach((key) => {
     if (!(key in nextState)) {
-      return;
+      return
     }
-    const value = nextState[key];
+    const value = nextState[key]
     if (value instanceof Set) {
-      (state as Record<StateKey, unknown>)[key] = new Set(value);
-      return;
+      ;(state as Record<StateKey, unknown>)[key] = new Set(value)
+      return
     }
     if (value instanceof Map) {
-      (state as Record<StateKey, unknown>)[key] = new Map(value);
-      return;
+      ;(state as Record<StateKey, unknown>)[key] = new Map(value)
+      return
     }
-    (state as Record<StateKey, unknown>)[key] = value as StateValue<typeof key>;
-  });
+    ;(state as Record<StateKey, unknown>)[key] = value
+  })
 }
 
 export function resetTransientState(): void {
-  state.itemIdSet = new Set<string | number>();
-  state.deferredSeasonInfos = [];
-  state.seasonEntries = [];
-  state.seasonCompletion = {};
-  state.historyDetailCache = new Map<string, unknown>();
-  state.selectedIds = new Set<string | number>();
-  state.newItemIds = new Set<string | number>();
-  state.transferredIds = new Set<string | number>();
-  state.logs = [];
-  state.lastResult = null;
-  state.jobId = null;
+  state.itemIdSet = new Set<string | number>()
+  state.deferredSeasonInfos = []
+  state.seasonEntries = []
+  state.seasonCompletion = {}
+  state.historyDetailCache = new Map<string, unknown>()
+  state.selectedIds = new Set<string | number>()
+  state.newItemIds = new Set<string | number>()
+  state.transferredIds = new Set<string | number>()
+  state.logs = []
+  state.lastResult = null
+  state.jobId = null
 }

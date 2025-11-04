@@ -1,160 +1,163 @@
-import { HISTORY_KEY, HISTORY_FILTERS, type HistoryFilter } from '../constants';
-import { normalizePageUrl } from './page-analyzer';
-import type { CompletionStatus, SeasonEntry } from '@/shared/utils/completion-status';
-import type { PosterInfo } from '@/shared/utils/sanitizers';
+import { HISTORY_KEY, HISTORY_FILTERS, type HistoryFilter } from '../constants'
+import { normalizePageUrl } from './page-analyzer'
+import type { CompletionStatus, SeasonEntry } from '@/shared/utils/completion-status'
+import type { PosterInfo } from '@/shared/utils/sanitizers'
 import type {
   ContentHistoryRecord,
   HistoryGroup,
   HistoryGroupSeasonRow,
-  HistoryRecordsPayload
-} from '../types';
+  HistoryRecordsPayload,
+} from '../types'
 
 interface CompletionLike {
-  label?: unknown;
-  state?: unknown;
-  source?: unknown;
-  updatedAt?: unknown;
+  label?: unknown
+  state?: unknown
+  source?: unknown
+  updatedAt?: unknown
 }
 
 interface PosterLike {
-  src?: unknown;
-  alt?: unknown;
+  src?: unknown
+  alt?: unknown
 }
 
 interface HistorySeasonEntryInput {
-  seasonId?: unknown;
-  id?: unknown;
-  url?: unknown;
-  label?: unknown;
-  seasonIndex?: unknown;
-  completion?: unknown;
-  poster?: unknown;
-  loaded?: unknown;
-  hasItems?: unknown;
+  seasonId?: unknown
+  id?: unknown
+  url?: unknown
+  label?: unknown
+  seasonIndex?: unknown
+  completion?: unknown
+  poster?: unknown
+  loaded?: unknown
+  hasItems?: unknown
 }
 
 interface StoredHistorySnapshot {
-  records?: unknown;
-  [key: string]: unknown;
+  records?: unknown
+  [key: string]: unknown
 }
 
 const COMPLETION_STATES: ReadonlySet<CompletionStatus['state']> = new Set([
   'completed',
   'ongoing',
   'upcoming',
-  'unknown'
-]);
+  'unknown',
+])
 
 function coerceCompletionState(state: unknown): CompletionStatus['state'] {
   if (typeof state !== 'string') {
-    return 'unknown';
+    return 'unknown'
   }
   return COMPLETION_STATES.has(state as CompletionStatus['state'])
     ? (state as CompletionStatus['state'])
-    : 'unknown';
+    : 'unknown'
 }
 
 export async function readHistoryFromStorage(): Promise<StoredHistorySnapshot | null> {
   try {
-    const stored = (await chrome.storage.local.get(HISTORY_KEY)) as Record<string, unknown>;
-    const payload = stored?.[HISTORY_KEY];
+    const stored = await chrome.storage.local.get(HISTORY_KEY)
+    const payload = stored?.[HISTORY_KEY]
     if (payload && typeof payload === 'object') {
-      return payload as StoredHistorySnapshot;
+      return payload as StoredHistorySnapshot
     }
-    return null;
+    return null
   } catch (error) {
-    console.error('[Chaospace Transfer] Failed to read history from storage', error);
-    return null;
+    console.error('[Chaospace Transfer] Failed to read history from storage', error)
+    return null
   }
 }
 
 export function normalizeHistoryCompletion(entry: unknown): CompletionStatus | null {
   if (!entry || typeof entry !== 'object') {
-    return null;
+    return null
   }
-  const raw = entry as CompletionLike;
-  const labelValue = raw.label;
-  const label = typeof labelValue === 'string' ? labelValue.trim() : '';
+  const raw = entry as CompletionLike
+  const labelValue = raw.label
+  const label = typeof labelValue === 'string' ? labelValue.trim() : ''
   if (!label) {
-    return null;
+    return null
   }
-  const state = coerceCompletionState(raw.state);
+  const state = coerceCompletionState(raw.state)
   const normalized: CompletionStatus = {
     label,
-    state
-  };
+    state,
+  }
   if (typeof raw.source === 'string' && raw.source.trim()) {
-    normalized.source = raw.source.trim();
+    normalized.source = raw.source.trim()
   }
   if (typeof raw.updatedAt === 'number' && Number.isFinite(raw.updatedAt)) {
-    normalized.updatedAt = raw.updatedAt;
+    normalized.updatedAt = raw.updatedAt
   }
-  return normalized;
+  return normalized
 }
 
 export function normalizeSeasonCompletionMap(value: unknown): Record<string, CompletionStatus> {
   if (!value || typeof value !== 'object') {
-    return {};
+    return {}
   }
-  const result: Record<string, CompletionStatus> = {};
+  const result: Record<string, CompletionStatus> = {}
   Object.entries(value as Record<string, unknown>).forEach(([key, entry]) => {
-    const normalized = normalizeHistoryCompletion(entry);
+    const normalized = normalizeHistoryCompletion(entry)
     if (normalized) {
-      result[key] = normalized;
+      result[key] = normalized
     }
-  });
-  return result;
+  })
+  return result
 }
 
 export function normalizeSeasonDirectory(value: unknown): Record<string, string> {
   if (!value || typeof value !== 'object') {
-    return {};
+    return {}
   }
-  const result: Record<string, string> = {};
+  const result: Record<string, string> = {}
   Object.entries(value as Record<string, unknown>).forEach(([key, dir]) => {
     if (typeof dir !== 'string') {
-      return;
+      return
     }
-    const trimmed = dir.trim();
+    const trimmed = dir.trim()
     if (trimmed) {
-      result[key] = trimmed;
+      result[key] = trimmed
     }
-  });
-  return result;
+  })
+  return result
 }
 
 function normalizePosterInfo(entry: unknown): PosterInfo | null {
   if (!entry || typeof entry !== 'object') {
-    return null;
+    return null
   }
-  const raw = entry as PosterLike;
+  const raw = entry as PosterLike
   if (typeof raw.src !== 'string' || !raw.src.trim()) {
-    return null;
+    return null
   }
   return {
     src: raw.src,
-    alt: typeof raw.alt === 'string' ? raw.alt : ''
-  };
+    alt: typeof raw.alt === 'string' ? raw.alt : '',
+  }
 }
 
 export function normalizeHistorySeasonEntries(entries: unknown): SeasonEntry[] {
   if (!Array.isArray(entries)) {
-    return [];
+    return []
   }
   return entries
-    .map(entry => {
+    .map((entry) => {
       if (!entry || typeof entry !== 'object') {
-        return null;
+        return null
       }
-      const raw = entry as HistorySeasonEntryInput;
-      const seasonId = typeof raw.seasonId === 'string' && raw.seasonId
-        ? raw.seasonId
-        : (typeof raw.id === 'string' ? raw.id : '');
-      const url = typeof raw.url === 'string' ? raw.url : '';
-      const label = typeof raw.label === 'string' ? raw.label : '';
-      const seasonIndex = Number.isFinite(raw.seasonIndex) ? Number(raw.seasonIndex) : 0;
-      const completion = normalizeHistoryCompletion(raw.completion || null);
-      const poster = normalizePosterInfo(raw.poster || null);
+      const raw = entry as HistorySeasonEntryInput
+      const seasonId =
+        typeof raw.seasonId === 'string' && raw.seasonId
+          ? raw.seasonId
+          : typeof raw.id === 'string'
+            ? raw.id
+            : ''
+      const url = typeof raw.url === 'string' ? raw.url : ''
+      const label = typeof raw.label === 'string' ? raw.label : ''
+      const seasonIndex = Number.isFinite(raw.seasonIndex) ? Number(raw.seasonIndex) : 0
+      const completion = normalizeHistoryCompletion(raw.completion || null)
+      const poster = normalizePosterInfo(raw.poster || null)
       return {
         seasonId,
         url,
@@ -163,101 +166,110 @@ export function normalizeHistorySeasonEntries(entries: unknown): SeasonEntry[] {
         completion,
         poster,
         loaded: Boolean(raw.loaded),
-        hasItems: Boolean(raw.hasItems)
-      } as SeasonEntry;
+        hasItems: Boolean(raw.hasItems),
+      } as SeasonEntry
     })
     .filter((entry): entry is SeasonEntry => Boolean(entry))
     .sort((a, b) => {
       if (a.seasonIndex === b.seasonIndex) {
-        return a.seasonId.localeCompare(b.seasonId, 'zh-CN');
+        return a.seasonId.localeCompare(b.seasonId, 'zh-CN')
       }
-      return a.seasonIndex - b.seasonIndex;
-    });
+      return a.seasonIndex - b.seasonIndex
+    })
 }
 
 export function getHistoryRecordTimestamp(record: ContentHistoryRecord | null | undefined): number {
   if (!record || typeof record !== 'object') {
-    return 0;
+    return 0
   }
   const timestamps = [
     record.lastTransferredAt,
     record.lastCheckedAt,
-    record.lastResult?.updatedAt
-  ].filter(value => Number.isFinite(value) && Number(value) > 0);
+    record.lastResult?.updatedAt,
+  ].filter((value) => Number.isFinite(value) && Number(value) > 0)
   if (!timestamps.length) {
-    return 0;
+    return 0
   }
-  return Math.max(...(timestamps as number[]));
+  return Math.max(...(timestamps as number[]))
 }
 
 export function deriveHistoryGroupKey(record: ContentHistoryRecord | null | undefined): string {
   if (!record || typeof record !== 'object') {
-    return '';
+    return ''
   }
-  let origin = typeof record.origin === 'string' ? record.origin : '';
+  let origin = typeof record.origin === 'string' ? record.origin : ''
   if (!origin) {
     try {
-      const url = new URL(record.pageUrl);
-      origin = `${url.protocol}//${url.host}`;
+      const url = new URL(record.pageUrl)
+      origin = `${url.protocol}//${url.host}`
     } catch (_error) {
-      origin = '';
+      origin = ''
     }
   }
-  const title = typeof record.pageTitle === 'string' && record.pageTitle.trim()
-    ? record.pageTitle.trim()
-    : '未命名资源';
-  return `${origin}::${title}`;
+  const title =
+    typeof record.pageTitle === 'string' && record.pageTitle.trim()
+      ? record.pageTitle.trim()
+      : '未命名资源'
+  return `${origin}::${title}`
 }
 
-export function selectHistoryMainRecord(records: ContentHistoryRecord[]): ContentHistoryRecord | null {
+export function selectHistoryMainRecord(
+  records: ContentHistoryRecord[],
+): ContentHistoryRecord | null {
   if (!Array.isArray(records) || !records.length) {
-    return null;
+    return null
   }
-  const tvShowRecord = records.find(record => /\/tvshows\/\d+\.html/.test(record.pageUrl));
+  const tvShowRecord = records.find((record) => /\/tvshows\/\d+\.html/.test(record.pageUrl))
   if (tvShowRecord) {
-    return tvShowRecord;
+    return tvShowRecord
   }
-  const aggregatedRecord = records.find(record => Array.isArray(record.seasonEntries) && record.seasonEntries.length > 0);
+  const aggregatedRecord = records.find(
+    (record) => Array.isArray(record.seasonEntries) && record.seasonEntries.length > 0,
+  )
   if (aggregatedRecord) {
-    return aggregatedRecord;
+    return aggregatedRecord
   }
-  const nonSeasonRecord = records.find(record => !/\/seasons\/\d+\.html/.test(record.pageUrl));
+  const nonSeasonRecord = records.find((record) => !/\/seasons\/\d+\.html/.test(record.pageUrl))
   if (nonSeasonRecord) {
-    return nonSeasonRecord;
+    return nonSeasonRecord
   }
-  return records[0]!;
+  return records[0]!
 }
 
 export function buildHistoryGroups(records: ContentHistoryRecord[]): HistoryGroup[] {
   if (!Array.isArray(records) || !records.length) {
-    return [];
+    return []
   }
-  const groupMap = new Map<string, ContentHistoryRecord[]>();
-  records.forEach(record => {
-    const key = deriveHistoryGroupKey(record);
+  const groupMap = new Map<string, ContentHistoryRecord[]>()
+  records.forEach((record) => {
+    const key = deriveHistoryGroupKey(record)
     if (!groupMap.has(key)) {
-      groupMap.set(key, []);
+      groupMap.set(key, [])
     }
-    groupMap.get(key)!.push(record);
-  });
-  const groups: HistoryGroup[] = [];
+    groupMap.get(key)!.push(record)
+  })
+  const groups: HistoryGroup[] = []
   groupMap.forEach((groupRecords, key) => {
     const sortedRecords = groupRecords.slice().sort((a, b) => {
-      const diff = getHistoryRecordTimestamp(b) - getHistoryRecordTimestamp(a);
+      const diff = getHistoryRecordTimestamp(b) - getHistoryRecordTimestamp(a)
       if (diff !== 0) {
-        return diff;
+        return diff
       }
-      return (b.totalTransferred || 0) - (a.totalTransferred || 0);
-    });
-    const mainRecord = (selectHistoryMainRecord(sortedRecords) ?? sortedRecords[0])!;
-    const children = sortedRecords.filter(record => record !== mainRecord);
+      return (b.totalTransferred || 0) - (a.totalTransferred || 0)
+    })
+    const mainRecord = (selectHistoryMainRecord(sortedRecords) ?? sortedRecords[0])!
+    const children = sortedRecords.filter((record) => record !== mainRecord)
     const urls = sortedRecords
-      .map(record => normalizePageUrl(record.pageUrl))
-      .filter((value): value is string => Boolean(value));
-    const updatedAt = sortedRecords.reduce((maxTs, record) => Math.max(maxTs, getHistoryRecordTimestamp(record)), 0);
-    const posterCandidate: PosterInfo | null = (mainRecord.poster && mainRecord.poster.src)
-      ? mainRecord.poster
-      : (children.find(record => record.poster && record.poster.src)?.poster || null);
+      .map((record) => normalizePageUrl(record.pageUrl))
+      .filter((value): value is string => Boolean(value))
+    const updatedAt = sortedRecords.reduce(
+      (maxTs, record) => Math.max(maxTs, getHistoryRecordTimestamp(record)),
+      0,
+    )
+    const posterCandidate: PosterInfo | null =
+      mainRecord.poster && mainRecord.poster.src
+        ? mainRecord.poster
+        : children.find((record) => record.poster && record.poster.src)?.poster || null
     groups.push({
       key,
       title: mainRecord.pageTitle || '未命名资源',
@@ -268,22 +280,24 @@ export function buildHistoryGroups(records: ContentHistoryRecord[]): HistoryGrou
       main: mainRecord,
       children,
       urls,
-      seasonEntries: Array.isArray(mainRecord.seasonEntries) ? mainRecord.seasonEntries : []
-    });
-  });
-  groups.sort((a, b) => b.updatedAt - a.updatedAt);
-  return groups;
+      seasonEntries: Array.isArray(mainRecord.seasonEntries) ? mainRecord.seasonEntries : [],
+    })
+  })
+  groups.sort((a, b) => b.updatedAt - a.updatedAt)
+  return groups
 }
 
-export function buildHistoryGroupSeasonRows(group: HistoryGroup | null | undefined): HistoryGroupSeasonRow[] {
+export function buildHistoryGroupSeasonRows(
+  group: HistoryGroup | null | undefined,
+): HistoryGroupSeasonRow[] {
   if (!group) {
-    return [];
+    return []
   }
-  const seasonEntries = Array.isArray(group.seasonEntries) ? group.seasonEntries : [];
-  const entryByUrl = new Map<string, SeasonEntry>();
-  const entryById = new Map<string, SeasonEntry>();
+  const seasonEntries = Array.isArray(group.seasonEntries) ? group.seasonEntries : []
+  const entryByUrl = new Map<string, SeasonEntry>()
+  const entryById = new Map<string, SeasonEntry>()
   seasonEntries.forEach((entry, index) => {
-    const normalizedUrl = normalizePageUrl(entry.url);
+    const normalizedUrl = normalizePageUrl(entry.url)
     const normalizedEntry: SeasonEntry = {
       seasonId: entry.seasonId || '',
       url: entry.url || '',
@@ -292,63 +306,66 @@ export function buildHistoryGroupSeasonRows(group: HistoryGroup | null | undefin
       completion: entry.completion || null,
       seasonIndex: Number.isFinite(entry.seasonIndex) ? entry.seasonIndex : index,
       loaded: Boolean(entry.loaded),
-      hasItems: Boolean(entry.hasItems)
-    };
+      hasItems: Boolean(entry.hasItems),
+    }
     if (normalizedUrl) {
-      entryByUrl.set(normalizedUrl, normalizedEntry);
+      entryByUrl.set(normalizedUrl, normalizedEntry)
     }
     if (normalizedEntry.seasonId) {
-      entryById.set(normalizedEntry.seasonId, normalizedEntry);
+      entryById.set(normalizedEntry.seasonId, normalizedEntry)
     }
-  });
+  })
 
-  const rows: HistoryGroupSeasonRow[] = [];
-  const usedKeys = new Set<string>();
-  const children = Array.isArray(group.children) ? group.children : [];
+  const rows: HistoryGroupSeasonRow[] = []
+  const usedKeys = new Set<string>()
+  const children = Array.isArray(group.children) ? group.children : []
   children.forEach((record, index) => {
-    const normalizedUrl = normalizePageUrl(record.pageUrl);
-    const seasonEntriesList = Array.isArray(record.seasonEntries) ? record.seasonEntries : [];
-    const entryFromUrl = normalizedUrl ? entryByUrl.get(normalizedUrl) : undefined;
-    const entryFromId = seasonEntriesList.length === 1
-      ? entryById.get(seasonEntriesList[0]?.seasonId || '')
-      : undefined;
-    const primaryEntry = entryFromUrl ?? entryFromId ?? null;
-    let label = primaryEntry?.label || '';
+    const normalizedUrl = normalizePageUrl(record.pageUrl)
+    const seasonEntriesList = Array.isArray(record.seasonEntries) ? record.seasonEntries : []
+    const entryFromUrl = normalizedUrl ? entryByUrl.get(normalizedUrl) : undefined
+    const entryFromId =
+      seasonEntriesList.length === 1
+        ? entryById.get(seasonEntriesList[0]?.seasonId || '')
+        : undefined
+    const primaryEntry = entryFromUrl ?? entryFromId ?? null
+    let label = primaryEntry?.label || ''
     if (!label && typeof record.pageUrl === 'string') {
-      const seasonMatch = record.pageUrl.match(/\/seasons\/(\d+)\.html/);
+      const seasonMatch = record.pageUrl.match(/\/seasons\/(\d+)\.html/)
       if (seasonMatch) {
-        label = `第${seasonMatch[1]}季`;
+        label = `第${seasonMatch[1]}季`
       }
     }
     if (!label) {
-      label = record.pageTitle || `季 ${index + 1}`;
+      label = record.pageTitle || `季 ${index + 1}`
     }
-    const poster = record.poster || primaryEntry?.poster || null;
-    const completion = primaryEntry?.completion || record.completion || null;
-    let seasonId = primaryEntry?.seasonId || '';
+    const poster = record.poster || primaryEntry?.poster || null
+    const completion = primaryEntry?.completion || record.completion || null
+    let seasonId = primaryEntry?.seasonId || ''
     if (!seasonId && seasonEntriesList.length === 1) {
-      seasonId = seasonEntriesList[0]?.seasonId || '';
+      seasonId = seasonEntriesList[0]?.seasonId || ''
     }
     let seasonIndex = Number.isFinite(primaryEntry?.seasonIndex)
       ? Number(primaryEntry?.seasonIndex)
-      : (Number.isFinite(index) ? index : 0);
+      : Number.isFinite(index)
+        ? index
+        : 0
     if (!Number.isFinite(seasonIndex) && seasonEntriesList.length === 1) {
-      const entry = seasonEntriesList[0];
+      const entry = seasonEntriesList[0]
       if (entry && Number.isFinite(entry.seasonIndex)) {
-        seasonIndex = entry.seasonIndex;
+        seasonIndex = entry.seasonIndex
       }
     }
     if (!Number.isFinite(seasonIndex) && typeof record.pageUrl === 'string') {
-      const seasonMatch = record.pageUrl.match(/\/seasons\/(\d+)\.html/);
+      const seasonMatch = record.pageUrl.match(/\/seasons\/(\d+)\.html/)
       if (seasonMatch) {
-        const parsed = parseInt(seasonMatch[1] || '', 10);
+        const parsed = parseInt(seasonMatch[1] || '', 10)
         if (Number.isFinite(parsed)) {
-          seasonIndex = parsed;
+          seasonIndex = parsed
         }
       }
     }
-    const key = normalizedUrl || seasonId || `${group.key}-child-${index}`;
-    usedKeys.add(key);
+    const key = normalizedUrl || seasonId || `${group.key}-child-${index}`
+    usedKeys.add(key)
     rows.push({
       key,
       label,
@@ -359,15 +376,15 @@ export function buildHistoryGroupSeasonRows(group: HistoryGroup | null | undefin
       seasonIndex: Number.isFinite(seasonIndex) ? Number(seasonIndex) : index,
       canCheck: true,
       record,
-      recordTimestamp: getHistoryRecordTimestamp(record)
-    });
-  });
+      recordTimestamp: getHistoryRecordTimestamp(record),
+    })
+  })
 
   seasonEntries.forEach((entry, index) => {
-    const normalizedUrl = normalizePageUrl(entry.url);
-    const key = normalizedUrl || entry.seasonId || `${group.key}-season-${index}`;
+    const normalizedUrl = normalizePageUrl(entry.url)
+    const key = normalizedUrl || entry.seasonId || `${group.key}-season-${index}`
     if (usedKeys.has(key)) {
-      return;
+      return
     }
     rows.push({
       key,
@@ -379,82 +396,91 @@ export function buildHistoryGroupSeasonRows(group: HistoryGroup | null | undefin
       seasonIndex: Number.isFinite(entry.seasonIndex) ? entry.seasonIndex : index,
       canCheck: false,
       record: null,
-      recordTimestamp: 0
-    });
-  });
+      recordTimestamp: 0,
+    })
+  })
 
   rows.sort((a, b) => {
     if (a.seasonIndex === b.seasonIndex) {
-      return a.label.localeCompare(b.label, 'zh-CN');
+      return a.label.localeCompare(b.label, 'zh-CN')
     }
-    return a.seasonIndex - b.seasonIndex;
-  });
-  return rows;
+    return a.seasonIndex - b.seasonIndex
+  })
+  return rows
 }
 
-export function getHistoryGroupMain(group: HistoryGroup | null | undefined): ContentHistoryRecord | null {
+export function getHistoryGroupMain(
+  group: HistoryGroup | null | undefined,
+): ContentHistoryRecord | null {
   if (!group || typeof group !== 'object') {
-    return null;
+    return null
   }
-  return group.main ?? null;
+  return group.main ?? null
 }
 
-export function getHistoryGroupCompletion(group: HistoryGroup | null | undefined): CompletionStatus | null {
-  const main = getHistoryGroupMain(group);
-  return main && main.completion ? main.completion : null;
+export function getHistoryGroupCompletion(
+  group: HistoryGroup | null | undefined,
+): CompletionStatus | null {
+  const main = getHistoryGroupMain(group)
+  return main && main.completion ? main.completion : null
 }
 
-export function getHistoryGroupCompletionState(group: HistoryGroup | null | undefined): CompletionStatus['state'] {
-  const completion = getHistoryGroupCompletion(group);
-  return completion && completion.state ? completion.state : 'unknown';
+export function getHistoryGroupCompletionState(
+  group: HistoryGroup | null | undefined,
+): CompletionStatus['state'] {
+  const completion = getHistoryGroupCompletion(group)
+  return completion && completion.state ? completion.state : 'unknown'
 }
 
 export function isHistoryGroupCompleted(group: HistoryGroup | null | undefined): boolean {
-  return getHistoryGroupCompletionState(group) === 'completed';
+  return getHistoryGroupCompletionState(group) === 'completed'
 }
 
 export function isHistoryGroupSeries(group: HistoryGroup | null | undefined): boolean {
-  const main = getHistoryGroupMain(group);
-  return Boolean(main && main.pageType === 'series');
+  const main = getHistoryGroupMain(group)
+  return Boolean(main && main.pageType === 'series')
 }
 
 export function isHistoryGroupMovie(group: HistoryGroup | null | undefined): boolean {
-  const main = getHistoryGroupMain(group);
-  return Boolean(main && main.pageType === 'movie');
+  const main = getHistoryGroupMain(group)
+  return Boolean(main && main.pageType === 'movie')
 }
 
 export function canCheckHistoryGroup(group: HistoryGroup | null | undefined): boolean {
   if (!group) {
-    return false;
+    return false
   }
   if (!isHistoryGroupSeries(group)) {
-    return false;
+    return false
   }
-  return !isHistoryGroupCompleted(group);
+  return !isHistoryGroupCompleted(group)
 }
 
 export function normalizeHistoryFilter(filter: unknown): HistoryFilter {
-  return HISTORY_FILTERS.includes(filter as HistoryFilter) ? (filter as HistoryFilter) : 'all';
+  return HISTORY_FILTERS.includes(filter as HistoryFilter) ? (filter as HistoryFilter) : 'all'
 }
 
-export function filterHistoryGroups(groups: HistoryGroup[], filter: unknown = 'all'): HistoryGroup[] {
-  const normalized = normalizeHistoryFilter(filter);
-  const list = Array.isArray(groups) ? groups : [];
-  return list.filter(group => {
+export function filterHistoryGroups(
+  groups: HistoryGroup[],
+  filter: unknown = 'all',
+): HistoryGroup[] {
+  const normalized = normalizeHistoryFilter(filter)
+  const list = Array.isArray(groups) ? groups : []
+  return list.filter((group) => {
     switch (normalized) {
       case 'series':
-        return isHistoryGroupSeries(group);
+        return isHistoryGroupSeries(group)
       case 'movie':
-        return isHistoryGroupMovie(group);
+        return isHistoryGroupMovie(group)
       case 'ongoing':
-        return canCheckHistoryGroup(group);
+        return canCheckHistoryGroup(group)
       case 'completed':
-        return isHistoryGroupCompleted(group);
+        return isHistoryGroupCompleted(group)
       case 'all':
       default:
-        return true;
+        return true
     }
-  });
+  })
 }
 
 function toContentHistoryRecord(record: unknown): ContentHistoryRecord {
@@ -478,121 +504,124 @@ function toContentHistoryRecord(record: unknown): ContentHistoryRecord {
     items: {},
     itemOrder: [],
     lastResult: null,
-    ...(record || {})
-  } as ContentHistoryRecord & Record<string, unknown>;
+    ...(record || {}),
+  } as ContentHistoryRecord & Record<string, unknown>
 
   if (!base.items || typeof base.items !== 'object') {
-    base.items = {};
+    base.items = {}
   }
-  base.completion = normalizeHistoryCompletion(base.completion || null);
-  base.seasonCompletion = normalizeSeasonCompletionMap(base.seasonCompletion || null);
-  base.seasonDirectory = normalizeSeasonDirectory(base.seasonDirectory || null);
-  base.useSeasonSubdir = Boolean(base.useSeasonSubdir);
-  base.seasonEntries = normalizeHistorySeasonEntries(base.seasonEntries || []);
+  base.completion = normalizeHistoryCompletion(base.completion || null)
+  base.seasonCompletion = normalizeSeasonCompletionMap(base.seasonCompletion || null)
+  base.seasonDirectory = normalizeSeasonDirectory(base.seasonDirectory || null)
+  base.useSeasonSubdir = Boolean(base.useSeasonSubdir)
+  base.seasonEntries = normalizeHistorySeasonEntries(base.seasonEntries || [])
   if (!Array.isArray(base.itemOrder)) {
-    base.itemOrder = [];
+    base.itemOrder = []
   }
   if (typeof base.targetDirectory !== 'string' || !base.targetDirectory) {
-    base.targetDirectory = '/';
+    base.targetDirectory = '/'
   }
   if (typeof base.baseDir !== 'string' || !base.baseDir) {
-    base.baseDir = '/';
+    base.baseDir = '/'
   }
-  return base as ContentHistoryRecord;
+  return base as ContentHistoryRecord
 }
 
 export function prepareHistoryRecords(raw: unknown): HistoryRecordsPayload {
   if (!raw || typeof raw !== 'object') {
-    return { records: [], groups: [] };
+    return { records: [], groups: [] }
   }
-  const candidate = raw as StoredHistorySnapshot;
-  const rawRecords = Array.isArray(candidate.records) ? candidate.records : [];
+  const candidate = raw as StoredHistorySnapshot
+  const rawRecords = Array.isArray(candidate.records) ? candidate.records : []
   const records = rawRecords
-    .map(item => toContentHistoryRecord(item))
+    .map((item) => toContentHistoryRecord(item))
     .sort((a, b) => {
-      const tsA = a.lastTransferredAt || a.lastCheckedAt || 0;
-      const tsB = b.lastTransferredAt || b.lastCheckedAt || 0;
-      return tsB - tsA;
-    });
-  const groups = buildHistoryGroups(records);
-  return { records, groups };
+      const tsA = a.lastTransferredAt || a.lastCheckedAt || 0
+      const tsB = b.lastTransferredAt || b.lastCheckedAt || 0
+      return tsB - tsA
+    })
+  const groups = buildHistoryGroups(records)
+  return { records, groups }
 }
 
 export interface HistoryMutationResponse {
-  ok: boolean;
-  removed?: number;
-  total?: number;
-  error?: string;
-  [key: string]: unknown;
+  ok: boolean
+  removed?: number
+  total?: number
+  error?: string
+  [key: string]: unknown
 }
 
 export async function deleteHistoryRecords(urls: string[] = []): Promise<HistoryMutationResponse> {
   if (!Array.isArray(urls) || urls.length === 0) {
-    return { ok: true, removed: 0 };
+    return { ok: true, removed: 0 }
   }
   try {
     const response = await chrome.runtime.sendMessage({
       type: 'chaospace:history-delete',
-      payload: { urls }
-    }) as HistoryMutationResponse | undefined;
+      payload: { urls },
+    })
     if (!response || response.ok === false) {
-      throw new Error(response?.error || '删除历史记录失败');
+      throw new Error(response?.error || '删除历史记录失败')
     }
-    return response;
+    return response
   } catch (error) {
-    console.error('[Chaospace Transfer] Failed to delete history records', error);
-    throw error;
+    console.error('[Chaospace Transfer] Failed to delete history records', error)
+    throw error
   }
 }
 
 export async function clearAllHistoryRecords(): Promise<HistoryMutationResponse> {
   try {
-    const response = await chrome.runtime.sendMessage({ type: 'chaospace:history-clear' }) as HistoryMutationResponse | undefined;
+    const response = await chrome.runtime.sendMessage({ type: 'chaospace:history-clear' })
     if (!response || response.ok === false) {
-      throw new Error(response?.error || '清空历史记录失败');
+      throw new Error(response?.error || '清空历史记录失败')
     }
-    return response;
+    return response
   } catch (error) {
-    console.error('[Chaospace Transfer] Failed to clear history', error);
-    throw error;
+    console.error('[Chaospace Transfer] Failed to clear history', error)
+    throw error
   }
 }
 
 export interface HistoryUpdateResponse {
-  ok: boolean;
-  error?: Error | string;
-  [key: string]: unknown;
+  ok: boolean
+  error?: Error | string
+  [key: string]: unknown
 }
 
 export async function requestHistoryUpdate(pageUrl: string): Promise<HistoryUpdateResponse> {
   if (!pageUrl) {
-    return { ok: false, error: new Error('缺少页面地址') };
+    return { ok: false, error: new Error('缺少页面地址') }
   }
   try {
     const response = await chrome.runtime.sendMessage({
       type: 'chaospace:check-updates',
-      payload: { pageUrl }
-    }) as (HistoryUpdateResponse | { ok: boolean; error?: string }) | undefined;
+      payload: { pageUrl },
+    })
     if (!response || response.ok === false) {
-      const errorValue = response?.error;
-      const errorMessage = typeof errorValue === 'string'
-        ? errorValue
-        : (errorValue instanceof Error ? errorValue.message : '检测失败');
-      return { ok: false, error: new Error(errorMessage) };
+      const errorValue = response?.error
+      const errorMessage =
+        typeof errorValue === 'string'
+          ? errorValue
+          : errorValue instanceof Error
+            ? errorValue.message
+            : '检测失败'
+      return { ok: false, error: new Error(errorMessage) }
     }
-    return response;
+    return response
   } catch (error) {
-    console.error('[Chaospace Transfer] Failed to request history update', error);
-    return { ok: false, error: error instanceof Error ? error : new Error(String(error)) };
+    console.error('[Chaospace Transfer] Failed to request history update', error)
+    return { ok: false, error: error instanceof Error ? error : new Error(String(error)) }
   }
 }
 
 export async function fetchHistorySnapshot(): Promise<HistoryRecordsPayload> {
   try {
-    const rawHistory = await readHistoryFromStorage();
-    return prepareHistoryRecords(rawHistory);
+    const rawHistory = await readHistoryFromStorage()
+    return prepareHistoryRecords(rawHistory)
   } catch (error) {
-    console.error('[Chaospace Transfer] Failed to load history', error);
-    return { records: [], groups: [] };
+    console.error('[Chaospace Transfer] Failed to load history', error)
+    return { records: [], groups: [] }
   }
 }

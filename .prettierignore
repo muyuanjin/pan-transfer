@@ -1,0 +1,25 @@
+# Build output
+dist
+node_modules
+
+# Legacy directory (read-only reference)
+chaospace-extension
+
+# Test results
+test-results
+coverage
+playwright-report
+
+# Test fixtures (raw HTML data, should not be formatted)
+**/__fixtures__/**
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode
+.idea

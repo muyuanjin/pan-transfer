@@ -18,29 +18,30 @@ export const ERROR_MESSAGES: Record<number, string> = {
   [20010]: '转存失败：应用授权失败',
   [31039]: '转存失败：文件名冲突',
   [31190]: '转存失败：秒传未生效',
-  [666]: '已跳过：文件已存在'
-};
+  [666]: '已跳过：文件已存在',
+}
 
-export const TOKEN_TTL = 10 * 60 * 1000;
-export const MAX_TRANSFER_ATTEMPTS = 3;
-export const TRANSFER_RETRYABLE_ERRNOS = new Set<number>([4]);
-export const DIRECTORY_LIST_PAGE_SIZE = 200;
-export const LOGIN_REQUIRED_ERRNOS = new Set<number>([-4, -6, 9019, 20010]);
-export const LOGIN_REDIRECT_COOLDOWN = 60 * 1000;
+export const TOKEN_TTL = 10 * 60 * 1000
+export const MAX_TRANSFER_ATTEMPTS = 3
+export const TRANSFER_RETRYABLE_ERRNOS = new Set<number>([4])
+export const DIRECTORY_LIST_PAGE_SIZE = 200
+export const LOGIN_REQUIRED_ERRNOS = new Set<number>([-4, -6, 9019, 20010])
+export const LOGIN_REDIRECT_COOLDOWN = 60 * 1000
 
 export const STORAGE_KEYS = {
   cache: 'chaospace-transfer-cache',
-  history: 'chaospace-transfer-history'
-} as const;
-export const CACHE_VERSION = 1;
-export const HISTORY_VERSION = 1;
-export const MAX_DIRECTORY_CACHE_ENTRIES = 100000;
-export const MAX_SHARE_CACHE_ENTRIES = 400000;
-export const MAX_HISTORY_RECORDS = 200000;
+  history: 'chaospace-transfer-history',
+} as const
+export const CACHE_VERSION = 1
+export const HISTORY_VERSION = 1
+export const MAX_DIRECTORY_CACHE_ENTRIES = 100000
+export const MAX_SHARE_CACHE_ENTRIES = 400000
+export const MAX_HISTORY_RECORDS = 200000
 
 export const PAN_BASE_HEADERS: Record<string, string> = {
-  'Accept': 'application/json, text/javascript, */*; q=0.01',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+  Accept: 'application/json, text/javascript, */*; q=0.01',
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
   'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-  'X-Requested-With': 'XMLHttpRequest'
-};
+  'X-Requested-With': 'XMLHttpRequest',
+}

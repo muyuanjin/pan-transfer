@@ -7,19 +7,11 @@
       :data-id="item.id"
       :class="itemClasses(item)"
     >
-      <input
-        type="checkbox"
-        class="chaospace-item-checkbox"
-        :checked="item.isSelected"
-      />
+      <input type="checkbox" class="chaospace-item-checkbox" :checked="item.isSelected" />
       <div class="chaospace-item-body">
         <div class="chaospace-item-title">{{ item.displayTitle }}</div>
         <div class="chaospace-item-meta">
-          <span
-            v-for="(badge, index) in item.badges"
-            :key="index"
-            :class="badge.className"
-          >
+          <span v-for="(badge, index) in item.badges" :key="index" :class="badge.className">
             {{ badge.label }}
           </span>
         </div>
@@ -30,35 +22,35 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed } from 'vue'
 
 export interface ResourceBadgeView {
-  label: string;
-  className: string;
+  label: string
+  className: string
 }
 
 export interface ResourceListItemView {
-  id: string | number;
-  displayTitle: string;
-  isSelected: boolean;
-  isTransferred: boolean;
-  isNew: boolean;
-  badges: ResourceBadgeView[];
+  id: string | number
+  displayTitle: string
+  isSelected: boolean
+  isTransferred: boolean
+  isNew: boolean
+  badges: ResourceBadgeView[]
 }
 
 const props = defineProps<{
-  items: ResourceListItemView[];
-  emptyMessage: string;
-}>();
+  items: ResourceListItemView[]
+  emptyMessage: string
+}>()
 
 function itemClasses(item: ResourceListItemView): Record<string, boolean> {
   return {
     'is-visible': true,
     'is-muted': !item.isSelected,
     'is-transferred': item.isTransferred,
-    'is-new': item.isNew
-  };
+    'is-new': item.isNew,
+  }
 }
 
-const emptyMessage = computed<string>(() => props.emptyMessage);
+const emptyMessage = computed<string>(() => props.emptyMessage)
 </script>
