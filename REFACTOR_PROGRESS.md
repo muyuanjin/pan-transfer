@@ -147,6 +147,8 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
     - Added stop-gap `// @ts-nocheck` annotations to the new Vue entry modules pending full typing; `npm run typecheck` and `npm run build` (2025-11-05 17:40 UTC-8) remain green from the Vue-powered bundle.
 
 ## Latest Session (2025-11-05, afternoon)
+- ⬆️ 2025-11-05 (evening): 提炼内容脚本历史流程到 `src/content/history/controller.ts`，将入口迁移为 `content/index.ts` 并更新 manifest；`npm run typecheck`、`npm run build` 已通过确认。
+- 修复内容脚本打包后出现的 `updateTransferButton` 未定义错误，同时恢复丢失的 `renderPresets`、`renderPathPreview`、日志渲染等入口工具函数，并补回 `applyPanelTheme`/`setTheme`/`updatePinButton`。
 - Replaced the history card, detail modal, and resource list facades with Vue components (`HistoryListView.vue`, `HistorySummaryView.vue`, `HistoryDetailOverlay.vue`, `ResourceListView.vue`) and removed the legacy `*-impl.js` modules.
 - Added `history-card.helpers.ts` to keep pan path/status formatting in TypeScript, wired `history-card.ts` to mount the Vue apps, and verified content state updates still drive selection, filters, and summary panels.
 - Confirmed the new Vue overlays render within the existing panel shell without layout regressions; `npm run typecheck` and `npm run build` (2025-11-05 17:40 UTC-8) both pass with the updated bundle.

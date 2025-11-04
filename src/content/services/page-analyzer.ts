@@ -1060,7 +1060,7 @@ function locateBaiduPanRows(root: Document | Element = document): HTMLElement[] 
   return Array.from(downloadSection.querySelectorAll<HTMLElement>(selector));
 }
 
-function extractItemsFromDocument(
+export function extractItemsFromDocument(
   root: Document | Element = document,
   { baseUrl }: { baseUrl?: string } = {}
 ): ResourceItem[] {
@@ -1125,7 +1125,7 @@ function extractCompletionStatusFromElements(
   return null;
 }
 
-function extractSeasonPageCompletion(
+export function extractSeasonPageCompletion(
   root: Document | Element = document,
   source = 'season-meta'
 ): CompletionStatus | null {
@@ -1203,7 +1203,7 @@ function extractPosterFromSeasonBlock(
   return extractPosterFromImageElement(img, options);
 }
 
-function extractPosterDetails(
+export function extractPosterDetails(
   root: Document | Element = document,
   options: ExtractPosterOptions = {}
 ): ExtractPosterResult | null {
@@ -1363,7 +1363,7 @@ function getPageCleanTitle(): string {
   return title;
 }
 
-async function fetchHtmlDocument(url: string): Promise<Document> {
+export async function fetchHtmlDocument(url: string): Promise<Document> {
   const response = await fetch(url, { credentials: 'include' });
   if (!response.ok) {
     throw new Error(`请求失败：${response.status}`);

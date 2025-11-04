@@ -42,7 +42,7 @@
         "*://chaospace.xyz/*",
         "*://*.chaospace.xyz/*"
       ],
-      "js": ["content/index.js"],
+      "js": ["content/index.ts"],
       "css": ["content/styles/main.css"]
     }
   ],
