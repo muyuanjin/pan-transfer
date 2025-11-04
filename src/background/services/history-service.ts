@@ -24,13 +24,13 @@ import {
   normalizeSeasonEntries,
   summarizeSeasonCompletion,
   type CompletionStatus
-} from '../../shared/utils/completion-status';
+} from '@/shared/utils/completion-status';
 import { handleTransfer } from './transfer-service';
 import type {
   TransferRequestPayload,
   TransferResultEntry,
   TransferJobMeta
-} from '../../shared/types/transfer';
+} from '@/shared/types/transfer';
 
 interface PageSnapshot {
   pageUrl: string;

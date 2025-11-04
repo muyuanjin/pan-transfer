@@ -15,10 +15,63 @@ interface JobContext {
 
 type ProgressPayload = Record<string, unknown>;
 
-type IncomingMessage = {
-  type?: string;
-  payload?: unknown;
-};
+interface HistoryDeleteMessage {
+  type: 'chaospace:history-delete';
+  payload?: {
+    urls?: unknown;
+  };
+}
+
+interface HistoryClearMessage {
+  type: 'chaospace:history-clear';
+  payload?: undefined;
+}
+
+interface HistoryDetailMessage {
+  type: 'chaospace:history-detail';
+  payload?: {
+    pageUrl?: unknown;
+  };
+}
+
+interface CheckUpdatesMessage {
+  type: 'chaospace:check-updates';
+  payload?: {
+    pageUrl?: unknown;
+    targetDirectory?: unknown;
+  };
+}
+
+interface TransferMessage {
+  type: 'chaospace:transfer';
+  payload?: TransferRequestPayload;
+}
+
+type BackgroundMessage =
+  | HistoryDeleteMessage
+  | HistoryClearMessage
+  | HistoryDetailMessage
+  | CheckUpdatesMessage
+  | TransferMessage
+  | {
+    type?: string;
+    payload?: unknown;
+  };
+
+const isHistoryDeleteMessage = (message: BackgroundMessage): message is HistoryDeleteMessage =>
+  message?.type === 'chaospace:history-delete';
+
+const isHistoryClearMessage = (message: BackgroundMessage): message is HistoryClearMessage =>
+  message?.type === 'chaospace:history-clear';
+
+const isHistoryDetailMessage = (message: BackgroundMessage): message is HistoryDetailMessage =>
+  message?.type === 'chaospace:history-detail';
+
+const isCheckUpdatesMessage = (message: BackgroundMessage): message is CheckUpdatesMessage =>
+  message?.type === 'chaospace:check-updates';
+
+const isTransferMessage = (message: BackgroundMessage): message is TransferMessage =>
+  message?.type === 'chaospace:transfer';
 
 const jobContexts = new Map<string, JobContext>();
 
@@ -124,11 +177,11 @@ async function bootstrapStores(): Promise<void> {
 
 bootstrapStores();
 
-chrome.runtime.onMessage.addListener((message: IncomingMessage, sender, sendResponse) => {
-  if (message?.type === 'chaospace:history-delete') {
-    const payload = (message.payload ?? {}) as { urls?: unknown };
-    const urls = Array.isArray(payload.urls)
-      ? payload.urls.filter((url): url is string => typeof url === 'string' && url.length > 0)
+chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendResponse) => {
+  if (isHistoryDeleteMessage(message)) {
+    const urlsInput = message.payload?.urls;
+    const urls = Array.isArray(urlsInput)
+      ? urlsInput.filter((url): url is string => typeof url === 'string' && url.length > 0)
       : [];
     deleteHistoryRecords(urls)
       .then(result => sendResponse(result))
@@ -136,29 +189,40 @@ chrome.runtime.onMessage.addListener((message: IncomingMessage, sender, sendResp
     return true;
   }
 
-  if (message?.type === 'chaospace:history-clear') {
+  if (isHistoryClearMessage(message)) {
     clearHistoryRecords()
       .then(result => sendResponse(result))
       .catch(error => sendResponse({ ok: false, error: error.message || '清空历史失败' }));
     return true;
   }
 
-  if (message?.type === 'chaospace:history-detail') {
-    handleHistoryDetail((message.payload ?? {}) as { pageUrl?: string })
+  if (isHistoryDetailMessage(message)) {
+    const pageUrl = typeof message.payload?.pageUrl === 'string' ? message.payload.pageUrl : '';
+    handleHistoryDetail({ pageUrl })
       .then(result => sendResponse(result))
       .catch(error => sendResponse({ ok: false, error: error.message || '获取详情失败' }));
     return true;
   }
 
-  if (message?.type === 'chaospace:check-updates') {
-    handleCheckUpdates((message.payload ?? {}) as Record<string, unknown>)
+  if (isCheckUpdatesMessage(message)) {
+    const updatesPayload: Parameters<typeof handleCheckUpdates>[0] = {
+      pageUrl: typeof message.payload?.pageUrl === 'string' ? message.payload.pageUrl : ''
+    };
+    if (typeof message.payload?.targetDirectory === 'string') {
+      updatesPayload.targetDirectory = message.payload.targetDirectory;
+    }
+    handleCheckUpdates(updatesPayload)
       .then(result => sendResponse(result))
       .catch(error => sendResponse({ ok: false, error: error.message || '检测更新失败' }));
     return true;
   }
 
-  if (message?.type === 'chaospace:transfer') {
-    const payload = (message.payload ?? {}) as TransferRequestPayload;
+  if (isTransferMessage(message)) {
+    const payload = message.payload;
+    if (!payload || !Array.isArray(payload.items)) {
+      sendResponse({ ok: false, error: '缺少任务信息' });
+      return false;
+    }
     if (payload.jobId) {
       const context: JobContext = {};
       if (typeof sender?.tab?.id === 'number') {

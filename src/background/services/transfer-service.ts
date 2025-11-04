@@ -22,7 +22,7 @@ import {
   TRANSFER_RETRYABLE_ERRNOS
 } from '../common/constants';
 import { normalizePath } from '../utils/path';
-import { sanitizeLink } from '../../shared/utils/sanitizers';
+import { sanitizeLink } from '@/shared/utils/sanitizers';
 import { buildSurl } from '../utils/share';
 import type { ShareMetadataSuccess, TransferShareMeta } from '../api/baidu-pan';
 import type { TransferRuntimeOptions, ProgressLogger } from '../types';
@@ -30,7 +30,7 @@ import type {
   TransferRequestPayload,
   TransferResponsePayload,
   TransferResultEntry
-} from '../../shared/types/transfer';
+} from '@/shared/types/transfer';
 
 type ProgressPayload = Record<string, unknown>;
 

@@ -1,30 +1,27 @@
-// @ts-nocheck
-
 import {
   sanitizeLink,
   stripHtmlTags,
   extractCleanTitle,
   decodeHtmlEntities,
   type PosterInfo
-} from '../../shared/utils/sanitizers';
+} from '@/shared/utils/sanitizers';
 import {
   createCompletionStatus,
   isDateLikeLabel,
   type CompletionStatus
-} from '../../shared/utils/completion-status';
+} from '@/shared/utils/completion-status';
+import {
+  extractPosterFromBlockHtml,
+  extractSectionByClass,
+  extractSectionById,
+  resolveSeasonUrl,
+  safeGroup
+} from './parser/html-helpers';
 
 export interface LinkParseResult {
   linkUrl: string;
   passCode: string;
 }
-
-const safeGroup = (match: RegExpExecArray | RegExpMatchArray | null | undefined, index = 1): string => {
-  if (!match) {
-    return '';
-  }
-  const value = match[index];
-  return typeof value === 'string' ? value : '';
-};
 
 export interface RatingInfo {
   value: string;
@@ -69,6 +66,216 @@ export interface SeasonEntrySummary {
   completion?: CompletionStatus | null;
 }
 
+const cleanText = (value: unknown): string => stripHtmlTags(typeof value === 'string' ? value : '').trim();
+const cleanMeta = (value: unknown): string => cleanText(value).replace(/[。．\\.]+$/g, '').trim();
+
+interface HistoryHeaderData {
+  title: string;
+  poster: PosterInfo | null;
+  releaseDate: string;
+  country: string;
+  runtime: string;
+  rating: RatingInfo | null;
+  genres: string[];
+}
+
+const parseHistoryHeader = (headerHtml: string, baseUrl: string): HistoryHeaderData => {
+  const header: HistoryHeaderData = {
+    title: '',
+    poster: null,
+    releaseDate: '',
+    country: '',
+    runtime: '',
+    rating: null,
+    genres: []
+  };
+
+  const titleMatch = headerHtml.match(/<div[^>]*class=['"]data['"][^>]*>[\s\S]*?<h1>([\s\S]*?)<\/h1>/i);
+  if (titleMatch) {
+    const rawTitle = cleanText(safeGroup(titleMatch, 1));
+    header.title = extractCleanTitle(rawTitle.replace(/\s*[–\-_|]\s*CHAOSPACE.*$/i, ''));
+  }
+
+  const posterMatch = headerHtml.match(/<div[^>]*class=['"]poster['"][^>]*>[\s\S]*?<img[^>]*>/i);
+  if (posterMatch) {
+    const imgTag = posterMatch[0].match(/<img[^>]*>/i)?.[0] ?? '';
+    const srcMatch = imgTag.match(/src=['"]([^'"]+)['"]/i);
+    if (srcMatch) {
+      const src = resolveSeasonUrl(safeGroup(srcMatch, 1), baseUrl);
+      if (src) {
+        const altMatch = imgTag.match(/alt=['"]([^'"]*)['"]/i);
+        const rawAlt = altMatch ? safeGroup(altMatch, 1) : '';
+        header.poster = {
+          src,
+          alt: extractCleanTitle(decodeHtmlEntities(rawAlt || header.title || ''))
+        };
+      }
+    }
+  }
+
+  const extraMatch = headerHtml.match(/<div[^>]*class=['"]extra['"][^>]*>([\s\S]*?)<\/div>/i);
+  if (extraMatch) {
+    const extraHtml = safeGroup(extraMatch, 1);
+    const dateMatch = extraHtml.match(/<span[^>]*class=['"]date['"][^>]*>([\s\S]*?)<\/span>/i);
+    const countryMatch = extraHtml.match(/<span[^>]*class=['"]country['"][^>]*>([\s\S]*?)<\/span>/i);
+    const runtimeMatch = extraHtml.match(/<span[^>]*class=['"]runtime['"][^>]*>([\s\S]*?)<\/span>/i);
+    if (dateMatch) {
+      header.releaseDate = cleanMeta(safeGroup(dateMatch, 1));
+    }
+    if (countryMatch) {
+      header.country = cleanMeta(safeGroup(countryMatch, 1));
+    }
+    if (runtimeMatch) {
+      header.runtime = cleanMeta(safeGroup(runtimeMatch, 1));
+    }
+  }
+
+  const ratingValue = cleanText(
+    safeGroup(headerHtml.match(/<span[^>]*class=['"]dt_rating_vgs['"][^>]*>([\s\S]*?)<\/span>/i), 1)
+  );
+  if (ratingValue) {
+    const votes = cleanText(
+      safeGroup(headerHtml.match(/<span[^>]*class=['"]rating-count['"][^>]*>([\s\S]*?)<\/span>/i), 1)
+    );
+    const label = cleanText(
+      safeGroup(headerHtml.match(/<span[^>]*class=['"]rating-text['"][^>]*>([\s\S]*?)<\/span>/i), 1)
+    );
+    header.rating = {
+      value: ratingValue,
+      votes,
+      label,
+      scale: 10
+    };
+  }
+
+  const genresMatch = headerHtml.match(/<div[^>]*class=['"]sgeneros['"][^>]*>([\s\S]*?)<\/div>/i);
+  if (genresMatch) {
+    const genreBlock = safeGroup(genresMatch, 1);
+    const genreRegex = /<a[^>]*>([\s\S]*?)<\/a>/gi;
+    const genres: string[] = [];
+    let genreMatch: RegExpExecArray | null;
+    while ((genreMatch = genreRegex.exec(genreBlock))) {
+      const label = cleanText(safeGroup(genreMatch, 1));
+      if (label) {
+        genres.push(label);
+      }
+    }
+    header.genres = genres;
+  }
+
+  return header;
+};
+
+interface SynopsisParseResult {
+  synopsis: string;
+  stills: HistoryStillEntry[];
+}
+
+const parseSynopsisSection = (
+  infoSection: string,
+  baseUrl: string,
+  fallbackTitle: string
+): SynopsisParseResult => {
+  const result: SynopsisParseResult = {
+    synopsis: '',
+    stills: []
+  };
+  if (!infoSection) {
+    return result;
+  }
+  const descriptionSection = extractSectionByClass(infoSection, 'wp-content');
+  if (!descriptionSection) {
+    return result;
+  }
+  const descriptionHtml = descriptionSection
+    .replace(/^<div[^>]*>/i, '')
+    .replace(/<\/div>\s*$/i, '');
+  const gallerySection = extractSectionById(descriptionHtml, 'dt_galery');
+  const galleryRemoved = gallerySection ? descriptionHtml.replace(gallerySection, '') : descriptionHtml;
+  const synopsis = cleanText(galleryRemoved);
+  if (synopsis) {
+    result.synopsis = synopsis;
+  }
+  if (!gallerySection) {
+    return result;
+  }
+  const itemRegex = /<div[^>]*class=['"]g-item['"][^>]*>([\s\S]*?)<\/div>/gi;
+  let itemMatch: RegExpExecArray | null;
+  const seen = new Set<string>();
+  while ((itemMatch = itemRegex.exec(gallerySection))) {
+    const itemHtml = safeGroup(itemMatch, 1);
+    if (!itemHtml) {
+      continue;
+    }
+    const anchorMatch = itemHtml.match(/<a[^>]*href=['"]([^'"]+)['"][^>]*>([\s\S]*?)<\/a>/i);
+    if (!anchorMatch) {
+      continue;
+    }
+    const fullUrl = resolveSeasonUrl(safeGroup(anchorMatch, 1), baseUrl);
+    const anchorHtml = safeGroup(anchorMatch, 2);
+    const imgTagMatch = anchorHtml.match(/<img[^>]*>/i);
+    const imgTag = imgTagMatch ? imgTagMatch[0] : '';
+    if (!imgTag) {
+      continue;
+    }
+    const srcMatch = imgTag.match(/src=['"]([^'"]+)['"]/i);
+    let thumbUrl = resolveSeasonUrl(srcMatch ? safeGroup(srcMatch, 1) : '', baseUrl);
+    if (!thumbUrl) {
+      const dataAttrRegex = /(data-original|data-src|data-lazy-src|data-medium-file|data-large-file)=['"]([^'"]+)['"]/gi;
+      let dataMatch: RegExpExecArray | null;
+      while ((dataMatch = dataAttrRegex.exec(imgTag))) {
+        const candidate = resolveSeasonUrl(safeGroup(dataMatch, 2), baseUrl);
+        if (candidate) {
+          thumbUrl = candidate;
+          break;
+        }
+      }
+    }
+    const altMatch = imgTag.match(/alt=['"]([^'"]*)['"]/i);
+    const altRaw = safeGroup(altMatch, 1);
+    const key = fullUrl || thumbUrl;
+    if (!key || seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    const resolvedFull = fullUrl || thumbUrl;
+    const resolvedThumb = thumbUrl || fullUrl;
+    if (!resolvedFull || !resolvedThumb) {
+      continue;
+    }
+    const altText = extractCleanTitle(decodeHtmlEntities(altRaw || fallbackTitle || ''));
+    result.stills.push({
+      url: resolvedFull,
+      full: resolvedFull,
+      thumb: resolvedThumb,
+      alt: altText
+    });
+  }
+  return result;
+};
+
+const parseInfoTableEntries = (infoSection: string): HistoryInfoEntry[] => {
+  if (!infoSection) {
+    return [];
+  }
+  const entries: HistoryInfoEntry[] = [];
+  const infoRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+  let infoMatch: RegExpExecArray | null;
+  while ((infoMatch = infoRegex.exec(infoSection))) {
+    const rowHtml = safeGroup(infoMatch, 1);
+    if (!rowHtml) {
+      continue;
+    }
+    const labelMatch = rowHtml.match(/<th[^>]*>([\s\S]*?)<\/th>/i);
+    const valueMatch = rowHtml.match(/<td[^>]*>([\s\S]*?)<\/td>/i);
+    const label = cleanText(labelMatch ? safeGroup(labelMatch, 1) : '');
+    const value = cleanText(valueMatch ? safeGroup(valueMatch, 1) : '');
+    if (label && value) {
+      entries.push({ label, value });
+    }
+  }
+  return entries;
+};
 export function parseLinkPage(html: string | null | undefined): LinkParseResult | null {
   if (!html) {
     return null;
@@ -125,79 +332,12 @@ export function parsePageTitleFromHtml(html: string | null | undefined): string 
   return extractCleanTitle(title);
 }
 
-export function extractSectionById(html: string | null | undefined, id: string): string {
-  if (!html) {
-    return '';
-  }
-  const openPattern = new RegExp(`<div[^>]+id\\s*=\\s*['"]${id}['"][^>]*>`, 'i');
-  const match = openPattern.exec(html);
-  if (!match) {
-    return '';
-  }
-  const startIndex = match.index;
-  const searchStart = match.index + match[0].length;
-  const divPattern = /<div\b[^>]*>|<\/div>/gi;
-  divPattern.lastIndex = searchStart;
-  let depth = 1;
-  let resultEnd = html.length;
-  let token: RegExpExecArray | null;
-  while ((token = divPattern.exec(html))) {
-    if (token.index < searchStart) {
-      continue;
-    }
-    if (token[0][1] === '/') {
-      depth -= 1;
-      if (depth === 0) {
-        resultEnd = divPattern.lastIndex;
-        break;
-      }
-    } else {
-      depth += 1;
-    }
-  }
-  return html.slice(startIndex, resultEnd);
-}
-
-export function extractSectionByClass(html: string | null | undefined, className: string): string {
-  if (!html || !className) {
-    return '';
-  }
-  const normalizedClass = className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const openPattern = new RegExp(`<([a-zA-Z0-9]+)([^>]*class\\s*=\\s*['"][^'"]*\\b${normalizedClass}\\b[^'"]*['"][^>]*)>`, 'i');
-  const match = openPattern.exec(html);
-  if (!match) {
-    return '';
-  }
-  const tagName = match[1];
-  const startIndex = match.index;
-  const searchStart = startIndex + match[0].length;
-  const tagPattern = new RegExp(`<${tagName}\\b[^>]*>|</${tagName}>`, 'gi');
-  tagPattern.lastIndex = searchStart;
-  let depth = 1;
-  let token: RegExpExecArray | null;
-  let resultEnd = html.length;
-  while ((token = tagPattern.exec(html))) {
-    if (token.index < searchStart) {
-      continue;
-    }
-    if (token[0][1] === '/') {
-      depth -= 1;
-      if (depth === 0) {
-        resultEnd = tagPattern.lastIndex;
-        break;
-      }
-    } else {
-      depth += 1;
-    }
-  }
-  return html.slice(startIndex, resultEnd);
-}
-
 export function parseHistoryDetailFromHtml(
   html: string | null | undefined,
   pageUrl = ''
 ): HistoryDetail {
   const normalizedHtml = (html ?? '').replace(/\r/g, '');
+  const baseUrl = pageUrl || '';
   const detail: HistoryDetail = {
     pageUrl,
     title: '',
@@ -213,147 +353,30 @@ export function parseHistoryDetailFromHtml(
     completion: null
   };
 
-  const cleanText = (value: unknown): string => stripHtmlTags(typeof value === 'string' ? value : '').trim();
-  const cleanMeta = (value: unknown): string => cleanText(value).replace(/[。．\\.]+$/g, '').trim();
-  const baseUrl = pageUrl || '';
-
   const headerHtml = extractSectionByClass(normalizedHtml, 'sheader');
   if (headerHtml) {
-    const titleMatch = headerHtml.match(/<div[^>]*class=['"]data['"][^>]*>[\s\S]*?<h1>([\s\S]*?)<\/h1>/i);
-    if (titleMatch) {
-      detail.title = cleanText(titleMatch[1] ?? '');
-    }
-
-    const posterMatch = headerHtml.match(/<div[^>]*class=['"]poster['"][^>]*>[\s\S]*?<img[^>]*>/i);
-    if (posterMatch) {
-      const imgTag = posterMatch[0].match(/<img[^>]*>/i)?.[0] || '';
-      const srcMatch = imgTag.match(/src=['"]([^'"]+)['"]/i);
-      const altMatch = imgTag.match(/alt=['"]([^'"]*)['"]/i);
-      if (srcMatch) {
-        const src = resolveSeasonUrl(srcMatch[1], baseUrl);
-        if (src) {
-          const rawAlt = altMatch ? altMatch[1] : '';
-          detail.poster = {
-            src,
-            alt: extractCleanTitle(decodeHtmlEntities(rawAlt || detail.title || ''))
-          };
-        }
-      }
-    }
-
-    const extraMatch = headerHtml.match(/<div[^>]*class=['"]extra['"][^>]*>([\s\S]*?)<\/div>/i);
-    if (extraMatch) {
-      const extraHtml = extraMatch[1] ?? '';
-      const dateMatch = extraHtml.match(/<span[^>]*class=['"]date['"][^>]*>([\s\S]*?)<\/span>/i);
-      const countryMatch = extraHtml.match(/<span[^>]*class=['"]country['"][^>]*>([\s\S]*?)<\/span>/i);
-      const runtimeMatch = extraHtml.match(/<span[^>]*class=['"]runtime['"][^>]*>([\s\S]*?)<\/span>/i);
-      if (dateMatch) {
-        detail.releaseDate = cleanMeta(dateMatch[1] ?? '');
-      }
-      if (countryMatch) {
-        detail.country = cleanMeta(countryMatch[1] ?? '');
-      }
-      if (runtimeMatch) {
-        detail.runtime = cleanMeta(runtimeMatch[1] ?? '');
-      }
-    }
-
-    const ratingValueMatch = headerHtml.match(/<span[^>]*class=['"]dt_rating_vgs['"][^>]*>([\s\S]*?)<\/span>/i);
-    const ratingCountMatch = headerHtml.match(/<span[^>]*class=['"]rating-count['"][^>]*>([\s\S]*?)<\/span>/i);
-    const ratingTextMatch = headerHtml.match(/<span[^>]*class=['"]rating-text['"][^>]*>([\s\S]*?)<\/span>/i);
-    const ratingValue = ratingValueMatch ? cleanText(ratingValueMatch[1]) : '';
-    if (ratingValue) {
-      detail.rating = {
-        value: ratingValue,
-        votes: ratingCountMatch ? cleanText(ratingCountMatch[1]) : '',
-        label: ratingTextMatch ? cleanText(ratingTextMatch[1]) : '',
-        scale: 10
-      };
-    }
-
-    const genresMatch = headerHtml.match(/<div[^>]*class=['"]sgeneros['"][^>]*>([\s\S]*?)<\/div>/i);
-    if (genresMatch) {
-      const genreBlock = genresMatch[1];
-      const genreRegex = /<a[^>]*>([\s\S]*?)<\/a>/gi;
-      let genreMatch: RegExpExecArray | null;
-      while ((genreMatch = genreRegex.exec(genreBlock))) {
-        const label = cleanText(safeGroup(genreMatch, 1));
-        if (label) {
-          detail.genres.push(label);
-        }
-      }
-    }
+    const header = parseHistoryHeader(headerHtml, baseUrl);
+    detail.title = header.title || detail.title;
+    detail.poster = header.poster;
+    detail.releaseDate = header.releaseDate;
+    detail.country = header.country;
+    detail.runtime = header.runtime;
+    detail.rating = header.rating;
+    detail.genres = header.genres;
   }
 
   const infoSection = extractSectionById(normalizedHtml, 'info');
   if (infoSection) {
-    const descriptionSection = extractSectionByClass(infoSection, 'wp-content');
-    if (descriptionSection) {
-      const descriptionHtml = descriptionSection
-        .replace(/^<div[^>]*>/i, '')
-        .replace(/<\/div>\s*$/i, '');
-      const gallerySection = extractSectionById(descriptionHtml, 'dt_galery');
-      const galleryRemoved = gallerySection ? descriptionHtml.replace(gallerySection, '') : descriptionHtml;
-      const synopsis = cleanText(galleryRemoved);
-      if (synopsis) {
-        detail.synopsis = synopsis;
-      }
-
-      if (gallerySection) {
-        const itemRegex = /<div[^>]*class=['"]g-item['"][^>]*>([\s\S]*?)<\/div>/gi;
-        let itemMatch: RegExpExecArray | null;
-        const seen = new Set<string>();
-        while ((itemMatch = itemRegex.exec(gallerySection))) {
-          const itemHtml = itemMatch[1] || '';
-          const anchorMatch = itemHtml.match(/<a[^>]*href=['"]([^'"]+)['"][^>]*>([\s\S]*?)<\/a>/i);
-          if (!anchorMatch) {
-            continue;
-          }
-          const fullUrl = resolveSeasonUrl(safeGroup(anchorMatch, 1), baseUrl);
-          const imgMatch = anchorMatch[2].match(/<img[^>]+src=['"]([^'"]+)['"][^>]*?(?:alt=['"]([^'"]*)['"][^>]*)?/i);
-          const thumbUrl = resolveSeasonUrl(imgMatch ? safeGroup(imgMatch, 1) : '', baseUrl);
-          const altRaw = imgMatch ? safeGroup(imgMatch, 2) : '';
-          if (!fullUrl && !thumbUrl) {
-            continue;
-          }
-          const key = fullUrl || thumbUrl;
-          if (seen.has(key)) {
-            continue;
-          }
-          seen.add(key);
-          const altText = extractCleanTitle(decodeHtmlEntities(altRaw || detail.title || ''));
-          const resolvedFull = fullUrl || thumbUrl;
-          const resolvedThumb = thumbUrl || fullUrl;
-          detail.stills.push({
-            url: resolvedFull,
-            full: resolvedFull,
-            thumb: resolvedThumb,
-            alt: altText
-          });
-        }
-      }
+    const synopsisResult = parseSynopsisSection(infoSection, baseUrl, detail.title);
+    if (synopsisResult.synopsis) {
+      detail.synopsis = synopsisResult.synopsis;
     }
-  }
-
-  const tableSection = extractSectionById(normalizedHtml, 'info');
-  if (tableSection) {
-    const infoRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-    let infoMatch: RegExpExecArray | null;
-    while ((infoMatch = infoRegex.exec(tableSection))) {
-      const rowHtml = infoMatch?.[1] ?? '';
-      if (!rowHtml) {
-        continue;
-      }
-      const labelMatch = rowHtml.match(/<th[^>]*>([\s\S]*?)<\/th>/i);
-      const valueMatch = rowHtml.match(/<td[^>]*>([\s\S]*?)<\/td>/i);
-      if (!labelMatch || !valueMatch) {
-        continue;
-      }
-      const label = cleanText(labelMatch[1]);
-      const value = cleanText(valueMatch[1]);
-      if (label && value) {
-        detail.info.push({ label, value });
-      }
+    if (synopsisResult.stills.length) {
+      detail.stills = synopsisResult.stills;
+    }
+    const infoEntries = parseInfoTableEntries(infoSection);
+    if (infoEntries.length) {
+      detail.info = infoEntries;
     }
   }
 
@@ -364,6 +387,7 @@ export function parseHistoryDetailFromHtml(
 
   return detail;
 }
+
 
 export function extractDownloadTableHtml(html: string | null | undefined): string {
   const section = extractSectionById(html, 'download');
@@ -392,15 +416,20 @@ export function parseCompletionFromHtml(
   if (!html || typeof html !== 'string') {
     return null;
   }
-  const extraMatch = html.match(/<div[^>]*class=['"]extra['"][^>]*>([\s\S]*?)<\/div>/i);
-  if (!extraMatch) {
+  const extraRegex = /<div[^>]*class=['"][^'"]*\bextra\b[^'"]*['"][^>]*>([\s\S]*?)<\/div>/gi;
+  let latestExtraHtml = '';
+  let extraMatch: RegExpExecArray | null;
+  while ((extraMatch = extraRegex.exec(html))) {
+    latestExtraHtml = safeGroup(extraMatch, 1);
+  }
+  if (!latestExtraHtml) {
     return null;
   }
   const spanRegex = /<span[^>]*class=['"]date['"][^>]*>([\s\S]*?)<\/span>/gi;
   const spans: string[] = [];
   let spanMatch: RegExpExecArray | null;
-  while ((spanMatch = spanRegex.exec(extraMatch[1]))) {
-    spans.push(spanMatch[1]);
+  while ((spanMatch = spanRegex.exec(latestExtraHtml))) {
+    spans.push(safeGroup(spanMatch, 1));
   }
   for (let i = spans.length - 1; i >= 0; i -= 1) {
     const text = stripHtmlTags(spans[i]);
@@ -427,26 +456,26 @@ export function parseTvShowSeasonCompletionFromHtml(html: string | null | undefi
   const seasonRegex = /<div[^>]*class=['"]se-c['"][^>]*>[\s\S]*?<div[^>]*class=['"]se-q['"][^>]*>[\s\S]*?<a[^>]+href=['"]([^'"]+)['"][^>]*>[\s\S]*?<span[^>]*class=['"]title['"][^>]*>([\s\S]*?)<\/span>[\s\S]*?<\/a>[\s\S]*?<\/div>/gi;
   let match: RegExpExecArray | null;
   while ((match = seasonRegex.exec(seasonsSection))) {
-    const href = match[1];
-    const titleHtml = match[2];
+    const href = safeGroup(match, 1);
+    const titleHtml = safeGroup(match, 2);
     if (!href || !titleHtml) {
       continue;
     }
     const idMatch = href.match(/\/seasons\/(\d+)\.html/);
-    if (!idMatch) {
+    const seasonId = safeGroup(idMatch, 1);
+    if (!seasonId) {
       continue;
     }
-    const seasonId = idMatch[1];
-    const inlineTexts = [];
+    const inlineTexts: string[] = [];
     const inlineRegex = /<i[^>]*>([\s\S]*?)<\/i>/gi;
-    let inlineMatch;
+    let inlineMatch: RegExpExecArray | null;
     while ((inlineMatch = inlineRegex.exec(titleHtml))) {
-      const text = stripHtmlTags(inlineMatch[1]);
+      const text = stripHtmlTags(safeGroup(inlineMatch, 1));
       if (text) {
         inlineTexts.push(text);
       }
     }
-    let statusLabel = null;
+    let statusLabel: string | null = null;
     for (let i = inlineTexts.length - 1; i >= 0; i -= 1) {
       const text = inlineTexts[i];
       if (text && !isDateLikeLabel(text)) {
@@ -475,113 +504,52 @@ export function parseTvShowSeasonCompletionFromHtml(html: string | null | undefi
   return map;
 }
 
-export function resolveSeasonUrl(href: string | null | undefined, baseUrl: string): string {
-  if (!href) {
-    return '';
-  }
-  try {
-    const normalizedHref = typeof href === 'string' ? href.trim() : href;
-    if (!normalizedHref) {
-      return '';
-    }
-    const url = new URL(normalizedHref, baseUrl);
-    url.hash = '';
-    return url.toString();
-  } catch (_error) {
-    return '';
-  }
-}
-
-export function extractPosterFromBlockHtml(blockHtml: string | null | undefined, baseUrl: string): PosterInfo | null {
-  if (!blockHtml) {
-    return null;
-  }
-  const imgMatch = blockHtml.match(/<img[^>]*>/i);
-  if (!imgMatch) {
-    return null;
-  }
-  const imgTag = imgMatch[0];
-  const srcsetMatch = imgTag.match(/(?:data-srcset|srcset)=['"]([^'"]+)['"]/i);
-  let src = '';
-  if (srcsetMatch) {
-    const candidates = srcsetMatch[1]
-      .split(',')
-      .map(entry => entry.trim())
-      .map(entry => entry.split(/\s+/)[0])
-      .filter(Boolean);
-    for (let i = candidates.length - 1; i >= 0; i -= 1) {
-      const candidate = resolveSeasonUrl(candidates[i], baseUrl);
-      if (candidate) {
-        src = candidate;
-        break;
-      }
-    }
-  }
-  if (!src) {
-    const attrRegex = /(data-original|data-src|data-lazy-src|data-medium-file|data-large-file|src)=['"]([^'"]+)['"]/gi;
-    let attrMatch;
-    while ((attrMatch = attrRegex.exec(imgTag))) {
-      const candidate = resolveSeasonUrl(attrMatch[2], baseUrl);
-      if (candidate) {
-        src = candidate;
-        break;
-      }
-    }
-  }
-  if (!src) {
-    return null;
-  }
-  const altMatch = imgTag.match(/alt=['"]([^'"]*)['"]/i);
-  const alt = altMatch ? altMatch[1].trim() : '';
-  return {
-    src,
-    alt
-  };
-}
 
 export function parseTvShowSeasonEntriesFromHtml(
   html: string | null | undefined,
   baseUrl: string
 ): SeasonEntrySummary[] {
-  const entries: SeasonEntrySummary[] = [];
   if (!html || typeof html !== 'string') {
-    return entries;
+    return [];
   }
   const seasonsSection = extractSectionById(html, 'seasons');
   if (!seasonsSection) {
-    return entries;
+    return [];
   }
-  const blockRegex = /<div[^>]*class=['"]se-c['"][^>]*>([\s\S]*?)<\/div>/gi;
-  let blockMatch: RegExpExecArray | null;
+  const blockPattern = /<div[^>]*class=['"][^'"]*\bse-c\b[^'"]*['"][^>]*>/gi;
+  const entries: SeasonEntrySummary[] = [];
   let index = 0;
-  while ((blockMatch = blockRegex.exec(seasonsSection))) {
-    const blockHtml = blockMatch[1];
+  let blockMatch: RegExpExecArray | null;
+  while ((blockMatch = blockPattern.exec(seasonsSection))) {
+    const blockStart = blockMatch.index;
+    const blockSlice = seasonsSection.slice(blockStart);
+    const blockHtml = extractSectionByClass(blockSlice, 'se-c');
     if (!blockHtml) {
       continue;
     }
-        const anchorMatch = blockHtml.match(/<a[^>]+href=['"]([^'"]+)['"][^>]*>[\s\S]*?<span[^>]*class=['"]title['"][^>]*>([\s\S]*?)<\/span>[\s\S]*?<\/a>/i);
-        if (!anchorMatch) {
-          continue;
-        }
-        const href = safeGroup(anchorMatch, 1);
-        const url = resolveSeasonUrl(href, baseUrl);
-        if (!url) {
-          continue;
-        }
-        const idMatch = url.match(/\/seasons\/(\d+)\.html/);
-        const seasonId = safeGroup(idMatch, 1) || `season-${index + 1}`;
-        const titleHtml = anchorMatch[2] || '';
-        const textContent = stripHtmlTags(titleHtml);
-        const label = extractCleanTitle(textContent) || `季 ${index + 1}`;
-        const poster = extractPosterFromBlockHtml(blockHtml, baseUrl);
+    const anchorMatch = blockHtml.match(/<a[^>]+href=['"]([^'"]+)['"][^>]*>[\s\S]*?<span[^>]*class=['"]title['"][^>]*>([\s\S]*?)<\/span>[\s\S]*?<\/a>/i);
+    if (!anchorMatch) {
+      continue;
+    }
+    const href = resolveSeasonUrl(safeGroup(anchorMatch, 1), baseUrl);
+    if (!href) {
+      continue;
+    }
+    const idMatch = href.match(/\/seasons\/(\d+)\.html/);
+    const seasonId = safeGroup(idMatch, 1) || `season-${index + 1}`;
+    const titleHtml = safeGroup(anchorMatch, 2);
+    const textContent = stripHtmlTags(titleHtml);
+    const label = extractCleanTitle(textContent) || `季 ${index + 1}`;
+    const poster = extractPosterFromBlockHtml(blockHtml, baseUrl);
     entries.push({
       seasonId,
-      url,
+      url: href,
       label,
       seasonIndex: index,
       poster
     });
     index += 1;
+    blockPattern.lastIndex = blockStart + blockHtml.length;
   }
   return entries;
 }

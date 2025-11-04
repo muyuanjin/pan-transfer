@@ -119,6 +119,19 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
     - Renamed all background modules to `.ts`, added shared runtime typings (`src/background/types.ts`, `src/shared/types/transfer.ts`), and refactored storage/history helpers to satisfy `@tsconfig/strictest` (with `parser-service.ts` temporarily `ts-nocheck`).
     - Converted shared utilities (`completion-status`, `chinese-numeral`) to TypeScript, updated content/background imports, and introduced safer poster/type guards.
     - `npm run typecheck` + `npm run build` (2025-11-04 18:20 UTC-8) now pass with the background bundle rebuilt from the new TypeScript sources.
+15. **Parser Service Typing & Coverage (2025-11-04 late)**  
+    - Split `parser-service.ts` into typed helpers (`parseHistoryHeader`, `parseSynopsisSection`, `parseInfoTableEntries`) backed by the new `parser/html-helpers.ts`, removed the temporary `// @ts-nocheck`, and tightened Completion parsing to prefer the latest `.extra` block.  
+    - Added Vitest unit fixtures under `src/background/services/parser/__tests__/` covering link extraction, history detail parsing, season completion/status parsing, and download table hydration to guard against HTML regression.  
+    - Introduced `vitest` + `vitest.config.ts`, wired `npm run test`, and verified the suite alongside `npm run typecheck` to keep typed parsing enforced via CI-friendly commands.
+16. **Background Message Typings (2025-11-04 late)**  
+    - Replaced the loosely typed `IncomingMessage` union in `src/background/index.ts` with explicit discriminated unions and type guards, eliminating `any` casts for history/delete/update/transfer payloads.  
+    - Hardened runtime checks so malformed transfer payloads return an immediate error instead of passing unchecked data to `handleTransfer`, reducing the chance of runtime crashes when the content script misbehaves.
+
+## Latest Session (2025-11-04, late night)
+- Refactored `parser-service.ts` into strictly typed helpers, created `parser/html-helpers.ts`, and removed the stop-gap `// @ts-nocheck` without regressing existing behaviour.
+- Added Vitest coverage for the parser workflows and documented the new `npm run test` entry point; both `npm run typecheck` and `npm run test -- --run` passed at 2025-11-04 19:13 UTC-8.
+- Tightened background message payload handling with discriminated unions and guard helpers to prevent accidental `any` casts in the runtime listener.
+- Noted follow-up needs: expand parser fixtures to cover negative cases, and start modularizing `content/index.js` orchestration around the new typed helpers.
 
 ## Latest Session (2025-11-04, morning)
 - Extracted deferred season hydration/loader logic into `src/content/services/season-loader.js`, exposing `ensureDeferredSeasonLoading` and `resetSeasonLoader`.
@@ -191,13 +204,15 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 
 ### E. Testing & Verification
 - [ ] Document manual smoke test steps (load unpacked, visit CHAOSPACE pages, verify extraction/transfers/history banners).
-- [ ] Record any automated/unit testing strategy if introduced later.
+- [x] Record automated/unit testing strategy — parser-service now covered by Vitest (`npm run test`) and enforced alongside `npm run typecheck`.
+- [ ] Expand automated coverage beyond parser-service (transfer-service retry paths, background message guards) once fixtures are ready.
 - [ ] Re-run end-to-end transfer after directory sanitization change to confirm target paths exclude site suffixes.
 
 ## Known Issues / Blockers
 - **Content script size**: `src/content/index.js` remains unwieldy; risk of regressions until more logic is modularized.
 - **Styles**: `content/styles/main.css` is currently a straight copy of the legacy stylesheet; modular split still pending.
 - **Parity validation**: Season directory sanitization/path builder changes need confirmation on fresh transfers (prior runs still showed `– CHAOSPACE` suffix before the latest fix).
+- **Parser coverage scope**: Newly added Vitest suite validates primary flows but lacks negative cases for malformed CHAOSPACE markup; add failing fixtures before broadening deployments.
 
 ## Manual Verification Status
 - Manual Chrome smoke test (2025-11-04 15:10 UTC-8) on a live CHAOSPACE episode exercised the Vue floating panel mount timing, drag/resize, edge-hide/pin, and settings overlay; all behaviors matched the legacy script with no regressions observed.
@@ -206,16 +221,19 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 - Manual Chrome smoke test (2025-11-03) confirms extension loads, icons display, data import & transfers complete, and history rendering works; history detail zoom preview verified after latest fix.
 - Post-cleanup season tab labels and directory names have not yet been re-smoke-tested; schedule a fresh transfer to validate sanitized labels/paths with live data.
 - Settings modal flows (import/export/backups, layout reset, rate limit validation) need a follow-up manual regression pass now that the component extraction is complete.
+- Automated checks (2025-11-04 19:13 UTC-8): `npm run typecheck` and `npm run test -- --run` both pass after the parser-service refactor and background listener tightening.
 
 ## Next Session Checklist
 1. ✅ Load the freshly built `dist/` in Chrome, trigger a transfer, and confirm season tabs/items/path preview reflect the sanitized labels (no trailing dates/status/ratings, no `– CHAOSPACE` suffixes).
 2. ✅ Smoke-test the new Vue panel root (edge-hide, drag/resize, pin behaviour) to confirm parity with the legacy script.
 3. ✅ Regression-test the new settings modal (import/export, layout reset, theme toggles) to confirm parity with legacy behavior.
 4. ✅ Carved out deferred season hydration into `src/content/services/season-loader.js`; continue monitoring `content/index.js` for remaining orchestration logic.
-5. Re-run `npm run build` after each major extraction to ensure bundling stays green.
-6. Update this archive with progress and any new blockers.
-7. Remove the temporary `// @ts-nocheck` from `src/background/services/parser-service.ts` by breaking the parser into typed helpers (HTML tokenizer, metadata extractor) and backfilling unit tests around the HTML fixtures.
-8. Flesh out background message payload typings (history/delete/check-updates/transfer) so `background/index.ts` no longer casts to `any` when reading `message.payload`.
+5. 🔁 Re-run `npm run build` after each major extraction to ensure bundling stays green.
+6. 🔁 Keep this archive updated after each work session so the next hand-off stays seamless.
+7. ✅ Removed the temporary `// @ts-nocheck` from `src/background/services/parser-service.ts`, split parsing into typed helpers, and added unit fixtures.
+8. ✅ Hardened background message payload typings so the listener no longer casts to `any`.
+9. ☐ Add negative-path Vitest fixtures (missing passcode, malformed gallery blocks, unexpected season markup) to guard parser-service regressions.
+10. ☐ Begin carving the Chrome message orchestration out of `src/content/index.js` into typed modules that mirror the background listener contracts.
 
 ## Quick References
 - Entry script: `src/content/index.js`

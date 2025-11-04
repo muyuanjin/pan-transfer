@@ -15,8 +15,8 @@ import {
   type CompletionStatus,
   type CompletionStatusInput,
   type SeasonEntryInput
-} from '../../shared/utils/completion-status';
-import { sanitizePosterInfo, type PosterInput } from '../../shared/utils/sanitizers';
+} from '@/shared/utils/completion-status';
+import { sanitizePosterInfo, type PosterInput } from '@/shared/utils/sanitizers';
 import { normalizePath } from '../utils/path';
 import type {
   HistoryRecord,
@@ -24,7 +24,7 @@ import type {
   TransferRequestPayload,
   TransferResponsePayload,
   TransferResultEntry
-} from '../../shared/types/transfer';
+} from '@/shared/types/transfer';
 
 const nowTs = (): number => Date.now();
 
