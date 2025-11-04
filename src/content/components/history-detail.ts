@@ -1,7 +1,6 @@
-// @ts-nocheck
 import { createApp, reactive, type App } from 'vue';
 import HistoryDetailOverlay from './HistoryDetailOverlay.vue';
-import type { HistoryGroup, ContentState } from '../types';
+import type { HistoryGroup, ContentState, ContentHistoryRecord } from '../types';
 
 export interface HistoryDetailPoster {
   src: string;
@@ -116,14 +115,20 @@ export function buildHistoryDetailFallback(
     };
   }
 
-  const mainRecord = group.main || ({} as Record<string, any>);
-  const poster = (group.poster && group.poster.src)
+  const mainRecord = (group.main ?? {}) as ContentHistoryRecord & Record<string, unknown>;
+  const posterCandidate = group.poster && group.poster.src
     ? group.poster
-    : (mainRecord.poster && mainRecord.poster.src ? mainRecord.poster : null);
+    : (mainRecord.poster && typeof (mainRecord.poster as { src?: string }).src === 'string'
+      ? mainRecord.poster as HistoryDetailPoster
+      : null);
+  const title = group.title ||
+    (typeof mainRecord.pageTitle === 'string' ? mainRecord.pageTitle : '') ||
+    '转存记录';
+  const pageUrl = typeof mainRecord.pageUrl === 'string' ? mainRecord.pageUrl : '';
 
   const fallback: HistoryDetailData = {
-    title: group.title || mainRecord.pageTitle || '转存记录',
-    poster,
+    title,
+    poster: posterCandidate,
     releaseDate: '',
     country: '',
     runtime: '',
@@ -132,7 +137,7 @@ export function buildHistoryDetailFallback(
     info: [],
     synopsis: '',
     stills: [],
-    pageUrl: mainRecord.pageUrl || ''
+    pageUrl
   };
 
   (Object.keys(overrides) as (keyof HistoryDetailOverrides)[]).forEach((key) => {
@@ -199,59 +204,81 @@ export function normalizeHistoryDetailResponse(
   fallback?: HistoryDetailFallback
 ): HistoryDetailData {
   const safeFallback = fallback || buildHistoryDetailFallback(null);
-  const detail = rawDetail && typeof rawDetail === 'object' ? rawDetail as Record<string, any> : {};
+  const detail = rawDetail && typeof rawDetail === 'object' ? rawDetail as Record<string, unknown> : {};
 
-  const normalizeString = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+  const normalizeString = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
+
+  const posterInput = detail['poster'];
+  const normalizedPoster = posterInput && typeof posterInput === 'object' && (posterInput as { src?: string }).src
+    ? posterInput as HistoryDetailPoster
+    : safeFallback.poster;
+
+  const ratingInput = detail['rating'];
+  const normalizedRating = ratingInput && typeof ratingInput === 'object' && (ratingInput as { value?: unknown }).value
+    ? {
+        value: normalizeString((ratingInput as { value?: unknown }).value),
+        votes: normalizeString((ratingInput as { votes?: unknown }).votes),
+        label: normalizeString((ratingInput as { label?: unknown }).label),
+        scale: Number.isFinite((ratingInput as { scale?: unknown }).scale)
+          ? Number((ratingInput as { scale?: unknown }).scale)
+          : 10
+      }
+    : null;
+
+  const genres = Array.isArray(detail['genres'])
+    ? Array.from(new Set((detail['genres'] as unknown[]).map(normalizeString).filter(Boolean))).slice(0, 12)
+    : [];
+
+  const info = Array.isArray(detail['info'])
+    ? (detail['info'] as unknown[])
+      .map((entry) => {
+        const item = entry && typeof entry === 'object' ? entry as HistoryDetailInfoEntry : null;
+        const label = normalizeString(item?.label);
+        const value = normalizeString(item?.value);
+        return label && value ? { label, value } : null;
+      })
+      .filter((entry): entry is HistoryDetailInfoEntry => Boolean(entry))
+      .slice(0, 12)
+    : [];
+
+  const stills = Array.isArray(detail['stills'])
+    ? (detail['stills'] as unknown[])
+      .map((still) => {
+        if (!still || typeof still !== 'object') {
+          return null;
+        }
+        const record = still as Record<string, unknown>;
+        const full = normalizeString(record['full']);
+        const url = normalizeString(record['url']);
+        const thumb = normalizeString(record['thumb']);
+        const alt = normalizeString(record['alt']) || safeFallback.title;
+        const resolvedFull = full || url || thumb;
+        const resolvedThumb = thumb || url || full;
+        if (!resolvedFull && !resolvedThumb) {
+          return null;
+        }
+        return {
+          full: resolvedFull || resolvedThumb,
+          thumb: resolvedThumb || resolvedFull,
+          alt,
+          url: url || resolvedFull || resolvedThumb
+        };
+      })
+      .filter((entry): entry is HistoryDetailStill => Boolean(entry))
+      .slice(0, 12)
+    : [];
 
   const normalized: HistoryDetailData = {
     title: normalizeString(detail['title']) || safeFallback.title,
-    poster: detail['poster'] && detail['poster'].src ? detail['poster'] : safeFallback.poster,
+    poster: normalizedPoster,
     releaseDate: normalizeString(detail['releaseDate']),
     country: normalizeString(detail['country']),
     runtime: normalizeString(detail['runtime']),
-    rating: detail['rating'] && detail['rating'].value
-      ? {
-          value: normalizeString(detail['rating'].value),
-          votes: normalizeString(detail['rating'].votes),
-          label: normalizeString(detail['rating'].label),
-          scale: Number.isFinite(detail['rating'].scale) ? Number(detail['rating'].scale) : 10
-        }
-      : null,
-    genres: Array.isArray(detail['genres'])
-      ? Array.from(new Set((detail['genres'] as unknown[]).map(normalizeString).filter(Boolean))).slice(0, 12)
-      : [],
-    info: Array.isArray(detail['info'])
-      ? (detail['info'] as unknown[])
-        .map(entry => ({
-          label: normalizeString(entry?.label),
-          value: normalizeString(entry?.value)
-        }))
-        .filter(entry => entry.label && entry.value)
-        .slice(0, 12)
-      : [],
+    rating: normalizedRating,
+    genres,
+    info,
     synopsis: normalizeString(detail['synopsis']),
-    stills: Array.isArray(detail['stills'])
-      ? (detail['stills'] as unknown[])
-        .map(still => {
-          const full = normalizeString(still?.full);
-          const url = normalizeString(still?.url);
-          const thumb = normalizeString(still?.thumb);
-          const alt = normalizeString(still?.alt) || safeFallback.title;
-          const resolvedFull = full || url || thumb;
-          const resolvedThumb = thumb || url || full;
-          if (!resolvedFull && !resolvedThumb) {
-            return null;
-          }
-          return {
-            full: resolvedFull || resolvedThumb,
-            thumb: resolvedThumb || resolvedFull,
-            alt,
-            url: url || resolvedFull || resolvedThumb
-          };
-        })
-        .filter(Boolean)
-        .slice(0, 12) as HistoryDetailStill[]
-      : [],
+    stills,
     pageUrl: normalizeString(detail['pageUrl']) || safeFallback.pageUrl || ''
   };
 

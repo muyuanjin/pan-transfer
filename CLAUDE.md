@@ -25,7 +25,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ **Shared 工具 TypeScript 化**:`sanitizers`、`completion-status`、`chinese-numeral` 已类型化
 - ✅ **Vue 3 浮动面板**:已将面板 UI 迁移至 Vue 3 组件(保留拖拽/调整大小等原生逻辑)
 - 🚧 **Content 层部分模块化**:已提取 `page-analyzer`、`season-loader`、`history-service` 等服务,主入口仍需进一步拆分
-- 📋 **待办**:移除 `parser-service.ts` 的 `@ts-nocheck`,完善消息载荷类型,清理遗留 CSS
 
 ### 项目结构
 
@@ -139,7 +138,6 @@ web-ext lint --source-dir dist
 
 **严格性配置**:
 - Background 模块遵循 `@tsconfig/strictest`,禁止隐式 `any`、未使用变量、非空断言
-- 唯一例外:`parser-service.ts` 临时使用 `@ts-nocheck`(待后续拆分重构)
 
 ## 关键技术点
 
@@ -281,7 +279,7 @@ web-ext lint --source-dir dist
 
 相关文件:
 - `src/content/services/page-analyzer.js` - 页面解析逻辑(剧集资源列表提取)
-- `src/background/services/parser-service.ts` - 链接详情解析(HTML 解析,临时 `@ts-nocheck`)
+- `src/background/services/parser-service.ts` - 链接详情解析(HTML 解析)
 
 ### 缓存不生效
 

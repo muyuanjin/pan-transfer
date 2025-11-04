@@ -110,7 +110,6 @@
 </template>
 
 <script setup lang="ts">
-// @ts-nocheck
 import { computed } from 'vue';
 import type { HistoryDetailData } from './history-detail';
 
@@ -164,12 +163,13 @@ const ratingLabel = computed(() => {
   return pieces.join(' ');
 });
 
-const genres = computed(() => detail.value.genres?.slice(0, 12) ?? []);
-const info = computed(() => detail.value.info?.slice(0, 12) ?? []);
-const stills = computed(() => detail.value.stills?.slice(0, 12).map(still => ({
+const genres = computed<string[]>(() => detail.value.genres?.slice(0, 12) ?? []);
+const info = computed<HistoryDetailData['info']>(() => detail.value.info?.slice(0, 12) ?? []);
+const stills = computed<HistoryDetailData['stills']>(() => detail.value.stills?.slice(0, 12).map(still => ({
   full: still.full || still.url || still.thumb || '',
   thumb: still.thumb || still.url || still.full || '',
-  alt: still.alt || detail.value.title || '剧照'
+  alt: still.alt || detail.value.title || '剧照',
+  url: still.url || still.full || still.thumb || ''
 })) ?? []);
 
 function emitClose(): void {

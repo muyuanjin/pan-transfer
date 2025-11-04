@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { createApp, type App } from 'vue';
 import HistoryListView from './history/HistoryListView.vue';
 import HistorySummaryView from './history/HistorySummaryView.vue';
@@ -13,7 +12,7 @@ export interface HistoryCardPanelDom {
   historySummaryBody?: HTMLElement | null;
   historySummary?: HTMLElement | null;
   historyOverlay?: HTMLElement | null;
-  historyToggleButtons?: Array<HTMLButtonElement> | null;
+  historyToggleButtons?: HTMLButtonElement[] | null;
   [key: string]: unknown;
 }
 
@@ -52,12 +51,14 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
     isHistoryGroupCompleted
   } = params;
 
-  const historyList = panelDom?.historyList as HTMLElement | undefined;
-  const historyEmpty = panelDom?.historyEmpty as HTMLElement | undefined;
-  const historySummaryBody = panelDom?.historySummaryBody as HTMLElement | undefined;
-  const historySummary = panelDom?.historySummary as HTMLElement | undefined;
+  const historyList = panelDom?.historyList ?? null;
+  const historyEmpty = panelDom?.historyEmpty ?? null;
+  const historySummaryBody = panelDom?.historySummaryBody ?? null;
+  const historySummary = panelDom?.historySummary ?? null;
 
-  if (!historyList || !historyEmpty || !historySummaryBody) {
+  if (!(historyList instanceof HTMLElement) ||
+      !(historyEmpty instanceof HTMLElement) ||
+      !(historySummaryBody instanceof HTMLElement)) {
     return;
   }
 
@@ -147,7 +148,7 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
   });
   historySummaryApp.mount(historySummaryBody);
 
-  if (historySummary) {
+  if (historySummary instanceof HTMLElement) {
     historySummary.classList.toggle('is-empty', !summaryData);
   }
 
@@ -170,20 +171,25 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
 }
 
 function refreshToggleCache(panelDom: HistoryCardPanelDom, floatingPanel: HTMLElement | null | undefined): void {
-  const scope = floatingPanel || panelDom?.historyOverlay || null;
+  const scope = floatingPanel || (panelDom?.historyOverlay ?? null);
   if (!scope) {
-    panelDom.historyToggleButtons = Array.from(document.querySelectorAll('[data-role="history-toggle"]')) as HTMLButtonElement[];
+    panelDom.historyToggleButtons = Array.from(
+      document.querySelectorAll<HTMLButtonElement>('[data-role="history-toggle"]')
+    );
     return;
   }
-  panelDom.historyToggleButtons = Array.from(scope.querySelectorAll('[data-role="history-toggle"]')) as HTMLButtonElement[];
+  panelDom.historyToggleButtons = Array.from(
+    scope.querySelectorAll<HTMLButtonElement>('[data-role="history-toggle"]')
+  );
 }
 
 function buildSummaryData(group: HistoryGroup): { title: string; metaParts: string[] } {
-  const mainRecord = group.main || {};
-  const title = group.title || mainRecord.pageTitle || '未命名资源';
+  const mainRecord = (group.main ?? {}) as HistoryGroup['main'] & Record<string, unknown>;
+  const titleCandidate = typeof mainRecord.pageTitle === 'string' ? mainRecord.pageTitle : '';
+  const title = group.title || titleCandidate || '未命名资源';
   const metaParts: string[] = [];
-  const completion = mainRecord.completion;
-  if (completion && completion.label) {
+  const completion = mainRecord.completion as { label?: string } | null | undefined;
+  if (completion?.label) {
     metaParts.push(completion.label);
   }
   const summaryTime = formatHistoryTimestamp(
@@ -197,8 +203,11 @@ function buildSummaryData(group: HistoryGroup): { title: string; metaParts: stri
   if (Array.isArray(group.seasonEntries) && group.seasonEntries.length) {
     metaParts.push(`涵盖 ${group.seasonEntries.length} 季`);
   }
-  if (mainRecord.targetDirectory) {
-    metaParts.push(String(mainRecord.targetDirectory));
+  const targetDirectory = typeof mainRecord.targetDirectory === 'string'
+    ? mainRecord.targetDirectory
+    : '';
+  if (targetDirectory) {
+    metaParts.push(targetDirectory);
   }
   return {
     title,

@@ -7,7 +7,8 @@
     "dev": "vite",
     "typecheck": "vue-tsc --noEmit -p tsconfig.app.json",
     "build": "npm run typecheck && vite build --mode production",
-    "test": "vitest",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "preview": "vite preview"
   },
   "repository": {
@@ -26,6 +27,7 @@
     "@types/chrome": "^0.1.27",
     "@types/node": "^24.10.0",
     "@vitejs/plugin-vue": "^6.0.1",
+    "jsdom": "^27.1.0",
     "typescript": "^5.9.3",
     "vite": "^7.1.12",
     "vite-plugin-web-extension": "^4.5.0",

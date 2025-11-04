@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { createApp, type App } from 'vue';
 import ResourceListView, { type ResourceListItemView, type ResourceBadgeView } from './ResourceListView.vue';
 import type { ContentState, ResourceItem } from '../types';

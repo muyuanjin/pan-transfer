@@ -1,6 +1,10 @@
-// @ts-nocheck
 import { normalizeDir, sanitizeSeasonDirSegment, buildPanDirectoryUrl } from '../../services/page-analyzer';
-import type { HistoryCompletion, HistoryGroup, HistoryGroupSeasonRow } from '../../types';
+import type {
+  ContentHistoryRecord,
+  HistoryCompletion,
+  HistoryGroup,
+  HistoryGroupSeasonRow
+} from '../../types';
 
 export interface HistoryStatusBadge {
   label: string;
@@ -41,7 +45,7 @@ export interface PanInfo {
 }
 
 export interface ResolvePanOptions {
-  record?: Record<string, unknown> | null;
+  record?: ContentHistoryRecord | null;
   group?: HistoryGroup | null;
   seasonId?: string;
 }
@@ -51,7 +55,7 @@ export function resolveHistoryPanInfo(options: ResolvePanOptions = {}): PanInfo 
   const baseCandidates: string[] = [];
   const seasonCandidates: string[] = [];
 
-  const pushBaseCandidate = (value: unknown) => {
+  const pushBaseCandidate = (value: unknown): void => {
     if (typeof value !== 'string') {
       return;
     }
@@ -67,7 +71,7 @@ export function resolveHistoryPanInfo(options: ResolvePanOptions = {}): PanInfo 
     baseCandidates.push(trimmed);
   };
 
-  const pushSeasonCandidate = (value: unknown) => {
+  const pushSeasonCandidate = (value: unknown): void => {
     if (typeof value !== 'string') {
       return;
     }
@@ -78,13 +82,15 @@ export function resolveHistoryPanInfo(options: ResolvePanOptions = {}): PanInfo 
   };
 
   if (record && typeof record === 'object') {
-    pushBaseCandidate((record as Record<string, unknown>).targetDirectory);
-    pushBaseCandidate((record as Record<string, unknown>).baseDir);
+    const recordMap = record as Record<string, unknown>;
+    pushBaseCandidate(recordMap['targetDirectory']);
+    pushBaseCandidate(recordMap['baseDir']);
   }
 
   if (group?.main && typeof group.main === 'object') {
-    pushBaseCandidate(group.main.targetDirectory);
-    pushBaseCandidate(group.main.baseDir);
+    const mainMap = group.main as Record<string, unknown>;
+    pushBaseCandidate(mainMap['targetDirectory']);
+    pushBaseCandidate(mainMap['baseDir']);
   }
 
   if (seasonId && group?.main && group.main.seasonDirectory && typeof group.main.seasonDirectory === 'object') {
@@ -93,14 +99,15 @@ export function resolveHistoryPanInfo(options: ResolvePanOptions = {}): PanInfo 
   }
 
   const normalizedBases = baseCandidates
-    .map(value => normalizeDir(value))
-    .filter(Boolean);
-  let basePath = normalizedBases.find(path => path && path !== '/');
+    .map((value) => normalizeDir(value))
+    .filter((value): value is string => Boolean(value));
+
+  let basePath = normalizedBases.find((path) => path && path !== '/');
   if (!basePath) {
     basePath = normalizedBases[0] || '';
   }
 
-  const resolveCandidate = (value: unknown) => {
+  const resolveCandidate = (value: unknown): string => {
     if (typeof value !== 'string') {
       return '';
     }
@@ -159,17 +166,21 @@ export interface DerivedSeasonRow {
   completed: boolean;
 }
 
-export function deriveSeasonRow(
-  group: HistoryGroup,
-  row: HistoryGroupSeasonRow
-): DerivedSeasonRow {
+const isCompleted = (value: unknown): boolean => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  const completionState = (value as { state?: string }).state;
+  return completionState === 'completed';
+};
+
+export function deriveSeasonRow(group: HistoryGroup, row: HistoryGroupSeasonRow): DerivedSeasonRow {
   const timestampLabel = formatHistoryTimestamp(row.recordTimestamp);
-  const panInfo = resolveHistoryPanInfo({ record: row.record as Record<string, unknown>, group, seasonId: row.seasonId });
+  const panInfo = resolveHistoryPanInfo({ record: row.record, group, seasonId: row.seasonId });
   const statusBadge = createStatusBadge(row.completion as HistoryCompletion);
   const completed = Boolean(
     row.completion?.state === 'completed' ||
-    (row.record && (row.record as Record<string, unknown>).completion &&
-      (row.record as Record<string, unknown>).completion?.state === 'completed')
+    (row.record && isCompleted((row.record as Record<string, unknown>)['completion']))
   );
   return {
     row,
@@ -187,21 +198,41 @@ export interface DerivedHistoryGroup {
   metaParts: string[];
 }
 
+const readNumber = (value: unknown): number => {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 export function deriveHistoryGroupMeta(group: HistoryGroup): DerivedHistoryGroup {
-  const mainRecord = group.main || ({} as Record<string, unknown>);
-  const typeLabel = (mainRecord as Record<string, unknown>).pageType === 'series'
+  const mainRecord = (group?.main ?? {}) as ContentHistoryRecord & Record<string, unknown>;
+  const pageTypeRaw = mainRecord['pageType'];
+  const pageType = typeof pageTypeRaw === 'string'
+    ? pageTypeRaw
+    : (mainRecord as { pageType?: string }).pageType;
+  const typeLabel = pageType === 'series'
     ? '剧集'
-    : ((mainRecord as Record<string, unknown>).pageType === 'movie' ? '电影' : '资源');
+    : (pageType === 'movie' ? '电影' : '资源');
+
   const updatedAt = group.updatedAt ||
-    Number((mainRecord as Record<string, unknown>).lastTransferredAt) ||
-    Number((mainRecord as Record<string, unknown>).lastCheckedAt);
+    readNumber(mainRecord['lastTransferredAt']) ||
+    readNumber(mainRecord['lastCheckedAt']);
   const timeLabel = formatHistoryTimestamp(updatedAt);
-  const total = Number((mainRecord as Record<string, unknown>).totalTransferred) ||
-    Object.keys((mainRecord as Record<string, unknown>).items || {}).length ||
-    0;
-  const targetDir = typeof (mainRecord as Record<string, unknown>).targetDirectory === 'string'
-    ? String((mainRecord as Record<string, unknown>).targetDirectory)
+
+  const totalTransferred = readNumber(mainRecord['totalTransferred']);
+  const items = (mainRecord as { items?: Record<string, unknown> }).items;
+  const recordCount = readNumber((mainRecord as { recordCount?: number }).recordCount);
+  const total = totalTransferred ||
+    (items ? Object.keys(items).length : 0) ||
+    recordCount;
+
+  const targetDirRaw = mainRecord['targetDirectory'];
+  const targetDir = typeof targetDirRaw === 'string'
+    ? targetDirRaw
     : '';
+
   const metaParts: string[] = [typeLabel];
   if (Array.isArray(group.seasonEntries) && group.seasonEntries.length) {
     metaParts.push(`涵盖 ${group.seasonEntries.length} 季`);
@@ -217,9 +248,10 @@ export function deriveHistoryGroupMeta(group: HistoryGroup): DerivedHistoryGroup
   if (targetDir) {
     metaParts.push(targetDir);
   }
+
   return {
     group,
-    statusBadge: createStatusBadge((mainRecord as Record<string, unknown>).completion as HistoryCompletion),
+    statusBadge: createStatusBadge((mainRecord['completion'] ?? null) as HistoryCompletion | null),
     timestampLabel: timeLabel,
     metaParts
   };

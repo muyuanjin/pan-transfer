@@ -30,7 +30,6 @@
 </template>
 
 <script setup lang="ts">
-// @ts-nocheck
 import { computed } from 'vue';
 
 export interface ResourceBadgeView {
@@ -61,5 +60,5 @@ function itemClasses(item: ResourceListItemView): Record<string, boolean> {
   };
 }
 
-const emptyMessage = computed(() => props.emptyMessage);
+const emptyMessage = computed<string>(() => props.emptyMessage);
 </script>

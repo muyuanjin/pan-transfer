@@ -31,7 +31,6 @@
 </template>
 
 <script setup lang="ts">
-// @ts-nocheck
 import { computed } from 'vue';
 
 const props = defineProps<{
@@ -43,5 +42,5 @@ const props = defineProps<{
   emptyMessage?: string;
 }>();
 
-const emptyMessage = computed(() => props.emptyMessage || '暂无其他转存记录');
+const emptyMessage = computed<string>(() => props.emptyMessage || '暂无其他转存记录');
 </script>

@@ -191,7 +191,6 @@
 </template>
 
 <script setup lang="ts">
-// @ts-nocheck
 import { computed } from 'vue';
 import { buildHistoryGroupSeasonRows } from '../../services/history-service';
 import type { HistoryGroup, HistoryGroupSeasonRow } from '../../types';
@@ -222,7 +221,7 @@ interface DerivedSeasonView {
   statusBadgeClass: Record<string, boolean>;
   checkLabel: string;
   checkDisabled: boolean;
-  checkDisabledReason?: string;
+  checkDisabledReason: string | undefined;
   posterAttrs: Record<string, unknown>;
 }
 
@@ -241,21 +240,21 @@ interface DerivedEntryView {
   showCheck: boolean;
   checkLabel: string;
   checkDisabled: boolean;
-  checkDisabledReason?: string;
+  checkDisabledReason: string | undefined;
   poster: HistoryGroup['poster'] | null;
   posterAttrs: Record<string, unknown>;
 }
 
 const derivedEntries = computed<DerivedEntryView[]>(() => {
   return props.entries.map((group) => {
-    const mainRecord = group.main || ({} as Record<string, any>);
+    const mainRecord = (group.main ?? {}) as DerivedEntryView['mainRecord'];
     const meta = deriveHistoryGroupMeta(group);
     const panInfo = resolveHistoryPanInfo({ record: mainRecord, group });
     const isSelected = selectedSet.value.has(group.key);
     const isCurrent = Array.isArray(group.urls)
       ? group.urls.some(url => normalizeUrl(url) === normalizeUrl(props.currentUrl))
       : false;
-    const seasonRowsRaw = buildHistoryGroupSeasonRows(group);
+    const seasonRowsRaw = buildHistoryGroupSeasonRows(group) as HistoryGroupSeasonRow[];
     const seasonRows: DerivedSeasonView[] = seasonRowsRaw.map(row => {
       const derived = deriveSeasonRow(group, row);
       const canCheckSeason = row.canCheck && Boolean(row.url);
@@ -298,7 +297,8 @@ const derivedEntries = computed<DerivedEntryView[]>(() => {
     let checkLabel = '检测新篇';
     let checkDisabled = false;
     let checkDisabledReason: string | undefined;
-    const showCheck = (mainRecord.pageType === 'series');
+    const pageType = typeof mainRecord.pageType === 'string' ? mainRecord.pageType : undefined;
+    const showCheck = pageType === 'series';
     if (showCheck) {
       const completed = props.isHistoryGroupCompleted
         ? Boolean(props.isHistoryGroupCompleted(group))
@@ -307,7 +307,7 @@ const derivedEntries = computed<DerivedEntryView[]>(() => {
         checkDisabled = true;
         checkDisabledReason = 'completed';
         checkLabel = '已完结';
-      } else if (!mainRecord.pageUrl) {
+      } else if (!mainRecord.pageUrl || typeof mainRecord.pageUrl !== 'string') {
         checkDisabled = true;
         checkLabel = '无链接';
       }
@@ -323,7 +323,9 @@ const derivedEntries = computed<DerivedEntryView[]>(() => {
 
     return {
       group,
-      title: group.title || mainRecord.pageTitle || '未命名资源',
+      title: group.title ||
+        (typeof mainRecord.pageTitle === 'string' ? mainRecord.pageTitle : '') ||
+        '未命名资源',
       mainRecord,
       panInfo,
       statusBadge: meta.statusBadge,
@@ -344,13 +346,14 @@ const derivedEntries = computed<DerivedEntryView[]>(() => {
 });
 
 function statusEmoji(state: string | undefined): string {
-  const map: Record<string, string> = {
+  const map = {
     completed: '✅',
     ongoing: '📡',
     upcoming: '🕒',
     unknown: 'ℹ️'
-  };
-  return map[state || 'unknown'] || map.unknown;
+  } as const;
+  const key = (state ?? 'unknown') as keyof typeof map;
+  return map[key];
 }
 
 function buildStatusBadgeClass(badge: HistoryStatusBadge | null): Record<string, boolean> {
