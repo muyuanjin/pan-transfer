@@ -1060,6 +1060,14 @@ function locateBaiduPanRows(root: Document | Element = document): HTMLElement[] 
   return Array.from(downloadSection.querySelectorAll<HTMLElement>(selector));
 }
 
+const PASSCODE_PATTERN = /提取码[：:]*\s*([0-9a-zA-Z]{2,8})/i;
+
+function extractPassCodeFromNode(node: Element | null | undefined): string {
+  const text = node?.textContent || '';
+  const match = text.match(PASSCODE_PATTERN);
+  return match?.[1] ?? '';
+}
+
 export function extractItemsFromDocument(
   root: Document | Element = document,
   { baseUrl }: { baseUrl?: string } = {}
@@ -1072,23 +1080,32 @@ export function extractItemsFromDocument(
   const items: ResourceItem[] = [];
   rows.forEach(row => {
     const idMatch = (row.id || '').match(/link-(\d+)/);
-    const id = idMatch ? idMatch[1] : '';
+    const id = idMatch?.[1] ?? '';
     if (!id) {
       return;
     }
-    const anchor = row.querySelector<HTMLAnchorElement>('a[href*="/links/"]');
+    const anchor = row.querySelector<HTMLAnchorElement>('a');
     if (!anchor) {
       return;
     }
     const href = anchor.getAttribute('href') || anchor.href || '';
-    const linkUrl = resolveAbsoluteUrl(href, resolvedBaseUrl);
+    const initialLinkUrl = resolveAbsoluteUrl(href, resolvedBaseUrl);
+    const fallbackLinkUrl = resolveAbsoluteUrl(`/links/${id}.html`, resolvedBaseUrl);
+    const linkUrl = initialLinkUrl && initialLinkUrl.includes('/links/')
+      ? initialLinkUrl
+      : (fallbackLinkUrl && fallbackLinkUrl.includes('/links/') ? fallbackLinkUrl : '');
     if (!linkUrl) {
       return;
     }
     const title = extractCleanTitle(stripHtmlTags(anchor.textContent || anchor.innerText || ''));
     const passNode = row.querySelector<HTMLElement>('.pwd');
-    const passCodeMatch = passNode ? passNode.textContent?.match(/提取码[：:]*\s*([0-9a-zA-Z]+)/) : null;
-    const passCode = passCodeMatch ? passCodeMatch[1] : '';
+    let passCode = extractPassCodeFromNode(passNode);
+    if (!passCode) {
+      passCode = extractPassCodeFromNode(anchor);
+    }
+    if (!passCode) {
+      passCode = extractPassCodeFromNode(row);
+    }
     const resource: ResourceItem = {
       id,
       title: title || `资源 ${id}`,
@@ -1097,6 +1114,9 @@ export function extractItemsFromDocument(
     };
     if (passCode) {
       resource.passCode = passCode;
+    }
+    if (anchor.classList.contains('clicklogin')) {
+      (resource as Record<string, unknown>)['requiresLogin'] = true;
     }
     (resource as Record<string, unknown>)['createdAt'] = Date.now();
     items.push(resource);

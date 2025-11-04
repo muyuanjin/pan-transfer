@@ -180,6 +180,33 @@ describe('page-analyzer 使用 chaospace 真实页面', () => {
     expect(detail.poster?.src).toMatch(/^https?:\/\//);
   });
 
+  it('extractItemsFromDocument 应为需登录的资源构建链接并保留提取码', async () => {
+    document.body.innerHTML = `
+      <div id="download">
+        <table>
+          <tbody>
+            <tr id="link-424242">
+              <td>
+                <a href="#" class="clicklogin">示例资源 提取码 aB12</a>
+              </td>
+              <td><strong class="quality">WEB-1080P</strong></td>
+              <td class="pwd"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    const { extractItemsFromDocument } = await import('./page-analyzer');
+
+    const items = extractItemsFromDocument(document);
+
+    expect(items).toHaveLength(1);
+    expect(items[0]?.linkUrl).toBe('https://www.chaospace.cc/links/424242.html');
+    expect(items[0]?.passCode).toBe('aB12');
+    expect((items[0] as Record<string, unknown>)['requiresLogin']).toBe(true);
+  });
+
   it('sanitizeSeasonDirSegment 应将混合状态标签标准化为第1季', async () => {
     const tvHtml = readFixture('chaospace-tvshow-428607.html');
     const parser = new DOMParser();

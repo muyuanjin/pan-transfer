@@ -11,7 +11,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: 'list',
   use: {
-    headless: true, // 启用无头模式加速测试
+    headless: true, // 无头模式
     viewport: { width: 1280, height: 720 },
     ignoreHTTPSErrors: true,
     // 减少不必要的等待

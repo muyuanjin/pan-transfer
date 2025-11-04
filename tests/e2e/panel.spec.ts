@@ -14,7 +14,7 @@ type Fixtures = {
 };
 
 const test = base.extend<Fixtures>({
-  context: async ({}, use, testInfo) => {
+  context: async ({ headless }, use, testInfo) => {
     if (!fs.existsSync(DIST_DIR)) {
       throw new Error(
         'Extension build is missing. Run `npm run build` before executing the Playwright tests.'
@@ -22,7 +22,8 @@ const test = base.extend<Fixtures>({
     }
     const userDataDir = testInfo.outputPath('user-data');
     const context = await chromium.launchPersistentContext(userDataDir, {
-      headless: false,
+      headless,
+      channel: 'chromium',
       args: EXTENSION_ARGS(DIST_DIR)
     });
     await context.addInitScript(() => {
@@ -47,10 +48,9 @@ const test = base.extend<Fixtures>({
 });
 
 const chaospacePages = [
-  'https://www.chaospace.cc/tvshows/80348.html'
-  // 注: 以下页面在真实浏览器中正常，但在 Playwright 无头模式下面板未渲染，原因待调查
-  // 'https://www.chaospace.cc/tvshows/425308.html',
-  // 'https://www.chaospace.cc/movies/431555.html'
+  'https://www.chaospace.cc/tvshows/80348.html',
+  'https://www.chaospace.cc/tvshows/425308.html',
+  'https://www.chaospace.cc/movies/431555.html'
 ];
 
 test.describe('Chaospace panel overlay', () => {
