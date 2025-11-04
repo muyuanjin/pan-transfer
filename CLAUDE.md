@@ -15,25 +15,44 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 架构设计
 
-**⚠️ 重要**: 本项目已采用 **Vite** 构建系统,源代码位于 `src/` 目录。`chaospace-extension/` 目录为遗留构建产物,仅供参考,**不应直接修改**。
+**⚠️ 重要**: 本项目已采用 **Vite + TypeScript** 构建系统,源代码位于 `src/` 目录。`chaospace-extension/` 目录为**遗留构建产物,仅供对比验证**,**禁止直接修改**。
+
+### 重构状态(截至 2025-11-04)
+
+本项目正在进行**渐进式模块化重构**,详见 `REFACTOR_PROGRESS.md`:
+
+- ✅ **Background 层 100% TypeScript 化**:所有 API、服务、存储模块已迁移至 `.ts`,采用 `@tsconfig/strictest` 严格检查
+- ✅ **Shared 工具 TypeScript 化**:`sanitizers`、`completion-status`、`chinese-numeral` 已类型化
+- ✅ **Vue 3 浮动面板**:已将面板 UI 迁移至 Vue 3 组件(保留拖拽/调整大小等原生逻辑)
+- 🚧 **Content 层部分模块化**:已提取 `page-analyzer`、`season-loader`、`history-service` 等服务,主入口仍需进一步拆分
+- 📋 **待办**:移除 `parser-service.ts` 的 `@ts-nocheck`,完善消息载荷类型,清理遗留 CSS
 
 ### 项目结构
 
 ```
 src/
-├── background/          # Service Worker 后台逻辑
-│   ├── api/            # 百度网盘和 CHAOSPACE API 封装
-│   ├── services/       # 业务服务(转存、解析、历史记录)
-│   ├── storage/        # 缓存和历史记录存储
-│   └── index.js        # 后台入口
-├── content/            # Content Script 内容脚本
-│   ├── components/     # UI 组件(面板、历史卡片、资源列表)
-│   ├── services/       # 页面解析和历史服务
-│   ├── state/          # 前端状态管理
-│   └── index.js        # 内容脚本入口
-├── shared/             # 共享工具函数
-│   └── utils/          # 工具函数(sanitizers、completion-status、chinese-numeral)
+├── background/          # Service Worker 后台逻辑(已 100% TypeScript 化)
+│   ├── api/            # 百度网盘和 CHAOSPACE API 封装(baidu-pan.ts, chaospace.ts)
+│   ├── common/         # 常量和错误处理(constants.ts, errors.ts)
+│   ├── services/       # 业务服务(transfer-service.ts, history-service.ts, parser-service.ts)
+│   ├── storage/        # 缓存和历史记录存储(cache-store.ts, history-store.ts, utils.ts)
+│   ├── utils/          # 工具函数(path.ts, share.ts)
+│   ├── types.ts        # 运行时类型定义(TransferRuntimeOptions, ProgressLogger)
+│   └── index.ts        # 后台入口
+├── content/            # Content Script 内容脚本(部分模块化,主入口待重构)
+│   ├── components/     # UI 组件(panel.js[Vue], history-card.js, resource-list.js, settings-modal.js, zoom-preview.js)
+│   ├── services/       # 页面解析和历史服务(page-analyzer.js, season-loader.js, history-service.js)
+│   ├── state/          # 前端状态管理(index.js)
+│   ├── utils/          # DOM/格式化/存储工具(dom.js, format.js, storage.js, title.js)
+│   ├── styles/         # 样式文件(待模块化拆分)
+│   └── index.js        # 内容脚本入口(~3k LOC,待进一步拆分)
+├── shared/             # 共享工具函数(已 TypeScript 化)
+│   ├── types/          # 共享类型定义(transfer.ts)
+│   └── utils/          # 工具函数(sanitizers.ts, completion-status.ts, chinese-numeral.ts)
 └── manifest.json       # 扩展清单
+
+chaospace-extension/     # 遗留目录(仅用于对比验证,禁止修改)
+dist/                    # Vite 构建产物(用于加载到浏览器)
 ```
 
 ### 核心组件
@@ -76,17 +95,51 @@ chrome.storage.local → 持久化缓存
 
 ### 构建与开发
 
-**开发模式**:
+**类型检查**(推荐每次改动后运行):
 ```bash
-npm run dev
+npm run typecheck  # vue-tsc --noEmit -p tsconfig.app.json
+```
+
+**开发模式**(监听文件变化,自动重新构建):
+```bash
+npm run dev  # vite build --mode development --watch
 ```
 
 **生产构建**:
 ```bash
-npm run build
+npm run build  # vite build --mode production
 ```
 
-构建产物输出到 `chaospace-extension/` 目录,用于加载到浏览器。
+**验证构建产物**:
+```bash
+web-ext lint --source-dir dist
+```
+
+**重要**:
+- 构建产物输出到 `dist/` 目录(非 `chaospace-extension/`!)
+- 加载扩展时选择 `dist/` 目录,**不要加载** `chaospace-extension/`
+- `chaospace-extension/` 仅用于对比旧版行为,禁止手动修改
+
+## 技术栈
+
+### 核心技术
+- **构建工具**: Vite 7.x(多入口构建:`background/index.ts`、`content/index.js`、`content/styles/main.css`)
+- **类型系统**: TypeScript 5.x + `@tsconfig/strictest`(background 已全面应用)
+- **前端框架**: Vue 3.x(浮动面板 UI,渐进式迁移中)
+- **浏览器 API**: Chrome Extensions Manifest V3(`chrome.storage`、`chrome.runtime`、`chrome.declarativeNetRequest`)
+- **代码规范**: 两空格缩进,Conventional Commits 风格,`[Chaospace Transfer]` 日志前缀
+
+### 类型系统设计
+
+**核心类型定义**:
+- `src/background/types.ts`:运行时选项(`TransferRuntimeOptions`)、进度日志器(`ProgressLogger`)
+- `src/shared/types/transfer.ts`:转存请求/响应载荷、历史记录结构、状态枚举
+- `src/shared/utils/completion-status.ts`:完成状态值对象(`CompletionStatus`、`SeasonEntry`)
+- `src/shared/utils/sanitizers.ts`:海报信息、标题/链接清理函数类型
+
+**严格性配置**:
+- Background 模块遵循 `@tsconfig/strictest`,禁止隐式 `any`、未使用变量、非空断言
+- 唯一例外:`parser-service.ts` 临时使用 `@ts-nocheck`(待后续拆分重构)
 
 ## 关键技术点
 
@@ -158,7 +211,7 @@ npm run build
    npm install
    ```
 
-2. 启动开发模式(支持热重载):
+2. 启动开发模式(监听文件变化):
    ```bash
    npm run dev
    ```
@@ -166,19 +219,29 @@ npm run build
 3. 加载扩展:
    - 打开 `chrome://extensions/` 或 `edge://extensions/`
    - 启用"开发者模式"
-   - 点击"加载已解压的扩展程序",选择 `chaospace-extension` 目录
+   - 点击"加载已解压的扩展程序",选择 **`dist/` 目录**(不是 `chaospace-extension/`!)
 
 4. 修改源代码:
    - 编辑 `src/` 目录下的文件
-   - Vite 会自动重新构建到 `chaospace-extension/`
+   - TypeScript 文件修改后,运行 `npm run typecheck` 验证类型
+   - Vite 会自动重新构建到 `dist/`
    - 在扩展管理页面点击"刷新"按钮重新加载扩展
+
+5. **重要规则**:
+   - ✅ **只在 `src/` 中修改代码**
+   - ❌ **禁止修改 `chaospace-extension/` 中的任何文件**
+   - ❌ **禁止修改 `dist/` 中的构建产物**
 
 ### 调试 Service Worker (background)
 
 1. 在扩展管理页面,点击扩展卡片上的"Service Worker"链接
 2. 打开 DevTools 控制台查看日志
 3. 所有日志以 `[Chaospace Transfer]` 前缀
-4. 相关文件: `src/background/index.js`
+4. 相关文件: `src/background/index.ts`(已 TypeScript 化)
+
+**TypeScript 源码映射**:
+- 构建时已生成 Source Maps,DevTools 可以直接调试 `.ts` 源码
+- 如需查看类型定义,参考 `src/background/types.ts` 和 `src/shared/types/transfer.ts`
 
 ### 调试内容脚本 (content)
 
@@ -203,7 +266,7 @@ npm run build
 
 ### 转存失败错误码
 
-参考 `ERROR_MESSAGES` 对象(background.js:1-22):
+参考 `ERROR_MESSAGES` 对象(`src/background/common/constants.ts:1-22`):
 - `-9`: 提取码错误或验证过期
 - `-8`: 文件已存在
 - `-10`/`20`: 容量不足
@@ -217,8 +280,8 @@ npm run build
 - `/links/*.html` 详情页格式是否变化
 
 相关文件:
-- `src/content/services/page-analyzer.js` - 页面解析逻辑
-- `src/background/services/parser-service.js` - 链接详情解析
+- `src/content/services/page-analyzer.js` - 页面解析逻辑(剧集资源列表提取)
+- `src/background/services/parser-service.ts` - 链接详情解析(HTML 解析,临时 `@ts-nocheck`)
 
 ### 缓存不生效
 
@@ -238,10 +301,39 @@ npm run build
 
 ### 命名约定
 
-- 常量:大写蛇形命名法(如 `MAX_TRANSFER_ATTEMPTS`)
-- 函数:驼峰命名法(如 `normalizePath`)
-- DOM 相关:以 `render`、`update`、`set` 为前缀
-- 异步函数:使用 `async`/`await` 而非 Promise 链
+- **常量**:大写蛇形命名法(如 `MAX_TRANSFER_ATTEMPTS`)
+- **函数**:驼峰命名法(如 `normalizePath`)
+- **类型/接口**:帕斯卡命名法(如 `TransferRuntimeOptions`、`ProgressLogger`)
+- **DOM ID/Class**:kebab-case(如 `chaospace-panel`、`season-tab-active`)
+- **文件名**:kebab-case(如 `page-analyzer.js`、`transfer-service.ts`)
+- **异步函数**:优先使用 `async`/`await` 而非 Promise 链
+
+### TypeScript 规范
+
+**类型定义位置**:
+- 模块内部类型 → 文件顶部 `interface` / `type` 声明
+- 跨模块共享类型 → `src/background/types.ts` 或 `src/shared/types/*.ts`
+- 函数参数类型 → 优先使用已定义的接口,避免内联对象类型
+
+**类型守卫**:
+```typescript
+// ✅ 推荐:使用类型守卫
+function isSuccess(meta: ShareMetadata): meta is ShareMetadataSuccess {
+  return !('error' in meta);
+}
+
+// ❌ 避免:类型断言
+const result = meta as ShareMetadataSuccess;
+```
+
+**导入路径**:
+```typescript
+// ✅ 推荐:无扩展名导入(Vite 自动解析)
+import { normalizePath } from '../utils/path';
+
+// ❌ 避免:显式 .ts 扩展名
+import { normalizePath } from '../utils/path.ts';
+```
 
 ### 日志规范
 
@@ -294,16 +386,62 @@ chrome.tabs.sendMessage(tabId, {
 
 ## 扩展功能建议
 
-如需添加新功能,建议遵循以下模式:
+如需添加新功能,遵循以下模式:
 
-1. **新增 API 交互**:在 `src/background/api/` 中实现,使用统一的错误处理
-2. **新增 UI 组件**:在 `src/content/components/` 中实现,保持模块化
-3. **新增配置项**:在 `src/content/state/` 和 `src/background/storage/` 中处理
-4. **新增共享工具**:放在 `src/shared/utils/` 中,供前后端共用
+1. **新增 API 交互**:
+   - 在 `src/background/api/` 中创建 `.ts` 文件
+   - 定义请求/响应类型接口
+   - 使用统一的错误处理(`maybeHandleLoginRequired`)
+
+2. **新增 UI 组件**:
+   - 优先在 `src/content/components/` 中创建 Vue 单文件组件(`.vue`)
+   - 如需原生 JS,创建 `.js` 模块并导出工厂函数
+   - 保持单一职责,避免组件超过 300 行
+
+3. **新增配置项**:
+   - 状态管理:在 `src/content/state/index.js` 中添加
+   - 持久化存储:在 `src/background/storage/` 中处理
+   - 跨端共享配置:使用 `chrome.storage.sync`
+
+4. **新增共享工具**:
+   - 创建 TypeScript 模块放在 `src/shared/utils/` 中
+   - 导出纯函数,避免副作用
+   - 补充类型定义到 `src/shared/types/` 中
+
+5. **重构遗留代码**:
+   - 参考 `REFACTOR_PROGRESS.md` 中的模式
+   - 小步迭代,每次提交保持构建通过
+   - 提取前先写类型定义,提取后补充单元测试
 
 ## 相关文档
 
+### 项目文档
+- `REFACTOR_PROGRESS.md` - 重构进度追踪(包含已完成/进行中/待办任务)
+- `AGENTS.md` - 项目结构、构建命令、代码规范速查表
+- `CLAUDE.md` - 本文件,技术栈和开发指南
+
+### 外部资源
 - [Chrome Extensions API](https://developer.chrome.com/docs/extensions/)
 - [chrome.storage API](https://developer.chrome.com/docs/extensions/reference/api/storage)
 - [chrome.declarativeNetRequest API](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest)
+- [Vite 配置指南](https://vitejs.dev/config/)
+- [Vue 3 组合式 API](https://vuejs.org/guide/introduction.html)
+- [TypeScript Handbook](https://www.typescriptlang.org/docs/handbook/intro.html)
 - 百度网盘 Web API 无官方文档,通过浏览器 DevTools 抓包分析
+
+## 开发注意事项
+
+### 禁止事项
+- ❌ **禁止修改 `chaospace-extension/` 中的任何文件**(遗留目录,仅供对比)
+- ❌ **禁止在代码/日志中暴露百度网盘 Cookie 或 Token**
+- ❌ **禁止跳过 `npm run typecheck`**(TypeScript 模块修改后必须验证)
+- ❌ **禁止在 `src/` 中使用 `.js` 扩展名导入 TypeScript 模块**(如 `import x from './foo.js'` 应改为 `import x from './foo'`)
+- ❌ **禁止使用 `// @ts-ignore`**(除非有充分理由,优先修复类型错误)
+
+### 推荐实践
+- ✅ **每次改动后运行 `npm run typecheck && npm run build`**
+- ✅ **提交前在真实 CHAOSPACE 页面手动测试**
+- ✅ **提交信息遵循 Conventional Commits**(`feat:`、`fix:`、`refactor:`、`docs:`)
+- ✅ **大功能分阶段提交**(每个提交保持构建绿色)
+- ✅ **从现有代码中学习模式**(参考 `src/background/api/baidu-pan.ts` 的类型设计)
+- ✅ **更新 `REFACTOR_PROGRESS.md`**(记录重构进展和待办事项)
