@@ -98,16 +98,19 @@ chrome.storage.local → 持久化缓存
 #### 开发流程命令
 
 **开发模式**(监听文件变化,自动重新构建):
+
 ```bash
 npm run dev  # vite build --mode development --watch
 ```
 
 **类型检查**(推荐每次改动后运行):
+
 ```bash
 npm run typecheck  # vue-tsc --noEmit -p tsconfig.app.json
 ```
 
 **代码质量与格式化**:
+
 ```bash
 npm run lint           # ESLint 检查代码质量问题
 npm run lint:fix       # 自动修复可修复的 ESLint 问题
@@ -116,6 +119,7 @@ npm run format:check   # 检查代码格式是否符合规范
 ```
 
 **构建与测试**:
+
 ```bash
 npm run build  # vite build --mode production
 npm run test   # vitest run - 运行单元测试
@@ -123,6 +127,7 @@ npm run e2e    # playwright test - 端到端测试(需先构建 dist/)
 ```
 
 **完整质量检查流程**:
+
 ```bash
 npm run check  # 按顺序运行: typecheck → lint → format:check → build → test → e2e
 ```
@@ -159,6 +164,7 @@ npm run check  # 按顺序运行: typecheck → lint → format:check → build 
    - 验证扩展在浏览器中的实际行为
 
 **重要提示**:
+
 - ✅ **提交代码前务必运行** `npm run check` **确保所有检查通过**
 - ✅ 首次运行 E2E 测试前需执行 `npx playwright install chromium`
 - ✅ 构建产物输出到 `dist/` 目录(非 `chaospace-extension/`!)
@@ -187,21 +193,24 @@ npm run check
 #### 代码质量工具配置
 
 **ESLint** (`eslint.config.mjs`):
+
 - 使用 ESLint v9 扁平化配置格式
 - 集成 TypeScript、Vue、Prettier 插件
 - 针对不同文件类型配置专门规则:
-  - 配置文件 (*.config.ts) 使用 `tsconfig.node.json`
-  - 源代码 (src/**/*.ts) 使用 `tsconfig.app.json`
+  - 配置文件 (\*.config.ts) 使用 `tsconfig.node.json`
+  - 源代码 (src/\*_/_.ts) 使用 `tsconfig.app.json`
   - Vue 文件不启用类型感知检查(由 vue-tsc 负责)
   - 测试文件放宽部分规则
 - 当前状态: 0 错误, ~400 警告(渐进式改进中)
 
 **Prettier** (`.prettierrc.json`):
+
 - 统一代码格式规范
 - 配置: 无分号、单引号、100 字符行宽、尾随逗号
 - 忽略文件: `dist/`, `node_modules/`, `chaospace-extension/`, 测试 fixtures
 
 **TypeScript** (`tsconfig.app.json`, `tsconfig.node.json`):
+
 - 应用代码使用 `@tsconfig/strictest` 严格模式
 - 配置文件和测试使用独立的 tsconfig
 - 支持 Vue 单文件组件类型检查
@@ -534,16 +543,19 @@ chrome.tabs.sendMessage(tabId, {
 ### 配置文件
 
 **代码质量工具配置**:
+
 - `eslint.config.mjs` - ESLint 9.x 扁平化配置,支持 TypeScript/Vue/JavaScript
 - `.prettierrc.json` - Prettier 格式化规则(无分号、单引号、100 字符行宽)
 - `.prettierignore` - Prettier 忽略文件列表(dist、node_modules、fixtures 等)
 
 **TypeScript 配置**:
+
 - `tsconfig.json` - 项目根配置(引用子配置)
 - `tsconfig.app.json` - 应用代码配置(src/ 目录,使用 @tsconfig/strictest)
-- `tsconfig.node.json` - 配置文件和测试配置(*.config.ts、tests/)
+- `tsconfig.node.json` - 配置文件和测试配置(\*.config.ts、tests/)
 
 **构建与测试配置**:
+
 - `vite.config.ts` - Vite 构建配置(多入口、Vue 插件、扩展构建)
 - `vitest.config.ts` - Vitest 单元测试配置
 - `playwright.config.ts` - Playwright E2E 测试配置

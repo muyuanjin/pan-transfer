@@ -3,8 +3,6 @@ import {
   STORAGE_KEY,
   POSITION_KEY,
   SIZE_KEY,
-  DEFAULT_PRESETS,
-  MAX_LOG_ENTRIES,
   HISTORY_KEY,
   CACHE_KEY,
   HISTORY_BATCH_RATE_LIMIT_MS,
@@ -19,6 +17,8 @@ import {
   PAN_DISK_BASE_URL,
 } from './constants'
 import { state, panelDom, detailDom } from './state'
+import { createLoggingController } from './controllers/logging-controller'
+import { createPanelPreferencesController } from './controllers/panel-preferences'
 import {
   analyzePage,
   getPageClassification,
@@ -53,16 +53,12 @@ import { prepareHistoryRecords } from './services/history-service'
 
 import { createResourceListRenderer } from './components/resource-list'
 import { createHistoryController } from './history/controller'
-import {
-  createSettingsModal,
-  clampHistoryRateLimit,
-  sanitizePreset,
-} from './components/settings-modal'
+import { createSettingsModal, clampHistoryRateLimit } from './components/settings-modal'
 import { mountPanelShell } from './components/panel'
 import { showToast } from './components/toast'
 import { installZoomPreview } from './components/zoom-preview'
 import { disableElementDrag } from './utils/dom'
-import { safeStorageGet, safeStorageSet, safeStorageRemove } from './utils/storage'
+import { safeStorageSet, safeStorageRemove } from './utils/storage'
 import { formatOriginLabel, sanitizeCssUrl } from './utils/format'
 import { extractCleanTitle } from './utils/title'
 import { summarizeSeasonCompletion } from '../shared/utils/completion-status'
@@ -94,6 +90,35 @@ const panelState = {
   lastKnownPosition: { left: 16, top: 16 },
   getPanelBounds: null,
 }
+
+const { resetLogs, pushLog, setStatus, renderStatus, renderLogs } = createLoggingController({
+  state,
+  panelDom,
+  document,
+})
+
+installZoomPreview()
+
+const {
+  loadSettings,
+  saveSettings,
+  ensurePreset,
+  removePreset,
+  setBaseDir,
+  renderPresets,
+  renderPathPreview,
+  applyPanelTheme,
+  setTheme,
+} = createPanelPreferencesController({
+  state,
+  panelDom,
+  document,
+  getFloatingPanel: () => floatingPanel,
+  renderSeasonHint,
+  updateSeasonExampleDir,
+  getTargetPath,
+  showToast,
+})
 
 function handleDocumentPointerDown(event) {
   if (!floatingPanel || panelState.isPinned) {
@@ -185,281 +210,6 @@ function updatePanelHeader() {
   }
 }
 
-function isDefaultDirectory(value) {
-  const normalized = normalizeDir(value)
-  return normalized === '/' || DEFAULT_PRESETS.includes(normalized)
-}
-
-async function loadSettings() {
-  try {
-    const stored = await safeStorageGet(STORAGE_KEY, 'settings')
-    const settings = stored[STORAGE_KEY] || {}
-    if (typeof settings.baseDir === 'string') {
-      const normalizedBase = normalizeDir(settings.baseDir)
-      state.baseDir = normalizedBase
-      state.baseDirLocked = !isDefaultDirectory(normalizedBase)
-    } else {
-      state.baseDir = '/'
-      state.baseDirLocked = false
-    }
-    state.autoSuggestedDir = null
-    state.classification = 'unknown'
-    state.classificationDetails = null
-    if (typeof settings.useTitleSubdir === 'boolean') {
-      state.useTitleSubdir = settings.useTitleSubdir
-    }
-    if (typeof settings.useSeasonSubdir === 'boolean') {
-      state.useSeasonSubdir = settings.useSeasonSubdir
-      state.hasSeasonSubdirPreference = true
-    }
-    if (Array.isArray(settings.presets)) {
-      const merged = [...settings.presets, ...DEFAULT_PRESETS].map(sanitizePreset).filter(Boolean)
-      const unique = Array.from(new Set(merged))
-      state.presets = unique
-    } else {
-      state.presets = [...DEFAULT_PRESETS]
-    }
-    if (settings.theme === 'light' || settings.theme === 'dark') {
-      state.theme = settings.theme
-    }
-    const rateLimitMs = Number(settings.historyRateLimitMs)
-    if (Number.isFinite(rateLimitMs)) {
-      state.historyRateLimitMs = clampHistoryRateLimit(rateLimitMs)
-    } else {
-      state.historyRateLimitMs = HISTORY_BATCH_RATE_LIMIT_MS
-    }
-  } catch (error) {
-    console.error('[Chaospace Transfer] Failed to load settings', error)
-  }
-}
-
-async function saveSettings() {
-  const settings = {
-    baseDir: state.baseDir,
-    useTitleSubdir: state.useTitleSubdir,
-    presets: state.presets,
-    theme: state.theme,
-    historyRateLimitMs: clampHistoryRateLimit(state.historyRateLimitMs),
-  }
-  if (state.hasSeasonSubdirPreference) {
-    settings.useSeasonSubdir = state.useSeasonSubdir
-  }
-  await safeStorageSet(
-    {
-      [STORAGE_KEY]: settings,
-    },
-    'settings',
-  )
-}
-
-function ensurePreset(value) {
-  const preset = sanitizePreset(value)
-  if (!preset) {
-    return null
-  }
-  if (!state.presets.includes(preset)) {
-    state.presets = [...state.presets, preset]
-    saveSettings()
-  }
-  return preset
-}
-
-function removePreset(value) {
-  const preset = sanitizePreset(value)
-  if (!preset || preset === '/' || DEFAULT_PRESETS.includes(preset)) {
-    return
-  }
-  const before = state.presets.length
-  state.presets = state.presets.filter((item) => item !== preset)
-  if (state.presets.length === before) {
-    return
-  }
-  if (state.baseDir === preset) {
-    setBaseDir('/', { fromPreset: true })
-  } else {
-    saveSettings()
-    renderPresets()
-  }
-  showToast('info', '已移除路径', `${preset} 已从收藏中移除`)
-}
-
-installZoomPreview()
-
-function formatStageLabel(stage) {
-  if (!stage) {
-    return '📡 进度'
-  }
-  const stageKey = String(stage)
-  const base = stageKey.split(':')[0] || stageKey
-  const labels = {
-    bstToken: '🔐 bdstoken',
-    list: '📂 列表',
-    verify: '✅ 验证',
-    transfer: '🚚 转存',
-    item: '🎯 项目',
-    bootstrap: '⚙️ 启动',
-    prepare: '🧭 准备',
-    dispatch: '📤 派发',
-    summary: '🧮 汇总',
-    complete: '✅ 完成',
-    fatal: '💥 故障',
-    init: '🚦 初始化',
-    error: '⛔ 错误',
-  }
-  return labels[stageKey] || labels[base] || stageKey
-}
-
-function resetLogs() {
-  state.logs = []
-  renderLogs()
-}
-
-function pushLog(message, { level = 'info', detail = '', stage = '' } = {}) {
-  const lastEntry = state.logs[state.logs.length - 1]
-  if (
-    lastEntry &&
-    lastEntry.message === message &&
-    lastEntry.stage === stage &&
-    lastEntry.detail === detail &&
-    lastEntry.level === level
-  ) {
-    return
-  }
-  const entry = {
-    id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-    message,
-    detail,
-    level,
-    stage,
-  }
-  state.logs = [...state.logs.slice(-(MAX_LOG_ENTRIES - 1)), entry]
-  renderLogs()
-}
-
-function renderLogs() {
-  if (!panelDom.logList) {
-    return
-  }
-  const list = panelDom.logList
-  list.innerHTML = ''
-
-  if (!state.logs.length) {
-    panelDom.logContainer?.classList.add('is-empty')
-    return
-  }
-
-  panelDom.logContainer?.classList.remove('is-empty')
-
-  state.logs.forEach((entry) => {
-    const li = document.createElement('li')
-    li.className = `chaospace-log-item chaospace-log-${entry.level}`
-    li.dataset.logId = entry.id
-    li.dataset.stage = entry.stage || ''
-    const stageLabel = formatStageLabel(entry.stage)
-    li.innerHTML = `
-        <span class="chaospace-log-stage">${stageLabel}</span>
-        <div class="chaospace-log-content">
-          <span class="chaospace-log-message">${entry.message}</span>
-          ${entry.detail ? `<span class="chaospace-log-detail">${entry.detail}</span>` : ''}
-        </div>
-      `
-    list.appendChild(li)
-    requestAnimationFrame(() => {
-      li.classList.add('is-visible')
-    })
-  })
-
-  const logWrapper = panelDom.logContainer
-  if (logWrapper) {
-    requestAnimationFrame(() => {
-      logWrapper.scrollTo({
-        top: logWrapper.scrollHeight,
-        behavior: 'smooth',
-      })
-    })
-  }
-}
-
-function setStatus(status, message) {
-  state.transferStatus = status
-  if (message) {
-    state.statusMessage = message
-  }
-  renderStatus()
-}
-
-function renderStatus() {
-  const emojiMap = {
-    idle: '🌙',
-    running: '⚙️',
-    success: '🎉',
-    error: '⚠️',
-  }
-  const emoji = emojiMap[state.transferStatus] || 'ℹ️'
-  if (panelDom.statusText) {
-    panelDom.statusText.innerHTML = `<span class="chaospace-status-emoji">${emoji}</span>${state.statusMessage}`
-  }
-
-  if (panelDom.resultSummary) {
-    if (!state.lastResult) {
-      panelDom.resultSummary.innerHTML = ''
-      panelDom.resultSummary.classList.add('is-empty')
-    } else {
-      panelDom.resultSummary.classList.remove('is-empty')
-      const title = state.lastResult.title || ''
-      const detail = state.lastResult.detail || ''
-      panelDom.resultSummary.innerHTML = `
-          <span class="chaospace-log-summary-title">${title}</span>
-          ${detail ? `<span class="chaospace-log-summary-detail">${detail}</span>` : ''}
-        `
-    }
-  }
-}
-
-function renderPathPreview() {
-  if (!panelDom.pathPreview) {
-    return
-  }
-  const targetPath = getTargetPath(state.baseDir, state.useTitleSubdir, state.pageTitle)
-  panelDom.pathPreview.innerHTML = `<span class="chaospace-path-label">📂 当前将保存到：</span><span class="chaospace-path-value">${targetPath}</span>`
-  updateSeasonExampleDir()
-  renderSeasonHint()
-}
-
-function renderPresets() {
-  if (!panelDom.presetList) {
-    return
-  }
-  panelDom.presetList.innerHTML = ''
-  const presets = Array.from(new Set(['/', ...state.presets]))
-  presets.forEach((preset) => {
-    const group = document.createElement('div')
-    group.className = 'chaospace-chip-group'
-
-    const selectBtn = document.createElement('button')
-    selectBtn.type = 'button'
-    selectBtn.className = `chaospace-chip-button${preset === state.baseDir ? ' is-active' : ''}`
-    selectBtn.dataset.action = 'select'
-    selectBtn.dataset.value = preset
-    selectBtn.textContent = preset
-    group.appendChild(selectBtn)
-
-    const isRemovable = preset !== '/' && !DEFAULT_PRESETS.includes(preset)
-    if (isRemovable) {
-      const removeBtn = document.createElement('button')
-      removeBtn.type = 'button'
-      removeBtn.className = 'chaospace-chip-remove'
-      removeBtn.dataset.action = 'remove'
-      removeBtn.dataset.value = preset
-      removeBtn.setAttribute('aria-label', `移除 ${preset}`)
-      removeBtn.textContent = '×'
-      group.appendChild(removeBtn)
-    }
-
-    panelDom.presetList.appendChild(group)
-  })
-}
-
 function updateTransferButton() {
   if (!panelDom.transferBtn || !panelDom.transferLabel) {
     return
@@ -476,32 +226,6 @@ function updateTransferButton() {
     : count > 0
       ? `转存选中 ${count} 项`
       : '请选择资源'
-}
-
-function applyPanelTheme() {
-  const isLight = state.theme === 'light'
-  document.documentElement.classList.toggle('chaospace-light-root', isLight)
-  if (floatingPanel) {
-    floatingPanel.classList.toggle('theme-light', isLight)
-  }
-  if (panelDom.themeToggle) {
-    const label = isLight ? '切换到深色主题' : '切换到浅色主题'
-    panelDom.themeToggle.textContent = isLight ? '🌙' : '🌞'
-    panelDom.themeToggle.setAttribute('aria-label', label)
-    panelDom.themeToggle.title = label
-  }
-}
-
-function setTheme(theme) {
-  if (theme !== 'light' && theme !== 'dark') {
-    return
-  }
-  if (state.theme === theme) {
-    return
-  }
-  state.theme = theme
-  applyPanelTheme()
-  saveSettings()
 }
 
 function updatePinButton() {
@@ -569,34 +293,6 @@ const {
   updateHistoryExpansion,
   renderHistoryDetail,
 } = historyController
-
-function setBaseDir(value, { fromPreset = false, persist = true, lockOverride = null } = {}) {
-  const normalized = normalizeDir(value)
-  state.baseDir = normalized
-  const shouldLock =
-    typeof lockOverride === 'boolean' ? lockOverride : !isDefaultDirectory(normalized)
-  state.baseDirLocked = shouldLock
-
-  if (panelDom.baseDirInput) {
-    if (panelDom.baseDirInput.value !== normalized) {
-      panelDom.baseDirInput.value = normalized
-    }
-    if (!shouldLock) {
-      delete panelDom.baseDirInput.dataset.dirty
-    }
-  }
-
-  if (fromPreset) {
-    // 选中 preset 时不立即追加, 但保持已存在
-    ensurePreset(normalized)
-  }
-
-  if (persist) {
-    saveSettings()
-  }
-  renderPresets()
-  renderPathPreview()
-}
 
 function applyAutoBaseDir(classificationInput, { persist = false } = {}) {
   const detail =

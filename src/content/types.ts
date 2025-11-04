@@ -3,6 +3,18 @@ import type { PosterInfo } from '@/shared/utils/sanitizers'
 import type { HistoryRecord as SharedHistoryRecord } from '@/shared/types/transfer'
 import type { HistoryFilter as HistoryFilterOption } from './constants'
 
+export type LogLevel = 'info' | 'success' | 'warning' | 'error' | (string & {})
+
+export interface LogEntry {
+  id: string
+  message: string
+  detail?: string
+  level: LogLevel
+  stage?: string
+}
+
+export type TransferStatus = 'idle' | 'running' | 'success' | 'error'
+
 export type HistoryFilter = HistoryFilterOption
 
 export interface HistoryCompletion extends CompletionStatus {}
@@ -152,8 +164,8 @@ export interface ContentState {
   poster: PosterInfo | null
   origin: string
   jobId: string | null
-  logs: unknown[]
-  transferStatus: string
+  logs: LogEntry[]
+  transferStatus: TransferStatus
   lastResult: unknown
   statusMessage: string
   theme: string
