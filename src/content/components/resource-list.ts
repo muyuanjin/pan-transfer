@@ -3,13 +3,13 @@ import ResourceListView, {
   type ResourceListItemView,
   type ResourceBadgeView,
 } from './ResourceListView.vue'
-import type { ContentState, ResourceItem } from '../types'
+import type { ContentState, ResourceItem, PanelDomRefs } from '../types'
 
-export interface ResourceListPanelDom {
+export type ResourceListPanelDom = Pick<
+  PanelDomRefs,
+  'resourceSummary' | 'resourceTitle' | 'itemsContainer'
+> & {
   [key: string]: HTMLElement | null | undefined
-  resourceSummary?: HTMLElement | null
-  resourceTitle?: HTMLElement | null
-  itemsContainer?: HTMLElement | null
 }
 
 export interface ResourceListRendererParams {

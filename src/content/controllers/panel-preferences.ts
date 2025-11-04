@@ -3,6 +3,7 @@ import { normalizeDir } from '../services/page-analyzer'
 import { clampHistoryRateLimit, sanitizePreset } from '../components/settings-modal'
 import { safeStorageGet, safeStorageSet } from '../utils/storage'
 import type { ContentState, PanelDomRefs } from '../types'
+import type { ToastHandler } from '../components/toast'
 
 interface PanelPreferencesDeps {
   state: ContentState
@@ -12,7 +13,7 @@ interface PanelPreferencesDeps {
   renderSeasonHint: () => void
   updateSeasonExampleDir: () => void
   getTargetPath: (baseDir: string, useTitleSubdir: boolean, pageTitle: string) => string
-  showToast: (type: string, title: string, message?: string, stats?: unknown) => void
+  showToast: ToastHandler
 }
 
 interface StoredSettings {

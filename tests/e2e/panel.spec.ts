@@ -1,4 +1,11 @@
-import { test as base, expect, chromium, type BrowserContext, type Page } from '@playwright/test'
+import {
+  test as base,
+  expect,
+  chromium,
+  type BrowserContext,
+  type Page,
+  type ConsoleMessage,
+} from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -7,6 +14,93 @@ const EXTENSION_ARGS = (extensionPath: string) => [
   `--disable-extensions-except=${extensionPath}`,
   `--load-extension=${extensionPath}`,
 ]
+
+const PANEL_SELECTOR = '.chaospace-panel-host .chaospace-float-panel'
+const PANEL_RENDER_TIMEOUT = 30000
+const CHAOSPACE_LOG_PREFIX = '[Chaospace Transfer]'
+
+type ChaospaceErrorTracker = {
+  consoleErrors: string[]
+  runtimeErrors: string[]
+  waitForFirstChaospaceError: () => Promise<never>
+  stopEarlyAbort: () => void
+  dispose: () => void
+  formatCollectedErrors: (headline: string) => string
+}
+
+const createChaospaceErrorTracker = (page: Page): ChaospaceErrorTracker => {
+  const consoleErrors: string[] = []
+  const runtimeErrors: string[] = []
+  let abortReject: ((error: Error) => void) | null = null
+  let earlyAbortActive = true
+  let earlyAbortHandled = false
+
+  const earlyAbortPromise = new Promise<never>((_, reject) => {
+    abortReject = reject
+  })
+
+  const formatCollectedErrors = (headline: string) => {
+    const consoleChunk = consoleErrors.length ? consoleErrors.join('\n') : 'none'
+    const runtimeChunk = runtimeErrors.length ? runtimeErrors.join('\n') : 'none'
+    return `${headline}\n\nConsole errors:\n${consoleChunk}\n\nRuntime errors:\n${runtimeChunk}`
+  }
+
+  const hasChaospaceError = () =>
+    consoleErrors.some((entry) => entry.includes(CHAOSPACE_LOG_PREFIX)) ||
+    runtimeErrors.some((entry) => entry.includes(CHAOSPACE_LOG_PREFIX))
+
+  const maybeAbort = () => {
+    if (!earlyAbortActive || !abortReject) return
+    if (hasChaospaceError()) {
+      earlyAbortActive = false
+      abortReject(
+        new Error(
+          formatCollectedErrors('Chaospace Transfer emitted an error while waiting for the panel'),
+        ),
+      )
+    }
+  }
+
+  const consoleListener = (message: ConsoleMessage) => {
+    if (message.type() !== 'error') return
+    const location = message.location()
+    consoleErrors.push(
+      `[${location.url || 'unknown'}:${location.lineNumber ?? '-'}] ${message.text()}`,
+    )
+    maybeAbort()
+  }
+
+  const pageErrorListener = (error: Error) => {
+    runtimeErrors.push(error.stack ?? error.message)
+    maybeAbort()
+  }
+
+  page.on('console', consoleListener)
+  page.on('pageerror', pageErrorListener)
+
+  const stopEarlyAbort = () => {
+    if (earlyAbortHandled) return
+    earlyAbortActive = false
+    earlyAbortHandled = true
+    earlyAbortPromise.catch(() => {})
+  }
+
+  return {
+    consoleErrors,
+    runtimeErrors,
+    waitForFirstChaospaceError: () => {
+      maybeAbort()
+      return earlyAbortPromise
+    },
+    stopEarlyAbort,
+    dispose: () => {
+      stopEarlyAbort()
+      page.off('console', consoleListener)
+      page.off('pageerror', pageErrorListener)
+    },
+    formatCollectedErrors,
+  }
+}
 
 type Fixtures = {
   context: BrowserContext
@@ -58,60 +152,63 @@ test.describe('Chaospace panel overlay', () => {
     test(`renders without Chaospace Transfer errors for ${targetUrl}`, async ({
       page,
     }, testInfo) => {
-      const consoleErrors: string[] = []
-      const pageErrors: string[] = []
+      const errorTracker = createChaospaceErrorTracker(page)
 
-      page.on('console', (message) => {
-        if (message.type() === 'error') {
-          const location = message.location()
-          consoleErrors.push(
-            `[${location.url || 'unknown'}:${location.lineNumber ?? '-'}] ${message.text()}`,
-          )
+      try {
+        await page.goto(targetUrl, { waitUntil: 'domcontentloaded' })
+        // 使用 load 而非 networkidle,避免等待所有网络请求完成(可能永远无法满足)
+        await page.waitForLoadState('load', { timeout: 20000 }).catch(() => {})
+
+        const panelLocator = page.locator(PANEL_SELECTOR)
+        const waitForPanelRender = async () => {
+          try {
+            await expect(panelLocator, 'Chaospace panel should render on the page').toBeVisible({
+              timeout: PANEL_RENDER_TIMEOUT,
+            })
+          } catch (error) {
+            throw new Error(
+              errorTracker.formatCollectedErrors(
+                'Chaospace panel failed to render before timing out',
+              ),
+            )
+          }
         }
-      })
 
-      page.on('pageerror', (error) => {
-        pageErrors.push(error.message)
-      })
+        await Promise.race([waitForPanelRender(), errorTracker.waitForFirstChaospaceError()])
+        errorTracker.stopEarlyAbort()
 
-      await page.goto(targetUrl, { waitUntil: 'domcontentloaded' })
-      // 使用 load 而非 networkidle,避免等待所有网络请求完成(可能永远无法满足)
-      await page.waitForLoadState('load', { timeout: 20000 }).catch(() => {})
+        await expect(
+          page.locator('.chaospace-assistant-badge'),
+          'Panel badge should promote the Chaospace assistant',
+        ).toContainText('CHAOSPACE 转存助手')
 
-      const panelLocator = page.locator('.chaospace-panel-host .chaospace-float-panel')
-      await expect(panelLocator, 'Chaospace panel should render on the page').toBeVisible({
-        timeout: 30000, // 降低等待时间,从 45s 到 30s
-      })
+        // 等待面板动画完成(chaospace-panel-in 持续 0.35s)
+        // 额外等待一些时间确保 animationend 事件触发并添加 is-mounted 类
+        await page.waitForTimeout(500)
 
-      await expect(
-        page.locator('.chaospace-assistant-badge'),
-        'Panel badge should promote the Chaospace assistant',
-      ).toContainText('CHAOSPACE 转存助手')
+        const panelIsMounted = await panelLocator.evaluate((panel) =>
+          panel.classList.contains('is-mounted'),
+        )
+        expect(panelIsMounted, 'Panel should be fully mounted (has `is-mounted` class)').toBe(true)
 
-      // 等待面板动画完成(chaospace-panel-in 持续 0.35s)
-      // 额外等待一些时间确保 animationend 事件触发并添加 is-mounted 类
-      await page.waitForTimeout(500)
+        const chaospaceConsoleErrors = errorTracker.consoleErrors.filter((entry) =>
+          entry.includes(CHAOSPACE_LOG_PREFIX),
+        )
+        expect(
+          chaospaceConsoleErrors,
+          errorTracker.formatCollectedErrors('Expected no Chaospace Transfer console errors'),
+        ).toHaveLength(0)
 
-      const panelIsMounted = await panelLocator.evaluate((panel) =>
-        panel.classList.contains('is-mounted'),
-      )
-      expect(panelIsMounted, 'Panel should be fully mounted (has `is-mounted` class)').toBe(true)
-
-      const chaospaceConsoleErrors = consoleErrors.filter((entry) =>
-        entry.includes('[Chaospace Transfer]'),
-      )
-      expect(
-        chaospaceConsoleErrors,
-        `Expected no Chaospace Transfer console errors, but got:\n${chaospaceConsoleErrors.join('\n')}`,
-      ).toHaveLength(0)
-
-      const chaospaceRuntimeErrors = pageErrors.filter((message) =>
-        message.includes('[Chaospace Transfer]'),
-      )
-      expect(
-        chaospaceRuntimeErrors,
-        `Expected no Chaospace Transfer runtime errors, but got:\n${chaospaceRuntimeErrors.join('\n')}`,
-      ).toHaveLength(0)
+        const chaospaceRuntimeErrors = errorTracker.runtimeErrors.filter((message) =>
+          message.includes(CHAOSPACE_LOG_PREFIX),
+        )
+        expect(
+          chaospaceRuntimeErrors,
+          errorTracker.formatCollectedErrors('Expected no Chaospace Transfer runtime errors'),
+        ).toHaveLength(0)
+      } finally {
+        errorTracker.dispose()
+      }
     })
   }
 })

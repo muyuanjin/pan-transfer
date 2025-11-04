@@ -7,33 +7,7 @@
 - Keep reusable helpers close to their consumers; create subfolders inside `src/` only when the code is shared by multiple scripts.
 - Store temporary assets or reference captures under `src/public/` (for build assets) or `chaospace-extension/assets/` when validating legacy behaviour. Avoid committing large binaries.
 
-## Build, Test, and Development Commands
-
-### 快速开发流程
-
-- **开发模式**: `npm run dev` - 启动 Vite 监听模式,自动重新构建
-- **类型检查**: `npm run typecheck` - 运行 vue-tsc 检查 TypeScript 类型
-- **代码质量检查**: `npm run lint` - 运行 ESLint 检查代码问题
-- **自动修复**: `npm run lint:fix` - 自动修复可修复的 ESLint 问题
-- **代码格式化**: `npm run format` - 使用 Prettier 格式化所有代码
-- **格式检查**: `npm run format:check` - 检查代码格式是否符合规范
-- **生产构建**: `npm run build` - 构建生产版本到 `dist/`
-- **单元测试**: `npm run test` - 运行 Vitest 单元测试
-- **E2E 测试**: `npm run e2e` - 运行 Playwright 端到端测试
-- **完整检查**: `npm run check` - 运行完整的质量检查流程
-
-### 完整质量检查流程
-
-运行 `npm run check` 会按顺序执行以下步骤:
-
-1. **类型检查** (`npm run typecheck`) - 确保 TypeScript 类型正确
-2. **代码质量** (`npm run lint`) - 检查代码规范和潜在问题
-3. **格式检查** (`npm run format:check`) - 验证代码格式一致性
-4. **构建** (`npm run build`) - 构建生产版本
-5. **单元测试** (`npm run test`) - 运行所有单元测试
-6. **E2E 测试** (`npm run e2e`) - 运行浏览器端到端测试
-
-**重要**: 提交代码前务必运行 `npm run check` 确保所有检查通过。
+## **重要**: 提交代码/任务结束前务必按顺序依次运行 `npm run typecheck`、`npm run format`、`npm run build`、`npm run test`、`npm run e2e` 确保所有检查通过。(由于输出可能会被截断,你要确保至少`npm run e2e`是独立运行的,这是最终最重要的测试,务必通过)
 
 ### 修复代码问题的推荐流程
 
@@ -50,12 +24,6 @@ npm run typecheck
 # 4. 运行完整检查
 npm run check
 ```
-
-### 浏览器加载与测试
-
-- Load `dist/` in Chrome via `chrome://extensions` → Load unpacked for day-to-day verification. Only load `chaospace-extension/` when you explicitly need to compare legacy behaviour.
-- Use `web-ext lint --source-dir dist` to lint the refactored build. If you must lint legacy code paths, point the command at `chaospace-extension/`.
-- Package the built extension with `zip -r chaospace-extension.zip dist` after confirming parity.
 
 ## Coding Style & Naming Conventions
 

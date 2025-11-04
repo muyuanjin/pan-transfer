@@ -14,8 +14,9 @@ import {
 import { panelDom, state } from '../state'
 import { normalizeDir } from '../services/page-analyzer'
 import type { PanelRuntimeState } from '../types'
+import type { ToastHandler } from './toast'
 
-type ToastFn = (type: string, title: string, message?: string, stats?: unknown) => void
+type ToastFn = ToastHandler
 type SafeStorageSetFn = (
   entries: Record<string, unknown>,
   contextLabel?: string,

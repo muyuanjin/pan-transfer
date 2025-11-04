@@ -255,6 +255,8 @@ export interface PanelDomRefs {
   transferSpinner?: HTMLElement | null
   resizeHandle?: HTMLElement | null
   statusText?: HTMLElement | null
+  openSettingsPanel?: () => void
+  closeSettingsPanel?: (options?: { restoreFocus?: boolean }) => void
   [key: string]: unknown
 }
 export type DetailDomRefs = Record<string, HTMLElement | null>

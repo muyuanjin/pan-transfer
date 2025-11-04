@@ -103,7 +103,7 @@ type SeasonEntryInternal = SeasonEntry & { lastHydratedAt?: number }
 
 interface ExtractPosterOptions {
   baseUrl?: string
-  fallbackAlt?: string
+  fallbackAlt?: string | null
   selectors?: string[]
 }
 

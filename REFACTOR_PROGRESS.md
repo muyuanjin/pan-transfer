@@ -208,12 +208,11 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 - Updated `src/content/index.js` to consume the new helpers (`filterHistoryGroups`, `normalizeHistoryFilter`, `canCheckHistoryGroup`, `isHistoryGroupCompleted`) and dropped the duplicated inline implementations.
 - Rebuilt via `npm run build` (2025-11-03 14:35 UTC-8) to confirm bundles still succeed after the history refactor.
 
-## Latest Session (2025-11-04, evening)
+## Latest Session (2025-11-04, late night)
 
-- Migrated the entire background stack to TypeScript: `api/baidu-pan`, `api/chaospace`, `common/constants|errors`, `services/{transfer,history}`, background `index`, storage helpers, and utility modules now live under `.ts` entries with shared types sourced from the new `src/background/types.ts` and `src/shared/types/transfer.ts`.
-- Ported `shared/utils/completion-status` and `shared/utils/chinese-numeral` to TypeScript, introduced richer value objects (`CompletionStatus`, `SeasonEntry`, poster typing), and replaced legacy JS imports across background/content with extension-less paths.
-- Added transitional `// @ts-nocheck` shielding to the oversized `parser-service.ts` while keeping build parity; all other migrated modules compile under `@tsconfig/strictest`.
-- Updated content-side imports (`page-analyzer`, `season-loader`, `settings-modal`, `index`) to consume the new TypeScript utilities, then ran `npm run typecheck` and `npm run build` (2025-11-04 18:20 UTC-8) — both finished green with the background bundle rebuilding successfully.
+- Extracted the remaining panel edge-hide + pin orchestration from `src/content/index.ts` into a typed controller (`controllers/panel-edge-controller.ts`), removing the last inline DOM/pointer globals from the entry script.
+- Converted `src/content/index.ts` into TypeScript, dropped `// @ts-nocheck`, and re-wired the new controller + panel shell handles so edge-hide, pinning, and document pointer events share the same typed runtime state.
+- Re-ran `npm run typecheck` (2025-11-04 23:40 UTC-8) to confirm the content bundle compiles cleanly after the refactor.
 
 ## Latest Session (2025-11-04, midday)
 

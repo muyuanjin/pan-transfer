@@ -1,8 +1,15 @@
-interface ToastStats {
+export interface ToastStats {
   success: number
   failed: number
   skipped: number
 }
+
+export type ToastHandler = (
+  type: string,
+  title: string,
+  message?: string | null,
+  stats?: ToastStats | null,
+) => void
 
 let currentToast: HTMLDivElement | null = null
 
