@@ -7,7 +7,7 @@ import {
   stripHtmlTags,
   extractCleanTitle,
   decodeHtmlEntities
-} from '../../shared/utils/sanitizers.js';
+} from '../../shared/utils/sanitizers.ts';
 import {
   createCompletionStatus,
   summarizeSeasonCompletion,

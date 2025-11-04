@@ -1,4 +1,4 @@
-export function sanitizeLink(href) {
+export function sanitizeLink(href: string | null | undefined): string {
   if (!href) {
     return '';
   }
@@ -8,7 +8,7 @@ export function sanitizeLink(href) {
   return link;
 }
 
-export function decodeHtmlEntities(input) {
+export function decodeHtmlEntities(input: string | null | undefined): string {
   if (!input || typeof input !== 'string') {
     return '';
   }
@@ -31,11 +31,11 @@ export function decodeHtmlEntities(input) {
     });
 }
 
-export function stripHtmlTags(input) {
+export function stripHtmlTags(input: string | null | undefined): string {
   return decodeHtmlEntities((input || '').replace(/<[^>]*>/g, ' ')).replace(/\s+/g, ' ').trim();
 }
 
-export function extractCleanTitle(rawTitle) {
+export function extractCleanTitle(rawTitle: string | null | undefined): string {
   if (!rawTitle) return '未命名资源';
 
   let title = rawTitle.trim();
@@ -49,7 +49,17 @@ export function extractCleanTitle(rawTitle) {
   return title || '未命名资源';
 }
 
-export function sanitizePosterInfo(input) {
+export interface PosterInfo {
+  src: string;
+  alt: string;
+}
+
+type PosterInput = {
+  src?: unknown;
+  alt?: unknown;
+} | null | undefined;
+
+export function sanitizePosterInfo(input: PosterInput): PosterInfo | null {
   if (!input || typeof input !== 'object') {
     return null;
   }

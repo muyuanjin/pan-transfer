@@ -21,7 +21,7 @@ import {
   TRANSFER_RETRYABLE_ERRNOS
 } from '../common/constants.js';
 import { normalizePath } from '../utils/path.js';
-import { sanitizeLink } from '../../shared/utils/sanitizers.js';
+import { sanitizeLink } from '../../shared/utils/sanitizers.ts';
 import { buildSurl } from '../utils/share.js';
 
 let progressHandlers = {

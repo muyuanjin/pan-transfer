@@ -1,299 +1,11 @@
+import { createApp } from 'vue';
+import PanelRoot from './PanelRoot.vue';
 import { disableElementDrag } from '../utils/dom.js';
 import { safeStorageGet, safeStorageSet } from '../utils/storage.js';
 
 const PANEL_MARGIN = 16;
 const PANEL_MIN_WIDTH = 360;
 const PANEL_MIN_HEIGHT = 380;
-
-function panelTemplate({ pageTitle, originLabel }) {
-  const safeTitle = pageTitle || '等待选择剧集';
-  const subtitle = originLabel ? `来源 ${originLabel}` : '未检测到页面来源';
-  return `
-    <div class="chaospace-float-header">
-      <div class="chaospace-header-art is-empty" data-role="header-art"></div>
-      <div class="chaospace-header-actions">
-        <button
-          type="button"
-          class="chaospace-theme-toggle"
-          data-role="theme-toggle"
-          aria-label="切换主题"
-          title="切换主题"
-        >☀️</button>
-        <button
-          type="button"
-          class="chaospace-settings-toggle"
-          data-role="settings-toggle"
-          aria-label="打开设置"
-          title="插件设置"
-          aria-expanded="false"
-        >⚙️</button>
-        <button
-          type="button"
-          class="chaospace-float-pin"
-          data-role="pin-toggle"
-          title="固定面板"
-          aria-pressed="false"
-        >📌</button>
-      </div>
-      <div class="chaospace-header-content">
-        <img
-          class="chaospace-header-poster"
-          data-role="header-poster"
-          alt=""
-          loading="lazy"
-          decoding="async"
-          draggable="false"
-          style="display: none;"
-        />
-        <div class="chaospace-header-body">
-          <div class="chaospace-header-topline">
-            <span class="chaospace-assistant-badge">🚀 CHAOSPACE 转存助手</span>
-          </div>
-          <h2 class="chaospace-show-title" data-role="show-title">${safeTitle}</h2>
-          <p class="chaospace-show-subtitle" data-role="show-subtitle">${subtitle}</p>
-        </div>
-      </div>
-    </div>
-    <div class="chaospace-float-body">
-      <div class="chaospace-history-overlay" data-role="history-overlay" aria-hidden="true">
-        <div class="chaospace-history-overlay-header">
-          <div class="chaospace-history-overlay-title">🔖 转存历史</div>
-          <button
-            type="button"
-            class="chaospace-history-toggle"
-            data-role="history-toggle"
-            aria-expanded="false"
-            aria-label="收起转存历史"
-          >收起</button>
-        </div>
-        <div class="chaospace-history-controls" data-role="history-controls">
-          <div class="chaospace-history-tabs" data-role="history-tabs">
-            <button type="button" class="chaospace-history-tab is-active" data-filter="all">全部</button>
-            <button type="button" class="chaospace-history-tab" data-filter="series">剧集</button>
-            <button type="button" class="chaospace-history-tab" data-filter="ongoing">未完结</button>
-            <button type="button" class="chaospace-history-tab" data-filter="completed">已完结</button>
-            <button type="button" class="chaospace-history-tab" data-filter="movie">电影</button>
-          </div>
-          <div class="chaospace-history-toolbar" data-role="history-toolbar">
-            <label class="chaospace-history-select-all">
-              <input type="checkbox" data-role="history-select-all" />
-              <span>全选当前筛选结果</span>
-            </label>
-            <div class="chaospace-history-toolbar-actions">
-              <span class="chaospace-history-selection-count" data-role="history-selection-count">已选 0 项</span>
-              <button type="button" class="chaospace-history-primary-btn" data-role="history-batch-check" disabled>批量检测更新</button>
-              <button type="button" class="chaospace-history-ghost-btn" data-role="history-delete-selected" disabled>删除选中</button>
-              <button type="button" class="chaospace-history-ghost-btn" data-role="history-clear">清空历史</button>
-            </div>
-          </div>
-        </div>
-        <div class="chaospace-history-overlay-scroll">
-          <div class="chaospace-history-empty" data-role="history-empty">还没有转存记录</div>
-          <div class="chaospace-history-list" data-role="history-list"></div>
-        </div>
-      </div>
-      <div class="chaospace-settings-overlay" data-role="settings-overlay" aria-hidden="true">
-        <div class="chaospace-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="chaospace-settings-title">
-          <div class="chaospace-settings-header">
-            <div class="chaospace-settings-title" id="chaospace-settings-title">⚙️ 插件设置</div>
-            <button
-              type="button"
-              class="chaospace-settings-close"
-              data-role="settings-close"
-              aria-label="关闭设置"
-            >✕</button>
-          </div>
-          <form class="chaospace-settings-form" data-role="settings-form">
-            <section class="chaospace-settings-section">
-              <h3>目录策略</h3>
-              <div class="chaospace-settings-field">
-                <label class="chaospace-settings-label" for="chaospace-settings-base-dir">基础转存目录</label>
-                <input
-                  id="chaospace-settings-base-dir"
-                  type="text"
-                  placeholder="/视频/番剧"
-                  data-role="settings-base-dir"
-                />
-                <p class="chaospace-settings-hint">字符串 · 以 / 开头，作为所有转存记录的根目录。</p>
-              </div>
-              <div class="chaospace-settings-field">
-                <label class="chaospace-settings-checkbox" for="chaospace-settings-use-title">
-                  <input type="checkbox" id="chaospace-settings-use-title" data-role="settings-use-title" />
-                  <div>
-                    <span>按剧名创建子目录</span>
-                    <p class="chaospace-settings-hint">布尔值 · 勾选后使用当前页面标题作为子文件夹名称。</p>
-                  </div>
-                </label>
-                <label class="chaospace-settings-checkbox" for="chaospace-settings-use-season">
-                  <input type="checkbox" id="chaospace-settings-use-season" data-role="settings-use-season" />
-                  <div>
-                    <span>按季拆分子目录</span>
-                    <p class="chaospace-settings-hint">布尔值 · 勾选后为每季单独创建文件夹。</p>
-                  </div>
-                </label>
-              </div>
-              <div class="chaospace-settings-field">
-                <label class="chaospace-settings-label" for="chaospace-settings-presets">收藏路径列表</label>
-                <textarea
-                  id="chaospace-settings-presets"
-                  rows="4"
-                  data-role="settings-presets"
-                  placeholder="/视频/番剧&#10;/视频/影视"
-                ></textarea>
-                <p class="chaospace-settings-hint">字符串数组 · 每行一个路径，保存后自动去重并保留默认示例。</p>
-              </div>
-            </section>
-            <section class="chaospace-settings-section">
-              <h3>体验与限速</h3>
-              <div class="chaospace-settings-field">
-                <label class="chaospace-settings-label" for="chaospace-settings-theme">界面主题</label>
-                <select id="chaospace-settings-theme" data-role="settings-theme">
-                  <option value="dark">深色</option>
-                  <option value="light">浅色</option>
-                </select>
-                <p class="chaospace-settings-hint">枚举值 · 影响浮动面板的背景与文字样式。</p>
-              </div>
-              <div class="chaospace-settings-field">
-                <label class="chaospace-settings-label" for="chaospace-settings-history-rate">批量检测间隔（秒）</label>
-                <input
-                  id="chaospace-settings-history-rate"
-                  type="number"
-                  min="0.5"
-                  max="60"
-                  step="0.5"
-                  data-role="settings-history-rate"
-                />
-                <p class="chaospace-settings-hint">数字 · 控制批量刷新历史时的最小延迟，避免触发风控（0.5～60 秒）。</p>
-              </div>
-            </section>
-            <section class="chaospace-settings-section">
-              <h3>导入导出</h3>
-              <div class="chaospace-settings-row">
-                <div>
-                  <div class="chaospace-settings-row-title">导出设置</div>
-                  <p class="chaospace-settings-hint">生成 JSON，包含所有可保存的参数。</p>
-                </div>
-                <button type="button" data-role="settings-export-config">导出</button>
-              </div>
-              <div class="chaospace-settings-row">
-                <div>
-                  <div class="chaospace-settings-row-title">导出全部数据</div>
-                  <p class="chaospace-settings-hint">包含设置、转存历史、缓存与面板布局。</p>
-                </div>
-                <button type="button" data-role="settings-export-data">导出</button>
-              </div>
-              <div class="chaospace-settings-row">
-                <div>
-                  <div class="chaospace-settings-row-title">导入设置</div>
-                  <p class="chaospace-settings-hint">选择先前导出的设置 JSON，立即覆盖当前参数。</p>
-                </div>
-                <button type="button" data-role="settings-import-config-trigger">导入</button>
-              </div>
-              <div class="chaospace-settings-row">
-                <div>
-                  <div class="chaospace-settings-row-title">导入全部数据</div>
-                  <p class="chaospace-settings-hint">覆盖设置、历史、缓存与布局，用于完整迁移。</p>
-                </div>
-                <button type="button" data-role="settings-import-data-trigger">导入</button>
-              </div>
-              <div class="chaospace-settings-row">
-                <div>
-                  <div class="chaospace-settings-row-title">重置面板布局</div>
-                  <p class="chaospace-settings-hint">清理已保存的大小与位置，恢复默认摆放。</p>
-                </div>
-                <button type="button" data-role="settings-reset-layout">重置</button>
-              </div>
-            </section>
-            <div class="chaospace-settings-footer">
-              <button type="button" data-role="settings-cancel">取消</button>
-              <button type="submit" class="chaospace-settings-save">保存设置</button>
-            </div>
-            <input type="file" data-role="settings-import-config" accept="application/json" hidden />
-            <input type="file" data-role="settings-import-data" accept="application/json" hidden />
-          </form>
-        </div>
-      </div>
-      <div class="chaospace-float-main">
-        <div class="chaospace-float-columns">
-          <section class="chaospace-column chaospace-column-left">
-            <div class="chaospace-section-heading">
-              <div class="chaospace-section-title" data-role="resource-title"></div>
-              <div class="chaospace-section-caption" data-role="resource-summary"></div>
-            </div>
-            <div class="chaospace-season-tabs" data-role="season-tabs" hidden></div>
-            <div class="chaospace-toolbar">
-              <div class="chaospace-sort-group">
-                <label class="chaospace-sort-label">
-                  <span>排序</span>
-                  <select data-role="sort-key">
-                    <option value="page">默认顺序</option>
-                    <option value="title">标题</option>
-                  </select>
-                </label>
-                <button type="button" class="chaospace-order-btn" data-role="sort-order">正序</button>
-              </div>
-              <div class="chaospace-select-group">
-                <button type="button" data-action="select-all">全选</button>
-                <button type="button" data-action="select-invert">反选</button>
-                <button type="button" data-action="select-new">仅选新增</button>
-              </div>
-            </div>
-            <div class="chaospace-items-scroll" data-role="items"></div>
-          </section>
-          <section class="chaospace-column chaospace-column-right">
-            <div class="chaospace-card chaospace-path-card">
-              <div class="chaospace-card-title">📁 转存目录</div>
-              <div class="chaospace-card-body">
-                <div class="chaospace-preset-list" data-role="preset-list"></div>
-                <div class="chaospace-input-row">
-                  <input type="text" placeholder="/视频/番剧" data-role="base-dir" />
-                  <button type="button" data-role="add-preset">收藏路径</button>
-                </div>
-                <label class="chaospace-checkbox">
-                  <input type="checkbox" data-role="use-title" />
-                  <span>为本页创建子目录（推荐）</span>
-                </label>
-                <label class="chaospace-checkbox chaospace-season-checkbox" data-role="season-row" style="display: none;">
-                  <input type="checkbox" data-role="use-season" />
-                  <span>为每季创建子文件夹</span>
-                </label>
-                <div class="chaospace-path-preview" data-role="path-preview"></div>
-                <div class="chaospace-path-hint is-empty" data-role="season-path-hint"></div>
-              </div>
-            </div>
-            <div class="chaospace-card chaospace-status-card">
-              <div class="chaospace-card-title chaospace-log-header">
-                <span class="chaospace-log-title">📜 日志</span>
-                <div class="chaospace-log-summary is-empty" data-role="result-summary"></div>
-              </div>
-              <div class="chaospace-log-container" data-role="log-container">
-                <ul class="chaospace-log-list" data-role="log-list"></ul>
-              </div>
-            </div>
-          </section>
-        </div>
-      </div>
-      <div class="chaospace-float-footer">
-        <div class="chaospace-history-summary" data-role="history-summary">
-          <div class="chaospace-history-summary-body" data-role="history-summary-body"></div>
-        </div>
-        <div class="chaospace-transfer-card chaospace-footer-actions">
-          <button class="chaospace-float-btn chaospace-float-btn-compact" data-role="transfer-btn">
-            <span class="chaospace-btn-spinner" data-role="transfer-spinner"></span>
-            <span data-role="transfer-label">开始转存</span>
-            <span class="chaospace-btn-icon">🚀</span>
-          </button>
-        </div>
-      </div>
-    </div>
-    <div
-      class="chaospace-resize-handle"
-      data-role="resize-handle"
-      title="拖动调整面板大小"
-      aria-hidden="true"
-    ></div>
-  `;
-}
 
 export async function mountPanelShell({
   document,
@@ -315,11 +27,22 @@ export async function mountPanelShell({
   } = constants;
   const { POSITION_KEY, SIZE_KEY } = storageKeys;
 
-  const panel = document.createElement('div');
-  panel.className = `chaospace-float-panel chaospace-theme${theme === 'light' ? ' theme-light' : ''}`;
-  panel.innerHTML = panelTemplate({ pageTitle, originLabel });
+  const host = document.createElement('div');
+  host.className = 'chaospace-panel-host';
+  document.body.appendChild(host);
 
-  document.body.appendChild(panel);
+  const vueApp = createApp(PanelRoot, {
+    pageTitle,
+    originLabel,
+    theme
+  });
+  vueApp.mount(host);
+  const panel = host.querySelector('.chaospace-float-panel');
+  if (!(panel instanceof window.HTMLElement)) {
+    vueApp.unmount();
+    host.remove();
+    throw new Error('[Chaospace Transfer] Failed to mount floating panel');
+  }
 
   const handlePanelIntroEnd = (event) => {
     if (event.animationName === 'chaospace-panel-in') {
@@ -956,8 +679,9 @@ export async function mountPanelShell({
     panelState.showPanelFromEdge = null;
     panelState.beginEdgeAnimation = null;
     panelState.lastKnownSize = null;
-    if (panel.isConnected) {
-      panel.remove();
+    vueApp.unmount();
+    if (host.isConnected) {
+      host.remove();
     }
   };
 

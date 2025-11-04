@@ -13,7 +13,7 @@ import {
   mergeSeasonDirectoryMap,
   normalizeSeasonEntries
 } from '../../shared/utils/completion-status.js';
-import { sanitizePosterInfo } from '../../shared/utils/sanitizers.js';
+import { sanitizePosterInfo } from '../../shared/utils/sanitizers.ts';
 import { normalizePath } from '../utils/path.js';
 
 const nowTs = () => Date.now();
