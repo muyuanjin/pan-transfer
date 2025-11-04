@@ -2,26 +2,80 @@ import {
   DIRECTORY_LIST_PAGE_SIZE,
   PAN_BASE_HEADERS,
   TOKEN_TTL
-} from '../common/constants.js';
+} from '../common/constants';
 import {
   createLoginRequiredError,
   maybeHandleLoginRequired,
   redirectToBaiduLogin
-} from '../common/errors.js';
+} from '../common/errors';
 import {
   ensureCacheLoaded,
   getCachedDirectoryEntries,
   recordDirectoryCache,
   markDirectoryEnsured,
   isDirectoryEnsured
-} from '../storage/cache-store.js';
-import { normalizePath } from '../utils/path.js';
-import { buildSurl } from '../utils/share.js';
+} from '../storage/cache-store';
+import { normalizePath } from '../utils/path';
+import { buildSurl } from '../utils/share';
+import type { TransferRuntimeOptions } from '../types';
 
-let cachedBdstoken = null;
+interface VerifyShareResult {
+  errno: number;
+  message?: string;
+}
+
+export interface ShareMetadataSuccess {
+  shareId: string;
+  userId: string;
+  fsIds: number[];
+  fileNames: string[];
+}
+
+export type ShareMetadata = ShareMetadataSuccess | { error: number | string };
+
+interface DirectoryEntry {
+  server_filename?: string;
+}
+
+interface ShareMetadataPayload {
+  shareid?: string | number;
+  share_uk?: string | number;
+  file_list?: Array<{
+    fs_id?: number | string;
+    server_filename?: string;
+    isdir?: number;
+    size?: number;
+  }>;
+}
+
+export interface TransferShareMeta {
+  shareId: string;
+  userId: string;
+  fsIds: number[];
+}
+
+interface ListResponse {
+  errno: number;
+  list?: DirectoryEntry[];
+  has_more?: number | string;
+}
+
+interface VerifyResponse {
+  errno?: number;
+  show_msg?: string;
+  msg?: string;
+  tip?: string;
+  randsk?: string;
+}
+
+type FetchJsonOptions = RequestInit & {
+  headers?: Record<string, string>;
+};
+
+let cachedBdstoken: string | null = null;
 let cachedBdstokenAt = 0;
 
-function withPanHeaders(headers = {}, referer = 'https://pan.baidu.com/') {
+function withPanHeaders(headers: Record<string, string> = {}, referer = 'https://pan.baidu.com/'): Record<string, string> {
   return {
     ...PAN_BASE_HEADERS,
     Referer: referer,
@@ -29,11 +83,15 @@ function withPanHeaders(headers = {}, referer = 'https://pan.baidu.com/') {
   };
 }
 
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+function delay(ms: number): Promise<void> {
+  return new Promise<void>(resolve => setTimeout(resolve, ms));
 }
 
-async function fetchJson(url, options = {}, referer = 'https://pan.baidu.com/') {
+async function fetchJson<T = any>(
+  url: string,
+  options: FetchJsonOptions = {},
+  referer = 'https://pan.baidu.com/'
+): Promise<T> {
   const { headers, ...rest } = options;
   const response = await fetch(url, {
     credentials: 'include',
@@ -43,10 +101,10 @@ async function fetchJson(url, options = {}, referer = 'https://pan.baidu.com/') 
   if (!response.ok) {
     throw new Error(`请求失败：${response.status} ${response.statusText}`);
   }
-  return response.json();
+  return response.json() as Promise<T>;
 }
 
-export function getCookie(details) {
+export function getCookie(details: chrome.cookies.CookieDetails): Promise<chrome.cookies.Cookie | null> {
   return new Promise(resolve => {
     try {
       chrome.cookies.get(details, cookie => {
@@ -64,12 +122,12 @@ export function getCookie(details) {
   });
 }
 
-export async function hasPanLoginCookie() {
+export async function hasPanLoginCookie(): Promise<boolean> {
   const cookie = await getCookie({ url: 'https://pan.baidu.com/', name: 'BDUSS' });
   return Boolean(cookie && typeof cookie.value === 'string' && cookie.value);
 }
 
-export async function ensurePanSessionAvailable(context = '') {
+export async function ensurePanSessionAvailable(context = ''): Promise<void> {
   const hasLogin = await hasPanLoginCookie();
   if (!hasLogin) {
     redirectToBaiduLogin(context);
@@ -77,7 +135,7 @@ export async function ensurePanSessionAvailable(context = '') {
   }
 }
 
-export async function ensureBdstoken(force = false) {
+export async function ensureBdstoken(force = false): Promise<string> {
   const now = Date.now();
   if (!force && cachedBdstoken && now - cachedBdstokenAt < TOKEN_TTL) {
     return cachedBdstoken;
@@ -92,15 +150,21 @@ export async function ensureBdstoken(force = false) {
   }
   const html = await response.text();
   const match = html.match(/"bdstoken"\s*:\s*"([^"]+)"/);
-  if (!match) {
+  const token = match?.[1];
+  if (!token) {
     throw new Error('未获取到 bdstoken，请确认已登录百度网盘');
   }
-  cachedBdstoken = match[1];
+  cachedBdstoken = token;
   cachedBdstokenAt = now;
-  return cachedBdstoken;
+  return token;
 }
 
-export async function verifySharePassword(linkUrl, passCode, bdstoken, options = {}) {
+export async function verifySharePassword(
+  linkUrl: string,
+  passCode: string,
+  bdstoken: string,
+  options: TransferRuntimeOptions = {}
+): Promise<VerifyShareResult> {
   const { jobId, context = '', logStage } = options;
   const titleLabel = context ? `《${context}》` : '资源';
   if (!passCode) {
@@ -142,7 +206,7 @@ export async function verifySharePassword(linkUrl, passCode, bdstoken, options =
     body: body.toString(),
     credentials: 'include'
   });
-  const data = await response.json();
+  const data = await response.json() as VerifyResponse;
   if (typeof data.errno === 'number' && data.errno !== 0) {
     maybeHandleLoginRequired(data.errno, 'verify-share');
     const message = data.show_msg || data.msg || data.tip || '';
@@ -160,7 +224,7 @@ export async function verifySharePassword(linkUrl, passCode, bdstoken, options =
     return { errno: data.errno, message };
   }
   if (data.randsk) {
-    await new Promise(resolve => {
+    await new Promise<void>(resolve => {
       chrome.cookies.set(
         {
           url: 'https://pan.baidu.com/',
@@ -185,7 +249,12 @@ export async function verifySharePassword(linkUrl, passCode, bdstoken, options =
   return { errno: 0 };
 }
 
-export async function fetchShareMetadata(linkUrl, passCode, bdstoken, options = {}) {
+export async function fetchShareMetadata(
+  linkUrl: string,
+  passCode: string,
+  bdstoken: string,
+  options: TransferRuntimeOptions = {}
+): Promise<ShareMetadata> {
   const { jobId, context = '', logStage } = options;
   const titleLabel = context ? `《${context}》` : '资源';
   if (passCode) {
@@ -229,13 +298,20 @@ export async function fetchShareMetadata(linkUrl, passCode, bdstoken, options = 
     return { error: '未解析到分享元数据' };
   }
 
-  let meta;
+  const rawMeta = match[1];
+  if (!rawMeta) {
+    logStage?.(jobId, 'list', `${titleLabel}未解析到分享元数据内容`, { level: 'error' });
+    return { error: '未解析到分享元数据' };
+  }
+
+  let meta: ShareMetadataPayload;
   try {
-    meta = JSON.parse(match[1]);
+    meta = JSON.parse(rawMeta) as ShareMetadataPayload;
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error('[Chaospace Transfer] share metadata json parse failed', linkUrl, error);
-    logStage?.(jobId, 'list', `${titleLabel}解析分享元数据失败：${error.message}`, { level: 'error' });
-    return { error: `解析分享元数据失败：${error.message}` };
+    logStage?.(jobId, 'list', `${titleLabel}解析分享元数据失败：${message}`, { level: 'error' });
+    return { error: `解析分享元数据失败：${message}` };
   }
 
   const shareId = meta.shareid;
@@ -243,8 +319,8 @@ export async function fetchShareMetadata(linkUrl, passCode, bdstoken, options = 
   const fileList = Array.isArray(meta.file_list) ? meta.file_list : [];
 
   logStage?.(jobId, 'list', `${titleLabel}解析文件列表，共 ${fileList.length} 项`);
-  const fsIds = [];
-  const fileNames = [];
+  const fsIds: number[] = [];
+  const fileNames: string[] = [];
   for (const entry of fileList) {
     if (!entry) continue;
     if (entry.isdir === 0 && entry.size === 0) {
@@ -255,7 +331,9 @@ export async function fetchShareMetadata(linkUrl, passCode, bdstoken, options = 
       continue;
     }
     fsIds.push(numericId);
-    fileNames.push(entry.server_filename);
+    if (typeof entry.server_filename === 'string') {
+      fileNames.push(entry.server_filename);
+    }
   }
 
   if (!shareId) {
@@ -280,7 +358,11 @@ export async function fetchShareMetadata(linkUrl, passCode, bdstoken, options = 
   };
 }
 
-export async function checkDirectoryExists(path, bdstoken, options = {}) {
+export async function checkDirectoryExists(
+  path: string,
+  bdstoken: string,
+  options: TransferRuntimeOptions = {}
+): Promise<boolean> {
   const { jobId, context = '', logStage } = options;
   const normalized = normalizePath(path);
   if (normalized === '/') {
@@ -307,7 +389,7 @@ export async function checkDirectoryExists(path, bdstoken, options = {}) {
   const url = `https://pan.baidu.com/api/list?${params.toString()}`;
   const contextLabel = context ? `（${context}）` : '';
   logStage?.(jobId, 'list', `请求目录列表：${normalized}${contextLabel}`);
-  const data = await fetchJson(url, {}, 'https://pan.baidu.com/disk/home');
+  const data = await fetchJson<ListResponse>(url, {}, 'https://pan.baidu.com/disk/home');
   if (data.errno === 0) {
     logStage?.(jobId, 'list', `目录已就绪：${normalized}${contextLabel}`);
     return true;
@@ -335,7 +417,11 @@ export async function checkDirectoryExists(path, bdstoken, options = {}) {
   throw new Error(`查询目录失败(${normalized})：${data.errno}`);
 }
 
-export async function fetchDirectoryFileNames(path, bdstoken, options = {}) {
+export async function fetchDirectoryFileNames(
+  path: string,
+  bdstoken: string,
+  options: TransferRuntimeOptions = {}
+): Promise<Set<string>> {
   const { jobId, context = '', logStage } = options;
   const normalized = normalizePath(path);
   if (normalized === '/') {
@@ -351,7 +437,7 @@ export async function fetchDirectoryFileNames(path, bdstoken, options = {}) {
     return cached;
   }
 
-  const collected = new Set();
+  const collected = new Set<string>();
   let start = 0;
   const contextLabel = context ? `（${context}）` : '';
   while (true) {
@@ -371,7 +457,7 @@ export async function fetchDirectoryFileNames(path, bdstoken, options = {}) {
 
     const url = `https://pan.baidu.com/api/list?${params.toString()}`;
     logStage?.(jobId, 'list', `拉取目录条目：${normalized}${contextLabel} · 起始 ${start}`);
-    const data = await fetchJson(url, {}, 'https://pan.baidu.com/disk/home');
+    const data = await fetchJson<ListResponse & { list?: DirectoryEntry[] }>(url, {}, 'https://pan.baidu.com/disk/home');
     if (data.errno !== 0) {
       if (maybeHandleLoginRequired(data.errno, 'list-directory')) {
         throw createLoginRequiredError();
@@ -401,7 +487,11 @@ export async function fetchDirectoryFileNames(path, bdstoken, options = {}) {
   return new Set(collected);
 }
 
-export async function ensureDirectoryExists(path, bdstoken, options = {}) {
+export async function ensureDirectoryExists(
+  path: string,
+  bdstoken: string,
+  options: TransferRuntimeOptions = {}
+): Promise<string> {
   const { jobId, context = '', logStage } = options;
   const normalized = normalizePath(path);
   if (normalized === '/') {
@@ -467,7 +557,12 @@ export async function ensureDirectoryExists(path, bdstoken, options = {}) {
   return normalized;
 }
 
-export async function transferShare(meta, targetPath, bdstoken, referer) {
+export async function transferShare(
+  meta: TransferShareMeta,
+  targetPath: string,
+  bdstoken: string,
+  referer = 'https://pan.baidu.com/disk/home'
+): Promise<number> {
   const url = `https://pan.baidu.com/share/transfer?shareid=${encodeURIComponent(meta.shareId)}&from=${encodeURIComponent(meta.userId)}&bdstoken=${encodeURIComponent(bdstoken)}&channel=chunlei&web=1&clienttype=0`;
   const body = new URLSearchParams({
     fsidlist: JSON.stringify(meta.fsIds),
@@ -478,7 +573,7 @@ export async function transferShare(meta, targetPath, bdstoken, referer) {
     method: 'POST',
     headers: withPanHeaders({
       'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
-    }, referer || 'https://pan.baidu.com/disk/home'),
+    }, referer),
     credentials: 'include',
     body: body.toString()
   });

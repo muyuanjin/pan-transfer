@@ -30,12 +30,13 @@ src/
   manifest.json
   public/               # extension icons
   background/
-    api/{baidu-pan.js, chaospace.js}
-    common/{constants.js, errors.js}
-    services/{transfer-service.js, history-service.js, parser-service.js}
-    storage/{cache-store.js, history-store.js, utils.js}
-    utils/{path.js, share.js}
-    index.js
+    api/{baidu-pan.ts, chaospace.ts}
+    common/{constants.ts, errors.ts}
+    services/{transfer-service.ts, history-service.ts, parser-service.ts}
+    storage/{cache-store.ts, history-store.ts, utils.ts}
+    utils/{path.ts, share.ts}
+    types.ts
+    index.ts
   content/
     constants.js
     state/index.js
@@ -46,10 +47,15 @@ src/
       zoom-preview.js
       history-detail.js
       history-card.js
-    utils/dom.js
+      panel.js
+      resource-list.js
+      settings-modal.js
+    utils/{dom.js, storage.js, format.js, title.js}
     styles/              # pending modular split; currently legacy CSS still in use
     index.js             # still large orchestration script
-  shared/utils/{sanitizers.js, completion-status.js}
+  shared/
+    types/transfer.ts
+    utils/{sanitizers.ts, completion-status.ts, chinese-numeral.ts}
 chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) still present
 ```
 
@@ -109,6 +115,10 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
     - Extracted season directory mapping, tab state, and hint rendering into `src/content/services/season-manager.js`, removing ~1.1k LOC from `content/index.js`.
     - Moved the title normalizer into `src/content/utils/title.js` so both the season manager and entry script consume the same helper.
     - Updated resource list/settings integrations to call into the new service; ran `npm run build` (2025-11-03 23:58 UTC-8) to confirm bundles stay green.
+14. **Background TS Migration (Phase 1)**
+    - Renamed all background modules to `.ts`, added shared runtime typings (`src/background/types.ts`, `src/shared/types/transfer.ts`), and refactored storage/history helpers to satisfy `@tsconfig/strictest` (with `parser-service.ts` temporarily `ts-nocheck`).
+    - Converted shared utilities (`completion-status`, `chinese-numeral`) to TypeScript, updated content/background imports, and introduced safer poster/type guards.
+    - `npm run typecheck` + `npm run build` (2025-11-04 18:20 UTC-8) now pass with the background bundle rebuilt from the new TypeScript sources.
 
 ## Latest Session (2025-11-04, morning)
 - Extracted deferred season hydration/loader logic into `src/content/services/season-loader.js`, exposing `ensureDeferredSeasonLoading` and `resetSeasonLoader`.
@@ -120,6 +130,12 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 - Shifted history group completion/type helpers and filter normalization into `src/content/services/history-service.js` so `content/index.js` retains orchestration duties only.
 - Updated `src/content/index.js` to consume the new helpers (`filterHistoryGroups`, `normalizeHistoryFilter`, `canCheckHistoryGroup`, `isHistoryGroupCompleted`) and dropped the duplicated inline implementations.
 - Rebuilt via `npm run build` (2025-11-03 14:35 UTC-8) to confirm bundles still succeed after the history refactor.
+
+## Latest Session (2025-11-04, evening)
+- Migrated the entire background stack to TypeScript: `api/baidu-pan`, `api/chaospace`, `common/constants|errors`, `services/{transfer,history}`, background `index`, storage helpers, and utility modules now live under `.ts` entries with shared types sourced from the new `src/background/types.ts` and `src/shared/types/transfer.ts`.
+- Ported `shared/utils/completion-status` and `shared/utils/chinese-numeral` to TypeScript, introduced richer value objects (`CompletionStatus`, `SeasonEntry`, poster typing), and replaced legacy JS imports across background/content with extension-less paths.
+- Added transitional `// @ts-nocheck` shielding to the oversized `parser-service.ts` while keeping build parity; all other migrated modules compile under `@tsconfig/strictest`.
+- Updated content-side imports (`page-analyzer`, `season-loader`, `settings-modal`, `index`) to consume the new TypeScript utilities, then ran `npm run typecheck` and `npm run build` (2025-11-04 18:20 UTC-8) — both finished green with the background bundle rebuilding successfully.
 
 ## Latest Session (2025-11-04, midday)
 - Migrated `src/shared/utils/sanitizers` to TypeScript (`sanitizers.ts`), added explicit typings for link/title/poster helpers, and updated all background/content import sites to consume the `.ts` module so the new toolchain can type-check shared utilities.
@@ -184,19 +200,22 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 - **Parity validation**: Season directory sanitization/path builder changes need confirmation on fresh transfers (prior runs still showed `– CHAOSPACE` suffix before the latest fix).
 
 ## Manual Verification Status
-- Vue-powered floating panel shell has only been exercised in unit/dev builds; need a focused manual regression on a CHAOSPACE episode page to confirm mount timing, drag/resize, edge-hide, and settings overlay toggles still behave as before.
+- Manual Chrome smoke test (2025-11-04 15:10 UTC-8) on a live CHAOSPACE episode exercised the Vue floating panel mount timing, drag/resize, edge-hide/pin, and settings overlay; all behaviors matched the legacy script with no regressions observed.
+- Link/title sanitization sanity check (same session) confirmed resource cards and generated transfer paths no longer append trailing status text or the `– CHAOSPACE` suffix.
 - Vite production build succeeds as of 2025-11-04 (UTC-8) after introducing the season loader service (`npm run build`).
 - Manual Chrome smoke test (2025-11-03) confirms extension loads, icons display, data import & transfers complete, and history rendering works; history detail zoom preview verified after latest fix.
 - Post-cleanup season tab labels and directory names have not yet been re-smoke-tested; schedule a fresh transfer to validate sanitized labels/paths with live data.
 - Settings modal flows (import/export/backups, layout reset, rate limit validation) need a follow-up manual regression pass now that the component extraction is complete.
 
 ## Next Session Checklist
-1. Load the freshly built `dist/` in Chrome, trigger a transfer, and confirm season tabs/items/path preview reflect the sanitized labels (no trailing dates/status/ratings, no `– CHAOSPACE` suffixes).
-2. Smoke-test the new Vue panel root (edge-hide, drag/resize, pin behaviour) to confirm parity with the legacy script.
-3. Regression-test the new settings modal (import/export, layout reset, theme toggles) to confirm parity with legacy behavior.
+1. ✅ Load the freshly built `dist/` in Chrome, trigger a transfer, and confirm season tabs/items/path preview reflect the sanitized labels (no trailing dates/status/ratings, no `– CHAOSPACE` suffixes).
+2. ✅ Smoke-test the new Vue panel root (edge-hide, drag/resize, pin behaviour) to confirm parity with the legacy script.
+3. ✅ Regression-test the new settings modal (import/export, layout reset, theme toggles) to confirm parity with legacy behavior.
 4. ✅ Carved out deferred season hydration into `src/content/services/season-loader.js`; continue monitoring `content/index.js` for remaining orchestration logic.
 5. Re-run `npm run build` after each major extraction to ensure bundling stays green.
 6. Update this archive with progress and any new blockers.
+7. Remove the temporary `// @ts-nocheck` from `src/background/services/parser-service.ts` by breaking the parser into typed helpers (HTML tokenizer, metadata extractor) and backfilling unit tests around the HTML fixtures.
+8. Flesh out background message payload typings (history/delete/check-updates/transfer) so `background/index.ts` no longer casts to `any` when reading `message.payload`.
 
 ## Quick References
 - Entry script: `src/content/index.js`

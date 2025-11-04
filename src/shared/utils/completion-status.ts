@@ -1,7 +1,43 @@
-import { sanitizePosterInfo } from './sanitizers.js';
+import { sanitizePosterInfo, type PosterInfo } from './sanitizers';
 
-export function isDateLikeLabel(text) {
-  if (!text) {
+export type CompletionState = 'unknown' | 'ongoing' | 'completed' | 'upcoming';
+
+export interface CompletionStatus {
+  label: string;
+  state: CompletionState;
+  source?: string;
+  updatedAt?: number;
+}
+
+export type CompletionStatusInput = Partial<CompletionStatus> | null | undefined;
+
+export interface SeasonEntry {
+  seasonId: string;
+  url: string;
+  label: string;
+  seasonIndex: number;
+  completion: CompletionStatus | null;
+  loaded: boolean;
+  hasItems: boolean;
+  poster?: PosterInfo | null;
+  updatedAt?: number;
+}
+
+export type SeasonEntryInput = {
+  seasonId?: unknown;
+  id?: unknown;
+  url?: unknown;
+  label?: unknown;
+  seasonIndex?: unknown;
+  completion?: CompletionStatusInput;
+  loaded?: unknown;
+  hasItems?: unknown;
+  poster?: unknown;
+  updatedAt?: unknown;
+} | null | undefined;
+
+export function isDateLikeLabel(text: unknown): boolean {
+  if (typeof text !== 'string') {
     return false;
   }
   const normalized = text.trim();
@@ -17,7 +53,7 @@ export function isDateLikeLabel(text) {
   return false;
 }
 
-export function classifyCompletionState(label) {
+export function classifyCompletionState(label: unknown): CompletionState {
   if (label == null) return 'unknown';
   const text = String(label || '').trim();
   if (!text) return 'unknown';
@@ -39,12 +75,12 @@ export function classifyCompletionState(label) {
   return 'unknown';
 }
 
-export function createCompletionStatus(label, source = '') {
-  const text = (label || '').trim();
+export function createCompletionStatus(label: unknown, source = ''): CompletionStatus | null {
+  const text = typeof label === 'string' ? label.trim() : String(label || '').trim();
   if (!text) {
     return null;
   }
-  const status = {
+  const status: CompletionStatus = {
     label: text,
     state: classifyCompletionState(text)
   };
@@ -54,13 +90,15 @@ export function createCompletionStatus(label, source = '') {
   return status;
 }
 
-export function normalizeHistoryCompletion(entry) {
+export function normalizeHistoryCompletion(entry: CompletionStatusInput): CompletionStatus | null {
   if (!entry || typeof entry !== 'object') {
     return null;
   }
   const label = typeof entry.label === 'string' ? entry.label.trim() : '';
-  const state = typeof entry.state === 'string' && entry.state ? entry.state : classifyCompletionState(label);
-  const normalized = {
+  const state = typeof entry.state === 'string' && entry.state
+    ? entry.state as CompletionState
+    : classifyCompletionState(label);
+  const normalized: CompletionStatus = {
     label,
     state: state || 'unknown'
   };
@@ -73,12 +111,17 @@ export function normalizeHistoryCompletion(entry) {
   return normalized;
 }
 
-export function mergeCompletionStatus(existing, incoming, timestamp, sourceHint = '') {
+export function mergeCompletionStatus(
+  existing: CompletionStatus | null | undefined,
+  incoming: CompletionStatusInput,
+  timestamp?: number,
+  sourceHint = ''
+): CompletionStatus | null {
   const normalizedIncoming = normalizeHistoryCompletion(incoming);
   if (!normalizedIncoming) {
     return existing || null;
   }
-  const next = { ...normalizedIncoming };
+  const next: CompletionStatus = { ...normalizedIncoming };
   if (sourceHint && !next.source) {
     next.source = sourceHint;
   }
@@ -102,11 +145,13 @@ export function mergeCompletionStatus(existing, incoming, timestamp, sourceHint 
   return next;
 }
 
-export function normalizeSeasonCompletionMap(value) {
+export function normalizeSeasonCompletionMap(
+  value: Record<string, CompletionStatusInput> | null | undefined
+): Record<string, CompletionStatus> {
   if (!value || typeof value !== 'object') {
     return {};
   }
-  const result = {};
+  const result: Record<string, CompletionStatus> = {};
   Object.entries(value).forEach(([key, entry]) => {
     const normalized = normalizeHistoryCompletion(entry);
     if (normalized) {
@@ -116,8 +161,15 @@ export function normalizeSeasonCompletionMap(value) {
   return result;
 }
 
-export function mergeSeasonCompletionMap(current, updates, timestamp, sourceHint = '') {
-  const target = current && typeof current === 'object' ? current : {};
+export function mergeSeasonCompletionMap(
+  current: Record<string, CompletionStatus | undefined> | null,
+  updates: Record<string, CompletionStatusInput> | null | undefined,
+  timestamp?: number,
+  sourceHint = ''
+): Record<string, CompletionStatus> {
+  const target: Record<string, CompletionStatus> = current && typeof current === 'object'
+    ? { ...current } as Record<string, CompletionStatus>
+    : {};
   if (!updates || typeof updates !== 'object') {
     return target;
   }
@@ -130,11 +182,13 @@ export function mergeSeasonCompletionMap(current, updates, timestamp, sourceHint
   return target;
 }
 
-export function normalizeSeasonDirectoryMap(value) {
+export function normalizeSeasonDirectoryMap(
+  value: Record<string, unknown> | null | undefined
+): Record<string, string> {
   if (!value || typeof value !== 'object') {
     return {};
   }
-  const result = {};
+  const result: Record<string, string> = {};
   Object.entries(value).forEach(([key, dir]) => {
     if (typeof dir !== 'string') {
       return;
@@ -143,19 +197,22 @@ export function normalizeSeasonDirectoryMap(value) {
     if (!trimmed) {
       return;
     }
-    const safe = trimmed.replace(/[/\\]+/g, '/');
+    const safe = trimmed.replace(/[\/\\]+/g, '/');
     result[key] = safe;
   });
   return result;
 }
 
-export function mergeSeasonDirectoryMap(current, updates) {
-  const base = normalizeSeasonDirectoryMap(current);
-  const incoming = normalizeSeasonDirectoryMap(updates);
+export function mergeSeasonDirectoryMap(
+  current: Record<string, unknown> | null | undefined,
+  updates: Record<string, unknown> | null | undefined
+): Record<string, string> {
+  const base = normalizeSeasonDirectoryMap(current as Record<string, unknown>);
+  const incoming = normalizeSeasonDirectoryMap(updates as Record<string, unknown>);
   return { ...base, ...incoming };
 }
 
-export function sanitizeSeasonEntry(entry) {
+export function sanitizeSeasonEntry(entry: SeasonEntryInput): SeasonEntry | null {
   if (!entry || typeof entry !== 'object') {
     return null;
   }
@@ -166,34 +223,34 @@ export function sanitizeSeasonEntry(entry) {
   if (!seasonId && !url) {
     return null;
   }
-  const sanitized = {
+  const sanitized: SeasonEntry = {
     seasonId,
     url,
     label: typeof entry.label === 'string' ? entry.label.trim() : '',
-    seasonIndex: Number.isFinite(entry.seasonIndex) ? entry.seasonIndex : 0,
+    seasonIndex: Number.isFinite(entry.seasonIndex as number) ? Number(entry.seasonIndex) : 0,
     completion: entry.completion ? normalizeHistoryCompletion(entry.completion) : null,
     loaded: Boolean(entry.loaded),
     hasItems: Boolean(entry.hasItems)
   };
   if (entry.poster) {
-    const poster = sanitizePosterInfo(entry.poster);
+    const poster = sanitizePosterInfo(entry.poster as Record<string, unknown>);
     if (poster) {
       sanitized.poster = poster;
     }
   }
-  if (entry.updatedAt && Number.isFinite(entry.updatedAt)) {
-    sanitized.updatedAt = entry.updatedAt;
+  if (Number.isFinite(entry.updatedAt as number)) {
+    sanitized.updatedAt = Number(entry.updatedAt);
   }
   return sanitized;
 }
 
-export function normalizeSeasonEntries(entries) {
+export function normalizeSeasonEntries(entries: SeasonEntryInput[] | null | undefined): SeasonEntry[] {
   if (!Array.isArray(entries)) {
     return [];
   }
   return entries
     .map(sanitizeSeasonEntry)
-    .filter(Boolean)
+    .filter((entry): entry is SeasonEntry => Boolean(entry))
     .sort((a, b) => {
       if (a.seasonIndex === b.seasonIndex) {
         return a.seasonId.localeCompare(b.seasonId, 'zh-CN');
@@ -202,8 +259,10 @@ export function normalizeSeasonEntries(entries) {
     });
 }
 
-export function summarizeSeasonCompletion(statuses = []) {
-  const valid = statuses.filter(Boolean);
+export function summarizeSeasonCompletion(statuses: CompletionStatusInput[] = []): CompletionStatus | null {
+  const valid = statuses
+    .map(normalizeHistoryCompletion)
+    .filter((status): status is CompletionStatus => Boolean(status));
   if (!valid.length) {
     return null;
   }
@@ -217,7 +276,7 @@ export function summarizeSeasonCompletion(statuses = []) {
   if (states.some(state => state === 'upcoming')) {
     return { label: '未开播', state: 'upcoming' };
   }
-  const fallback = valid.find(status => status.label) || valid[0];
+  const fallback = valid.find(status => Boolean(status.label)) ?? valid[0]!;
   return {
     label: fallback.label || '未知状态',
     state: fallback.state || 'unknown'

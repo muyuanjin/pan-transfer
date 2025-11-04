@@ -4,49 +4,84 @@ import {
   ensureDirectoryExists,
   fetchDirectoryFileNames,
   transferShare
-} from '../api/baidu-pan.js';
-import { fetchLinkDetail } from '../api/chaospace.js';
+} from '../api/baidu-pan';
+import { fetchLinkDetail } from '../api/chaospace';
+import type { LinkDetailResult } from '../api/chaospace';
 import {
   ensureCacheLoaded,
   persistCacheNow,
   hasCompletedShare,
   recordCompletedShare
-} from '../storage/cache-store.js';
-import { recordTransferHistory } from '../storage/history-store.js';
+} from '../storage/cache-store';
+import { recordTransferHistory } from '../storage/history-store';
 import {
   mapErrorMessage
-} from '../common/errors.js';
+} from '../common/errors';
 import {
   MAX_TRANSFER_ATTEMPTS,
   TRANSFER_RETRYABLE_ERRNOS
-} from '../common/constants.js';
-import { normalizePath } from '../utils/path.js';
-import { sanitizeLink } from '../../shared/utils/sanitizers.ts';
-import { buildSurl } from '../utils/share.js';
+} from '../common/constants';
+import { normalizePath } from '../utils/path';
+import { sanitizeLink } from '../../shared/utils/sanitizers';
+import { buildSurl } from '../utils/share';
+import type { ShareMetadataSuccess, TransferShareMeta } from '../api/baidu-pan';
+import type { TransferRuntimeOptions, ProgressLogger } from '../types';
+import type {
+  TransferRequestPayload,
+  TransferResponsePayload,
+  TransferResultEntry
+} from '../../shared/types/transfer';
 
-let progressHandlers = {
-  emitProgress: () => {},
-  logStage: () => {}
+type ProgressPayload = Record<string, unknown>;
+
+interface ProgressHandlers {
+  emitProgress: (jobId: string | undefined, data: ProgressPayload) => void;
+  logStage: ProgressLogger;
+}
+
+interface FilteredTransferMeta {
+  fsIds: number[];
+  fileNames: string[];
+  skippedFiles: string[];
+}
+
+let progressHandlers: ProgressHandlers = {
+  emitProgress: () => {
+    /* noop */
+  },
+  logStage: () => {
+    /* noop */
+  }
 };
 
-export function setProgressHandlers(handlers = {}) {
+export function setProgressHandlers(handlers: Partial<ProgressHandlers> = {}): void {
   progressHandlers = {
-    emitProgress: handlers.emitProgress || progressHandlers.emitProgress,
-    logStage: handlers.logStage || progressHandlers.logStage
+    emitProgress: handlers.emitProgress ?? progressHandlers.emitProgress,
+    logStage: handlers.logStage ?? progressHandlers.logStage
   };
 }
 
-function emitProgress(jobId, data) {
+function emitProgress(jobId: string | undefined, data: ProgressPayload): void {
   progressHandlers.emitProgress(jobId, data);
 }
 
-function logStage(jobId, stage, message, extra) {
+function logStage(
+  jobId: string | undefined,
+  stage: string,
+  message: string,
+  extra?: Parameters<ProgressLogger>[3]
+): void {
   progressHandlers.logStage(jobId, stage, message, extra);
 }
 
-const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const delay = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
 
-async function filterAlreadyTransferred(meta, targetPath, bdstoken, options = {}) {
+async function filterAlreadyTransferred(
+  meta: ShareMetadataSuccess,
+  targetPath: string,
+  bdstoken: string,
+  options: TransferRuntimeOptions = {}
+): Promise<FilteredTransferMeta> {
   const { jobId, context = '' } = options;
   if (!Array.isArray(meta.fsIds) || !meta.fsIds.length) {
     return { fsIds: [], fileNames: [], skippedFiles: [] };
@@ -54,11 +89,11 @@ async function filterAlreadyTransferred(meta, targetPath, bdstoken, options = {}
 
   try {
     logStage(jobId, 'list', `过滤已存在文件：${targetPath}${context ? `（${context}）` : ''}`);
-    const existingNames = await fetchDirectoryFileNames(targetPath, bdstoken, {
-      jobId,
-      context,
-      logStage
-    });
+    const directoryOptions: TransferRuntimeOptions = { context };
+    if (jobId) {
+      directoryOptions.jobId = jobId;
+    }
+    const existingNames = await fetchDirectoryFileNames(targetPath, bdstoken, directoryOptions);
     if (!existingNames.size) {
       logStage(jobId, 'list', `目录为空：${targetPath}${context ? `（${context}）` : ''}`);
       return {
@@ -68,9 +103,9 @@ async function filterAlreadyTransferred(meta, targetPath, bdstoken, options = {}
       };
     }
 
-    const filteredFsIds = [];
-    const filteredFileNames = [];
-    const skippedFiles = [];
+    const filteredFsIds: number[] = [];
+    const filteredFileNames: string[] = [];
+    const skippedFiles: string[] = [];
 
     const names = Array.isArray(meta.fileNames) ? meta.fileNames : [];
     let skippedCount = 0;
@@ -95,16 +130,17 @@ async function filterAlreadyTransferred(meta, targetPath, bdstoken, options = {}
 
     return { fsIds: filteredFsIds, fileNames: filteredFileNames, skippedFiles };
   } catch (error) {
-    if (error && error.code === 'PAN_LOGIN_REQUIRED') {
-      throw error;
+    const err = error as Error & { code?: string };
+    if (err?.code === 'PAN_LOGIN_REQUIRED') {
+      throw err;
     }
     console.warn('[Chaospace Transfer] directory listing failed, proceeding without skip filter', {
       path: targetPath,
-      error: error.message
+      error: err?.message
     });
     logStage(jobId, 'list', `目录检查失败，跳过去重：${targetPath}${context ? `（${context}）` : ''}`, {
       level: 'warning',
-      detail: error.message
+      detail: err?.message
     });
     return {
       fsIds: meta.fsIds.slice(),
@@ -114,7 +150,14 @@ async function filterAlreadyTransferred(meta, targetPath, bdstoken, options = {}
   }
 }
 
-async function transferWithRetry(meta, targetPath, bdstoken, referer, maxAttempts = MAX_TRANSFER_ATTEMPTS, options = {}) {
+async function transferWithRetry(
+  meta: TransferShareMeta,
+  targetPath: string,
+  bdstoken: string,
+  referer: string,
+  maxAttempts = MAX_TRANSFER_ATTEMPTS,
+  options: TransferRuntimeOptions = {}
+): Promise<{ errno: number; attempts: number }> {
   const { jobId, context = '' } = options;
   const titleLabel = context ? `《${context}》` : '资源';
   const detail = `目标：${targetPath}`;
@@ -157,7 +200,7 @@ async function transferWithRetry(meta, targetPath, bdstoken, referer, maxAttempt
   return { errno, attempts: attempt };
 }
 
-export async function handleTransfer(payload) {
+export async function handleTransfer(payload: TransferRequestPayload): Promise<TransferResponsePayload> {
   const { origin, items, targetDirectory, jobId } = payload;
   if (!Array.isArray(items) || !items.length) {
     emitProgress(jobId, {
@@ -166,7 +209,14 @@ export async function handleTransfer(payload) {
       level: 'warning',
       statusMessage: '等待任务'
     });
-    return { jobId, results: [], summary: '没有可处理的条目' };
+    const emptyResponse: TransferResponsePayload = {
+      results: [],
+      summary: '没有可处理的条目'
+    };
+    if (jobId) {
+      emptyResponse.jobId = jobId;
+    }
+    return emptyResponse;
   }
 
   const total = items.length;
@@ -179,13 +229,14 @@ export async function handleTransfer(payload) {
     });
 
     logStage(jobId, 'bstToken', '准备请求 bdstoken');
-    let bdstoken;
+    let bdstoken: string;
     try {
       bdstoken = await ensureBdstoken();
       logStage(jobId, 'bstToken', 'bdstoken 获取成功', { level: 'success' });
     } catch (error) {
-      logStage(jobId, 'bstToken', `bdstoken 获取失败：${error.message || '未知错误'}`, { level: 'error' });
-      throw error;
+      const err = error as Error;
+      logStage(jobId, 'bstToken', `bdstoken 获取失败：${err.message || '未知错误'}`, { level: 'error' });
+      throw err;
     }
     await ensureCacheLoaded();
     const normalizedBaseDir = normalizePath(targetDirectory || '/');
@@ -196,13 +247,17 @@ export async function handleTransfer(payload) {
       statusMessage: `准备目录 ${normalizedBaseDir}`
     });
 
-    await ensureDirectoryExists(normalizedBaseDir, bdstoken, {
-      jobId,
+    const baseDirOptions: TransferRuntimeOptions = {
       context: '全局目标目录',
       logStage
-    });
+    };
+    if (jobId) {
+      baseDirOptions.jobId = jobId;
+    }
 
-    const results = [];
+    await ensureDirectoryExists(normalizedBaseDir, bdstoken, baseDirOptions);
+
+    const results: TransferResultEntry[] = [];
     let index = 0;
 
     for (const item of items) {
@@ -215,7 +270,7 @@ export async function handleTransfer(payload) {
         total
       });
 
-      let detail = null;
+      let detail: LinkDetailResult | null = null;
       let usedCachedDetail = false;
 
       if (item.linkUrl) {
@@ -231,9 +286,13 @@ export async function handleTransfer(payload) {
       }
 
       if (!detail) {
-        detail = await fetchLinkDetail(origin, item.id, { jobId, context: item.title, logStage });
+        const linkOptions: TransferRuntimeOptions = { context: item.title, logStage };
+        if (jobId) {
+          linkOptions.jobId = jobId;
+        }
+        detail = await fetchLinkDetail(origin || '', item.id, linkOptions);
         if (detail.error) {
-          const message = detail.error || '获取链接失败';
+          const message = typeof detail.error === 'string' ? detail.error : `错误码：${detail.error}`;
           emitProgress(jobId, {
             stage: 'item:error',
             message: `《${item.title}》链接解析失败：${message}`,
@@ -249,6 +308,10 @@ export async function handleTransfer(payload) {
           });
           continue;
         }
+      }
+
+      if (!detail) {
+        continue;
       }
 
       const surl = buildSurl(detail.linkUrl);
@@ -282,25 +345,22 @@ export async function handleTransfer(payload) {
           total
         });
 
-        let meta = await fetchShareMetadata(detail.linkUrl, detail.passCode, bdstoken, {
-          jobId,
-          context: item.title,
-          logStage
-        });
-        if (usedCachedDetail && meta.error) {
-          const refreshedDetail = await fetchLinkDetail(origin, item.id, { jobId, context: item.title, logStage });
+        const metaOptions: TransferRuntimeOptions = { context: item.title, logStage };
+        if (jobId) {
+          metaOptions.jobId = jobId;
+        }
+
+        let metaResult = await fetchShareMetadata(detail.linkUrl, detail.passCode, bdstoken, metaOptions);
+        if (usedCachedDetail && 'error' in metaResult) {
+          const refreshedDetail = await fetchLinkDetail(origin || '', item.id, metaOptions);
           if (!refreshedDetail.error) {
             detail = refreshedDetail;
-            meta = await fetchShareMetadata(detail.linkUrl, detail.passCode, bdstoken, {
-              jobId,
-              context: item.title,
-              logStage
-            });
+            metaResult = await fetchShareMetadata(detail.linkUrl, detail.passCode, bdstoken, metaOptions);
           }
         }
-        if (meta.error) {
-          const errno = typeof meta.error === 'number' ? meta.error : -9999;
-          const message = mapErrorMessage(errno, typeof meta.error === 'string' ? meta.error : '');
+        if ('error' in metaResult) {
+          const errno = typeof metaResult.error === 'number' ? metaResult.error : -9999;
+          const message = mapErrorMessage(errno, typeof metaResult.error === 'string' ? metaResult.error : '');
           emitProgress(jobId, {
             stage: 'item:error',
             message: `《${item.title}》元数据异常：${message}`,
@@ -317,6 +377,7 @@ export async function handleTransfer(payload) {
           });
           continue;
         }
+        const meta = metaResult;
 
         const targetPath = normalizePath(item.targetPath || normalizedBaseDir);
         emitProgress(jobId, {
@@ -325,16 +386,17 @@ export async function handleTransfer(payload) {
           current: index,
           total
         });
-        await ensureDirectoryExists(targetPath, bdstoken, {
-          jobId,
-          context: item.title,
-          logStage
-        });
+        const ensureOptions: TransferRuntimeOptions = { context: item.title, logStage };
+        if (jobId) {
+          ensureOptions.jobId = jobId;
+        }
+        await ensureDirectoryExists(targetPath, bdstoken, ensureOptions);
 
-        const filtered = await filterAlreadyTransferred(meta, targetPath, bdstoken, {
-          jobId,
-          context: item.title
-        });
+        const filterOptions: TransferRuntimeOptions = { context: item.title };
+        if (jobId) {
+          filterOptions.jobId = jobId;
+        }
+        const filtered = await filterAlreadyTransferred(meta, targetPath, bdstoken, filterOptions);
         if (!filtered.fsIds.length) {
           const message = filtered.skippedFiles.length
             ? `已跳过：文件已存在（${filtered.skippedFiles.length} 项）`
@@ -370,20 +432,24 @@ export async function handleTransfer(payload) {
           statusMessage: `转存进度 ${index}/${total}`
         });
 
-        const transferMeta = {
+        const transferMeta: TransferShareMeta = {
           shareId: meta.shareId,
           userId: meta.userId,
           fsIds: filtered.fsIds
         };
 
         const referer = detail.linkUrl ? detail.linkUrl : 'https://pan.baidu.com/disk/home';
+        const transferOptions: TransferRuntimeOptions = { context: item.title, logStage };
+        if (jobId) {
+          transferOptions.jobId = jobId;
+        }
         const { errno, attempts } = await transferWithRetry(
           transferMeta,
           targetPath,
           bdstoken,
           referer,
-          undefined,
-          { jobId, context: item.title }
+          MAX_TRANSFER_ATTEMPTS,
+          transferOptions
         );
 
         if (errno === 0 || errno === 666) {
@@ -425,10 +491,11 @@ export async function handleTransfer(payload) {
           });
         }
       } catch (error) {
-        console.error('[Chaospace Transfer] unexpected error', item.id, error);
+        const err = error as Error;
+        console.error('[Chaospace Transfer] unexpected error', item.id, err);
         emitProgress(jobId, {
           stage: 'item:error',
-          message: `《${item.title}》出现异常：${error.message || '未知错误'}`,
+          message: `《${item.title}》出现异常：${err.message || '未知错误'}`,
           current: index,
           total,
           level: 'error'
@@ -437,7 +504,7 @@ export async function handleTransfer(payload) {
           id: item.id,
           title: item.title,
           status: 'failed',
-          message: error.message || '未知错误'
+          message: err.message || '未知错误'
         });
       }
     }
@@ -467,14 +534,19 @@ export async function handleTransfer(payload) {
       console.warn('[Chaospace Transfer] Failed to persist cache after transfer', cacheError);
     }
 
-    return { jobId, results, summary };
+    const response: TransferResponsePayload = { results, summary };
+    if (jobId) {
+      response.jobId = jobId;
+    }
+    return response;
   } catch (error) {
+    const err = error as Error;
     emitProgress(jobId, {
       stage: 'fatal',
-      message: error.message || '转存过程失败',
+      message: err.message || '转存过程失败',
       level: 'error',
       statusMessage: '转存失败'
     });
-    throw error;
+    throw err;
   }
 }

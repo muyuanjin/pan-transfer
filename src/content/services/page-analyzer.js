@@ -7,15 +7,15 @@ import {
   stripHtmlTags,
   extractCleanTitle,
   decodeHtmlEntities
-} from '../../shared/utils/sanitizers.ts';
+} from '../../shared/utils/sanitizers';
 import {
   createCompletionStatus,
   summarizeSeasonCompletion,
   isDateLikeLabel
-} from '../../shared/utils/completion-status.js';
+} from '../../shared/utils/completion-status';
 import {
   normalizeSeasonLabel as normalizeSeasonLabelUtil
-} from '../../shared/utils/chinese-numeral.js';
+} from '../../shared/utils/chinese-numeral';
 
 const SEASON_TRAILING_NOISE_PATTERNS = [
   /\s*(?:N[\/-]?A|暂无(?:评分|评价)?|未评分|评分\s*[:：]?\s*待定|豆瓣\s*\d+(?:\.\d+)?|IMDb\s*\d+(?:\.\d+)?|烂番茄\s*\d+(?:\.\d+)?%?|\d+\.\d+(?:\s*分)?|\d+(?:\.\d+)?\s*\/\s*10|\d+(?:\.\d+)?\s*分)\s*$/iu,

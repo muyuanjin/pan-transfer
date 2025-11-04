@@ -7,7 +7,7 @@ import {
   ensureSeasonSubdirDefault,
   updateSeasonExampleDir
 } from './season-manager.js';
-import { summarizeSeasonCompletion } from '../../shared/utils/completion-status.js';
+import { summarizeSeasonCompletion } from '../../shared/utils/completion-status';
 
 export function createSeasonLoader({
   getFloatingPanel,

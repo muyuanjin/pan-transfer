@@ -4,7 +4,7 @@ import {
   getHistoryIndexMap,
   normalizeHistoryPath,
   persistHistoryNow
-} from '../storage/history-store.js';
+} from '../storage/history-store';
 import {
   parseItemsFromHtml,
   parsePageTitleFromHtml,
@@ -13,19 +13,39 @@ import {
   parseCompletionFromHtml,
   isSeasonUrl,
   parseTvShowSeasonEntriesFromHtml,
-  parseHistoryDetailFromHtml
-} from './parser-service.js';
+  parseHistoryDetailFromHtml,
+  type ParsedItem,
+  type SeasonEntrySummary,
+  type HistoryDetail
+} from './parser-service';
 import {
   mergeCompletionStatus,
   mergeSeasonCompletionMap,
   normalizeSeasonEntries,
-  summarizeSeasonCompletion
-} from '../../shared/utils/completion-status.js';
-import { handleTransfer } from './transfer-service.js';
+  summarizeSeasonCompletion,
+  type CompletionStatus
+} from '../../shared/utils/completion-status';
+import { handleTransfer } from './transfer-service';
+import type {
+  TransferRequestPayload,
+  TransferResultEntry,
+  TransferJobMeta
+} from '../../shared/types/transfer';
 
-const nowTs = () => Date.now();
+interface PageSnapshot {
+  pageUrl: string;
+  pageTitle: string;
+  pageType: 'series' | 'movie' | 'anime' | 'unknown';
+  total: number;
+  items: ParsedItem[];
+  completion: CompletionStatus | null;
+  seasonCompletion: Record<string, CompletionStatus>;
+  seasonEntries: SeasonEntrySummary[];
+}
 
-export async function collectPageSnapshot(pageUrl) {
+const nowTs = (): number => Date.now();
+
+export async function collectPageSnapshot(pageUrl: string): Promise<PageSnapshot> {
   const response = await fetch(pageUrl, { credentials: 'include' });
   if (!response.ok) {
     throw new Error(`获取页面失败：${response.status}`);
@@ -35,19 +55,22 @@ export async function collectPageSnapshot(pageUrl) {
   await ensureHistoryLoaded();
   const historyIndex = getHistoryIndexMap();
   const existing = historyIndex.get(pageUrl);
-  const recordItems = existing?.record?.items || {};
+  const recordItems = (existing?.record?.items ?? {}) as Record<string, { linkUrl?: string; passCode?: string }>;
 
   const items = parseItemsFromHtml(html, recordItems);
   const pageTitle = parsePageTitleFromHtml(html);
-  const pageType = items.length > 1 ? 'series' : 'movie';
-  const seasonCompletion = isTvShowUrl(pageUrl) ? parseTvShowSeasonCompletionFromHtml(html) : {};
-  let completion = null;
+  const pageType: PageSnapshot['pageType'] = items.length > 1 ? 'series' : 'movie';
+  const seasonCompletion: Record<string, CompletionStatus> = isTvShowUrl(pageUrl)
+    ? parseTvShowSeasonCompletionFromHtml(html)
+    : {};
+  let completion: CompletionStatus | null = null;
   if (isSeasonUrl(pageUrl)) {
     completion = parseCompletionFromHtml(html, 'season-meta');
     if (completion) {
       const seasonIdMatch = pageUrl.match(/\/seasons\/(\d+)\.html/);
-      if (seasonIdMatch) {
-        seasonCompletion[seasonIdMatch[1]] = completion;
+      const seasonId = seasonIdMatch?.[1];
+      if (seasonId) {
+        seasonCompletion[seasonId] = completion;
       }
     }
   } else if (isTvShowUrl(pageUrl)) {
@@ -59,7 +82,7 @@ export async function collectPageSnapshot(pageUrl) {
     completion = summarizeSeasonCompletion(Object.values(seasonCompletion));
   }
 
-  const seasonEntries = isTvShowUrl(pageUrl)
+  const seasonEntries: SeasonEntrySummary[] = isTvShowUrl(pageUrl)
     ? parseTvShowSeasonEntriesFromHtml(html, pageUrl).map((entry, idx) => ({
       seasonId: entry.seasonId,
       url: entry.url,
@@ -82,7 +105,7 @@ export async function collectPageSnapshot(pageUrl) {
   };
 }
 
-export async function collectHistoryDetail(pageUrl) {
+export async function collectHistoryDetail(pageUrl: string): Promise<HistoryDetail> {
   if (!pageUrl) {
     throw new Error('缺少页面地址');
   }
@@ -94,7 +117,15 @@ export async function collectHistoryDetail(pageUrl) {
   return parseHistoryDetailFromHtml(html, pageUrl);
 }
 
-export async function handleHistoryDetail(payload = {}) {
+interface HistoryDetailPayload {
+  pageUrl?: string;
+}
+
+export async function handleHistoryDetail(payload: HistoryDetailPayload = {}): Promise<{
+  ok: true;
+  pageUrl: string;
+  detail: HistoryDetail;
+}> {
   const pageUrl = typeof payload.pageUrl === 'string' ? payload.pageUrl : '';
   if (!pageUrl) {
     throw new Error('缺少页面地址');
@@ -107,7 +138,26 @@ export async function handleHistoryDetail(payload = {}) {
   };
 }
 
-export async function handleCheckUpdates(payload = {}) {
+interface CheckUpdatesPayload extends HistoryDetailPayload {
+  targetDirectory?: string;
+}
+
+export interface CheckUpdatesResult {
+  ok: true;
+  hasUpdates: boolean;
+  pageUrl: string;
+  pageTitle: string;
+  totalKnown: number;
+  latestCount: number;
+  reason?: string;
+  completion?: CompletionStatus | null;
+  newItems?: number;
+  summary?: string;
+  results?: TransferResultEntry[];
+  jobId?: string;
+}
+
+export async function handleCheckUpdates(payload: CheckUpdatesPayload = {}): Promise<CheckUpdatesResult> {
   const pageUrl = typeof payload.pageUrl === 'string' ? payload.pageUrl : '';
   if (!pageUrl) {
     throw new Error('缺少页面地址');
@@ -189,7 +239,7 @@ export async function handleCheckUpdates(payload = {}) {
   }
 
   const jobId = `update-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
-  const meta = {
+  const meta: TransferJobMeta & { trigger: string; total: number } = {
     baseDir: normalizeHistoryPath(record.baseDir || targetDirectory),
     useTitleSubdir: false,
     pageTitle: snapshot.pageTitle || record.pageTitle || '',
@@ -203,7 +253,7 @@ export async function handleCheckUpdates(payload = {}) {
     total: newItems.length
   };
 
-  const transferPayload = {
+  const transferPayload: TransferRequestPayload = {
     jobId,
     origin: origin || '',
     items: newItems.map(item => ({
@@ -219,15 +269,20 @@ export async function handleCheckUpdates(payload = {}) {
 
   const transferResult = await handleTransfer(transferPayload);
 
-  return {
+  const updateResult: CheckUpdatesResult = {
     ok: true,
     hasUpdates: true,
     pageUrl,
-    pageTitle: meta.pageTitle,
+    pageTitle: meta.pageTitle || '',
     newItems: newItems.length,
     summary: transferResult.summary,
     results: transferResult.results || [],
-    jobId: transferResult.jobId,
-    completion: record.completion
+    completion: record.completion,
+    totalKnown: knownIds.size,
+    latestCount: snapshot.items.length
   };
+  if (transferResult.jobId) {
+    updateResult.jobId = transferResult.jobId;
+  }
+  return updateResult;
 }

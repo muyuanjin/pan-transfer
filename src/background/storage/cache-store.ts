@@ -3,18 +3,30 @@ import {
   MAX_DIRECTORY_CACHE_ENTRIES,
   MAX_SHARE_CACHE_ENTRIES,
   STORAGE_KEYS
-} from '../common/constants.js';
-import { storageGet, storageSet } from './utils.js';
+} from '../common/constants';
+import { storageGet, storageSet } from './utils';
 
-const ensuredDirectories = new Set(['/']);
-const directoryFileCache = new Map();
-const completedShareCache = new Map();
-let persistentCacheState = null;
-let cacheLoadPromise = null;
+interface DirectoryCacheEntry {
+  files: string[];
+  updatedAt: number;
+}
 
-const nowTs = () => Date.now();
+interface CacheState {
+  version: number;
+  directories: Record<string, DirectoryCacheEntry>;
+  ensured: Record<string, number>;
+  completedShares: Record<string, number>;
+}
 
-function createDefaultCacheState() {
+const ensuredDirectories = new Set<string>(['/']);
+const directoryFileCache = new Map<string, Set<string>>();
+const completedShareCache = new Map<string, number>();
+let persistentCacheState: CacheState | null = null;
+let cacheLoadPromise: Promise<void> | null = null;
+
+const nowTs = (): number => Date.now();
+
+function createDefaultCacheState(): CacheState {
   return {
     version: CACHE_VERSION,
     directories: {},
@@ -23,7 +35,7 @@ function createDefaultCacheState() {
   };
 }
 
-function pruneDirectoryCacheIfNeeded() {
+function pruneDirectoryCacheIfNeeded(): void {
   if (!persistentCacheState) {
     return;
   }
@@ -39,12 +51,12 @@ function pruneDirectoryCacheIfNeeded() {
     })
     .slice(0, Math.max(0, entries.length - MAX_DIRECTORY_CACHE_ENTRIES))
     .forEach(([path]) => {
-      delete persistentCacheState.directories[path];
+      delete persistentCacheState!.directories[path];
       directoryFileCache.delete(path);
     });
 }
 
-function pruneCompletedShareCacheIfNeeded() {
+function pruneCompletedShareCacheIfNeeded(): void {
   if (!persistentCacheState || !persistentCacheState.completedShares) {
     return;
   }
@@ -60,19 +72,19 @@ function pruneCompletedShareCacheIfNeeded() {
     })
     .slice(0, Math.max(0, entries.length - MAX_SHARE_CACHE_ENTRIES))
     .forEach(([surl]) => {
-      delete persistentCacheState.completedShares[surl];
+      delete persistentCacheState!.completedShares[surl];
       completedShareCache.delete(surl);
     });
 }
 
-export async function ensureCacheLoaded() {
+export async function ensureCacheLoaded(): Promise<void> {
   if (cacheLoadPromise) {
     await cacheLoadPromise;
     return;
   }
   cacheLoadPromise = (async () => {
     try {
-      const stored = await storageGet([STORAGE_KEYS.cache]);
+      const stored = await storageGet<{ [STORAGE_KEYS.cache]: CacheState | undefined }>([STORAGE_KEYS.cache]);
       const raw = stored[STORAGE_KEYS.cache];
       if (raw && raw.version === CACHE_VERSION && raw.directories && raw.ensured) {
         persistentCacheState = {
@@ -121,7 +133,7 @@ export async function ensureCacheLoaded() {
   await cacheLoadPromise;
 }
 
-export async function persistCacheNow() {
+export async function persistCacheNow(): Promise<void> {
   await ensureCacheLoaded();
   if (!persistentCacheState) {
     persistentCacheState = createDefaultCacheState();
@@ -140,11 +152,11 @@ export async function persistCacheNow() {
   }
 }
 
-export function isDirectoryEnsured(path) {
+export function isDirectoryEnsured(path: string): boolean {
   return ensuredDirectories.has(path);
 }
 
-export function markDirectoryEnsured(path) {
+export function markDirectoryEnsured(path: string): void {
   if (!path) {
     return;
   }
@@ -155,11 +167,11 @@ export function markDirectoryEnsured(path) {
   persistentCacheState.ensured[path] = nowTs();
 }
 
-export function getCachedDirectoryEntries(path) {
+export function getCachedDirectoryEntries(path: string): Set<string> | null {
   return directoryFileCache.get(path) || null;
 }
 
-export function recordDirectoryCache(path, names) {
+export function recordDirectoryCache(path: string, names: Iterable<string> | null | undefined): void {
   if (!path) {
     return;
   }
@@ -175,14 +187,14 @@ export function recordDirectoryCache(path, names) {
   pruneDirectoryCacheIfNeeded();
 }
 
-export function hasCompletedShare(surl) {
+export function hasCompletedShare(surl: string | null | undefined): boolean {
   if (!surl) {
     return false;
   }
   return completedShareCache.has(surl);
 }
 
-export function recordCompletedShare(surl) {
+export function recordCompletedShare(surl: string | null | undefined): void {
   if (!surl) {
     return;
   }
@@ -196,14 +208,4 @@ export function recordCompletedShare(surl) {
   }
   persistentCacheState.completedShares[surl] = timestamp;
   pruneCompletedShareCacheIfNeeded();
-}
-
-export function clearDirectoryCacheEntry(path) {
-  if (!path) {
-    return;
-  }
-  directoryFileCache.delete(path);
-  if (persistentCacheState?.directories) {
-    delete persistentCacheState.directories[path];
-  }
 }

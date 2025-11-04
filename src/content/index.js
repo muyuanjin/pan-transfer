@@ -76,7 +76,7 @@ import {
 } from './utils/storage.js';
 import { formatOriginLabel, sanitizeCssUrl } from './utils/format.js';
 import { extractCleanTitle } from './utils/title.js';
-import { summarizeSeasonCompletion } from '../shared/utils/completion-status.js';
+import { summarizeSeasonCompletion } from '../shared/utils/completion-status';
 
 // chaospace content entry
 

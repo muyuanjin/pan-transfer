@@ -1,4 +1,7 @@
-export function buildSurl(linkUrl) {
+export function buildSurl(linkUrl: string | null | undefined): string {
+  if (!linkUrl) {
+    return '';
+  }
   try {
     const url = new URL(linkUrl);
     if (url.pathname.startsWith('/s/')) {
@@ -20,10 +23,10 @@ export function buildSurl(linkUrl) {
   return '';
 }
 
-export function extractPassCodeFromText(text) {
+export function extractPassCodeFromText(text: string | null | undefined): string {
   if (!text) {
     return '';
   }
   const match = text.match(/提取码[：:]*\s*([0-9a-zA-Z]+)/);
-  return match ? match[1] : '';
+  return match?.[1] ?? '';
 }

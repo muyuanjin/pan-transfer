@@ -54,7 +54,7 @@ export interface PosterInfo {
   alt: string;
 }
 
-type PosterInput = {
+export type PosterInput = {
   src?: unknown;
   alt?: unknown;
 } | null | undefined;

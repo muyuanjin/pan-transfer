@@ -1,31 +1,90 @@
+// @ts-nocheck
+
 import {
   sanitizeLink,
   stripHtmlTags,
   extractCleanTitle,
-  decodeHtmlEntities
-} from '../../shared/utils/sanitizers.ts';
+  decodeHtmlEntities,
+  type PosterInfo
+} from '../../shared/utils/sanitizers';
 import {
   createCompletionStatus,
-  summarizeSeasonCompletion,
-  isDateLikeLabel
-} from '../../shared/utils/completion-status.js';
+  isDateLikeLabel,
+  type CompletionStatus
+} from '../../shared/utils/completion-status';
 
-export function parseLinkPage(html) {
+export interface LinkParseResult {
+  linkUrl: string;
+  passCode: string;
+}
+
+const safeGroup = (match: RegExpExecArray | RegExpMatchArray | null | undefined, index = 1): string => {
+  if (!match) {
+    return '';
+  }
+  const value = match[index];
+  return typeof value === 'string' ? value : '';
+};
+
+export interface RatingInfo {
+  value: string;
+  votes: string;
+  label: string;
+  scale: number;
+}
+
+export interface HistoryInfoEntry {
+  label: string;
+  value: string;
+}
+
+export interface HistoryStillEntry {
+  url: string;
+  full: string;
+  thumb: string;
+  alt: string;
+}
+
+export interface HistoryDetail {
+  pageUrl: string;
+  title: string;
+  poster: PosterInfo | null;
+  releaseDate: string;
+  country: string;
+  runtime: string;
+  rating: RatingInfo | null;
+  genres: string[];
+  info: HistoryInfoEntry[];
+  synopsis: string;
+  stills: HistoryStillEntry[];
+  completion: CompletionStatus | null;
+}
+
+export interface SeasonEntrySummary {
+  seasonId: string;
+  url: string;
+  label: string;
+  seasonIndex: number;
+  poster: PosterInfo | null;
+  completion?: CompletionStatus | null;
+}
+
+export function parseLinkPage(html: string | null | undefined): LinkParseResult | null {
   if (!html) {
     return null;
   }
 
-  let href = null;
+  let href = '';
 
   const clipboardMatch = html.match(/data-clipboard-text=["']([^"']+pan\.baidu\.com[^"']*)["']/i);
   if (clipboardMatch) {
-    href = clipboardMatch[1];
+    href = clipboardMatch[1] ?? '';
   }
 
   if (!href) {
     const anchorMatch = html.match(/<a[^>]+href=["']([^"']*pan\.baidu\.com[^"']*)["'][^>]*>/i);
     if (anchorMatch) {
-      href = anchorMatch[1];
+      href = anchorMatch[1] ?? '';
     }
   }
 
@@ -46,7 +105,7 @@ export function parseLinkPage(html) {
   if (!passCode) {
     const textMatch = html.match(/提取码[：:]*\s*([0-9a-zA-Z]+)/);
     if (textMatch) {
-      passCode = textMatch[1];
+      passCode = textMatch[1] ?? '';
     }
   }
 
@@ -56,8 +115,8 @@ export function parseLinkPage(html) {
   };
 }
 
-export function parsePageTitleFromHtml(html) {
-  const match = html.match(/<title>([\s\S]*?)<\/title>/i);
+export function parsePageTitleFromHtml(html: string | null | undefined): string {
+  const match = html?.match(/<title>([\s\S]*?)<\/title>/i);
   if (!match) {
     return '';
   }
@@ -66,7 +125,7 @@ export function parsePageTitleFromHtml(html) {
   return extractCleanTitle(title);
 }
 
-export function extractSectionById(html, id) {
+export function extractSectionById(html: string | null | undefined, id: string): string {
   if (!html) {
     return '';
   }
@@ -81,7 +140,7 @@ export function extractSectionById(html, id) {
   divPattern.lastIndex = searchStart;
   let depth = 1;
   let resultEnd = html.length;
-  let token;
+  let token: RegExpExecArray | null;
   while ((token = divPattern.exec(html))) {
     if (token.index < searchStart) {
       continue;
@@ -99,7 +158,7 @@ export function extractSectionById(html, id) {
   return html.slice(startIndex, resultEnd);
 }
 
-export function extractSectionByClass(html, className) {
+export function extractSectionByClass(html: string | null | undefined, className: string): string {
   if (!html || !className) {
     return '';
   }
@@ -115,7 +174,7 @@ export function extractSectionByClass(html, className) {
   const tagPattern = new RegExp(`<${tagName}\\b[^>]*>|</${tagName}>`, 'gi');
   tagPattern.lastIndex = searchStart;
   let depth = 1;
-  let token;
+  let token: RegExpExecArray | null;
   let resultEnd = html.length;
   while ((token = tagPattern.exec(html))) {
     if (token.index < searchStart) {
@@ -134,9 +193,12 @@ export function extractSectionByClass(html, className) {
   return html.slice(startIndex, resultEnd);
 }
 
-export function parseHistoryDetailFromHtml(html, pageUrl = '') {
-  const normalizedHtml = (html || '').replace(/\r/g, '');
-  const detail = {
+export function parseHistoryDetailFromHtml(
+  html: string | null | undefined,
+  pageUrl = ''
+): HistoryDetail {
+  const normalizedHtml = (html ?? '').replace(/\r/g, '');
+  const detail: HistoryDetail = {
     pageUrl,
     title: '',
     poster: null,
@@ -147,18 +209,19 @@ export function parseHistoryDetailFromHtml(html, pageUrl = '') {
     genres: [],
     info: [],
     synopsis: '',
-    stills: []
+    stills: [],
+    completion: null
   };
 
-  const cleanText = value => stripHtmlTags(value || '').trim();
-  const cleanMeta = value => cleanText(value).replace(/[。．\\.]+$/g, '').trim();
+  const cleanText = (value: unknown): string => stripHtmlTags(typeof value === 'string' ? value : '').trim();
+  const cleanMeta = (value: unknown): string => cleanText(value).replace(/[。．\\.]+$/g, '').trim();
   const baseUrl = pageUrl || '';
 
   const headerHtml = extractSectionByClass(normalizedHtml, 'sheader');
   if (headerHtml) {
     const titleMatch = headerHtml.match(/<div[^>]*class=['"]data['"][^>]*>[\s\S]*?<h1>([\s\S]*?)<\/h1>/i);
     if (titleMatch) {
-      detail.title = cleanText(titleMatch[1]);
+      detail.title = cleanText(titleMatch[1] ?? '');
     }
 
     const posterMatch = headerHtml.match(/<div[^>]*class=['"]poster['"][^>]*>[\s\S]*?<img[^>]*>/i);
@@ -180,18 +243,18 @@ export function parseHistoryDetailFromHtml(html, pageUrl = '') {
 
     const extraMatch = headerHtml.match(/<div[^>]*class=['"]extra['"][^>]*>([\s\S]*?)<\/div>/i);
     if (extraMatch) {
-      const extraHtml = extraMatch[1];
+      const extraHtml = extraMatch[1] ?? '';
       const dateMatch = extraHtml.match(/<span[^>]*class=['"]date['"][^>]*>([\s\S]*?)<\/span>/i);
       const countryMatch = extraHtml.match(/<span[^>]*class=['"]country['"][^>]*>([\s\S]*?)<\/span>/i);
       const runtimeMatch = extraHtml.match(/<span[^>]*class=['"]runtime['"][^>]*>([\s\S]*?)<\/span>/i);
       if (dateMatch) {
-        detail.releaseDate = cleanMeta(dateMatch[1]);
+        detail.releaseDate = cleanMeta(dateMatch[1] ?? '');
       }
       if (countryMatch) {
-        detail.country = cleanMeta(countryMatch[1]);
+        detail.country = cleanMeta(countryMatch[1] ?? '');
       }
       if (runtimeMatch) {
-        detail.runtime = cleanMeta(runtimeMatch[1]);
+        detail.runtime = cleanMeta(runtimeMatch[1] ?? '');
       }
     }
 
@@ -212,9 +275,9 @@ export function parseHistoryDetailFromHtml(html, pageUrl = '') {
     if (genresMatch) {
       const genreBlock = genresMatch[1];
       const genreRegex = /<a[^>]*>([\s\S]*?)<\/a>/gi;
-      let genreMatch;
+      let genreMatch: RegExpExecArray | null;
       while ((genreMatch = genreRegex.exec(genreBlock))) {
-        const label = cleanText(genreMatch[1]);
+        const label = cleanText(safeGroup(genreMatch, 1));
         if (label) {
           detail.genres.push(label);
         }
@@ -238,18 +301,18 @@ export function parseHistoryDetailFromHtml(html, pageUrl = '') {
 
       if (gallerySection) {
         const itemRegex = /<div[^>]*class=['"]g-item['"][^>]*>([\s\S]*?)<\/div>/gi;
-        let itemMatch;
-        const seen = new Set();
+        let itemMatch: RegExpExecArray | null;
+        const seen = new Set<string>();
         while ((itemMatch = itemRegex.exec(gallerySection))) {
           const itemHtml = itemMatch[1] || '';
           const anchorMatch = itemHtml.match(/<a[^>]*href=['"]([^'"]+)['"][^>]*>([\s\S]*?)<\/a>/i);
           if (!anchorMatch) {
             continue;
           }
-          const fullUrl = resolveSeasonUrl(anchorMatch[1], baseUrl);
+          const fullUrl = resolveSeasonUrl(safeGroup(anchorMatch, 1), baseUrl);
           const imgMatch = anchorMatch[2].match(/<img[^>]+src=['"]([^'"]+)['"][^>]*?(?:alt=['"]([^'"]*)['"][^>]*)?/i);
-          const thumbUrl = imgMatch ? resolveSeasonUrl(imgMatch[1], baseUrl) : '';
-          const altRaw = imgMatch && imgMatch[2] ? imgMatch[2] : '';
+          const thumbUrl = resolveSeasonUrl(imgMatch ? safeGroup(imgMatch, 1) : '', baseUrl);
+          const altRaw = imgMatch ? safeGroup(imgMatch, 2) : '';
           if (!fullUrl && !thumbUrl) {
             continue;
           }
@@ -275,9 +338,12 @@ export function parseHistoryDetailFromHtml(html, pageUrl = '') {
   const tableSection = extractSectionById(normalizedHtml, 'info');
   if (tableSection) {
     const infoRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
-    let infoMatch;
+    let infoMatch: RegExpExecArray | null;
     while ((infoMatch = infoRegex.exec(tableSection))) {
-      const rowHtml = infoMatch[1];
+      const rowHtml = infoMatch?.[1] ?? '';
+      if (!rowHtml) {
+        continue;
+      }
       const labelMatch = rowHtml.match(/<th[^>]*>([\s\S]*?)<\/th>/i);
       const valueMatch = rowHtml.match(/<td[^>]*>([\s\S]*?)<\/td>/i);
       if (!labelMatch || !valueMatch) {
@@ -299,7 +365,7 @@ export function parseHistoryDetailFromHtml(html, pageUrl = '') {
   return detail;
 }
 
-export function extractDownloadTableHtml(html) {
+export function extractDownloadTableHtml(html: string | null | undefined): string {
   const section = extractSectionById(html, 'download');
   if (!section) {
     return '';
@@ -311,15 +377,18 @@ export function extractDownloadTableHtml(html) {
   return tbodyMatches.join('\n');
 }
 
-export function isSeasonUrl(url) {
+export function isSeasonUrl(url: string | null | undefined): boolean {
   return typeof url === 'string' && /\/seasons\/\d+\.html/.test(url);
 }
 
-export function isTvShowUrl(url) {
+export function isTvShowUrl(url: string | null | undefined): boolean {
   return typeof url === 'string' && /\/tvshows\/\d+\.html/.test(url);
 }
 
-export function parseCompletionFromHtml(html, source = 'season-meta') {
+export function parseCompletionFromHtml(
+  html: string | null | undefined,
+  source = 'season-meta'
+): CompletionStatus | null {
   if (!html || typeof html !== 'string') {
     return null;
   }
@@ -328,8 +397,8 @@ export function parseCompletionFromHtml(html, source = 'season-meta') {
     return null;
   }
   const spanRegex = /<span[^>]*class=['"]date['"][^>]*>([\s\S]*?)<\/span>/gi;
-  const spans = [];
-  let spanMatch;
+  const spans: string[] = [];
+  let spanMatch: RegExpExecArray | null;
   while ((spanMatch = spanRegex.exec(extraMatch[1]))) {
     spans.push(spanMatch[1]);
   }
@@ -346,8 +415,8 @@ export function parseCompletionFromHtml(html, source = 'season-meta') {
   return null;
 }
 
-export function parseTvShowSeasonCompletionFromHtml(html) {
-  const map = {};
+export function parseTvShowSeasonCompletionFromHtml(html: string | null | undefined): Record<string, CompletionStatus> {
+  const map: Record<string, CompletionStatus> = {};
   if (!html || typeof html !== 'string') {
     return map;
   }
@@ -356,7 +425,7 @@ export function parseTvShowSeasonCompletionFromHtml(html) {
     return map;
   }
   const seasonRegex = /<div[^>]*class=['"]se-c['"][^>]*>[\s\S]*?<div[^>]*class=['"]se-q['"][^>]*>[\s\S]*?<a[^>]+href=['"]([^'"]+)['"][^>]*>[\s\S]*?<span[^>]*class=['"]title['"][^>]*>([\s\S]*?)<\/span>[\s\S]*?<\/a>[\s\S]*?<\/div>/gi;
-  let match;
+  let match: RegExpExecArray | null;
   while ((match = seasonRegex.exec(seasonsSection))) {
     const href = match[1];
     const titleHtml = match[2];
@@ -406,7 +475,7 @@ export function parseTvShowSeasonCompletionFromHtml(html) {
   return map;
 }
 
-export function resolveSeasonUrl(href, baseUrl) {
+export function resolveSeasonUrl(href: string | null | undefined, baseUrl: string): string {
   if (!href) {
     return '';
   }
@@ -423,7 +492,7 @@ export function resolveSeasonUrl(href, baseUrl) {
   }
 }
 
-export function extractPosterFromBlockHtml(blockHtml, baseUrl) {
+export function extractPosterFromBlockHtml(blockHtml: string | null | undefined, baseUrl: string): PosterInfo | null {
   if (!blockHtml) {
     return null;
   }
@@ -470,8 +539,11 @@ export function extractPosterFromBlockHtml(blockHtml, baseUrl) {
   };
 }
 
-export function parseTvShowSeasonEntriesFromHtml(html, baseUrl) {
-  const entries = [];
+export function parseTvShowSeasonEntriesFromHtml(
+  html: string | null | undefined,
+  baseUrl: string
+): SeasonEntrySummary[] {
+  const entries: SeasonEntrySummary[] = [];
   if (!html || typeof html !== 'string') {
     return entries;
   }
@@ -480,28 +552,28 @@ export function parseTvShowSeasonEntriesFromHtml(html, baseUrl) {
     return entries;
   }
   const blockRegex = /<div[^>]*class=['"]se-c['"][^>]*>([\s\S]*?)<\/div>/gi;
-  let blockMatch;
+  let blockMatch: RegExpExecArray | null;
   let index = 0;
   while ((blockMatch = blockRegex.exec(seasonsSection))) {
     const blockHtml = blockMatch[1];
     if (!blockHtml) {
       continue;
     }
-    const anchorMatch = blockHtml.match(/<a[^>]+href=['"]([^'"]+)['"][^>]*>[\s\S]*?<span[^>]*class=['"]title['"][^>]*>([\s\S]*?)<\/span>[\s\S]*?<\/a>/i);
-    if (!anchorMatch) {
-      continue;
-    }
-    const href = anchorMatch[1];
-    const url = resolveSeasonUrl(href, baseUrl);
-    if (!url) {
-      continue;
-    }
-    const idMatch = url.match(/\/seasons\/(\d+)\.html/);
-    const seasonId = idMatch ? idMatch[1] : `season-${index + 1}`;
-    const titleHtml = anchorMatch[2] || '';
-    const textContent = stripHtmlTags(titleHtml);
-    const label = extractCleanTitle(textContent) || `季 ${index + 1}`;
-    const poster = extractPosterFromBlockHtml(blockHtml, baseUrl);
+        const anchorMatch = blockHtml.match(/<a[^>]+href=['"]([^'"]+)['"][^>]*>[\s\S]*?<span[^>]*class=['"]title['"][^>]*>([\s\S]*?)<\/span>[\s\S]*?<\/a>/i);
+        if (!anchorMatch) {
+          continue;
+        }
+        const href = safeGroup(anchorMatch, 1);
+        const url = resolveSeasonUrl(href, baseUrl);
+        if (!url) {
+          continue;
+        }
+        const idMatch = url.match(/\/seasons\/(\d+)\.html/);
+        const seasonId = safeGroup(idMatch, 1) || `season-${index + 1}`;
+        const titleHtml = anchorMatch[2] || '';
+        const textContent = stripHtmlTags(titleHtml);
+        const label = extractCleanTitle(textContent) || `季 ${index + 1}`;
+        const poster = extractPosterFromBlockHtml(blockHtml, baseUrl);
     entries.push({
       seasonId,
       url,
@@ -514,23 +586,33 @@ export function parseTvShowSeasonEntriesFromHtml(html, baseUrl) {
   return entries;
 }
 
-export function parseItemsFromHtml(html, historyItems = {}) {
+export interface ParsedItem {
+  id: string;
+  title: string;
+  linkUrl: string;
+  passCode: string;
+}
+
+export function parseItemsFromHtml(
+  html: string | null | undefined,
+  historyItems: Record<string, { linkUrl?: string; passCode?: string }> = {}
+): ParsedItem[] {
   const sectionHtml = extractDownloadTableHtml(html);
   if (!sectionHtml) {
     return [];
   }
-  const items = [];
-  const seenIds = new Set();
+  const items: ParsedItem[] = [];
+  const seenIds = new Set<string>();
   const rowRegex = /<tr[^>]*id=["']link-(\d+)["'][\s\S]*?<\/tr>/gi;
-  let match;
+  let match: RegExpExecArray | null;
   while ((match = rowRegex.exec(sectionHtml))) {
-    const id = match[1];
+    const id = safeGroup(match, 1);
     if (!id || seenIds.has(id)) {
       continue;
     }
     const rowHtml = match[0];
     const anchorMatch = rowHtml.match(/<a[^>]+href=["'][^"']*\/links\/\d+\.html[^"']*["'][^>]*>([\s\S]*?)<\/a>/i);
-    const rawTitle = anchorMatch ? stripHtmlTags(anchorMatch[1]) : '';
+    const rawTitle = anchorMatch ? stripHtmlTags(safeGroup(anchorMatch, 1)) : '';
     const title = extractCleanTitle(rawTitle || '');
     const historyItem = historyItems[id];
     items.push({
