@@ -1,12 +1,12 @@
-import { HISTORY_DISPLAY_LIMIT } from '../constants.js';
-import { buildHistoryGroupSeasonRows } from '../services/history-service.js';
+import { HISTORY_DISPLAY_LIMIT } from '../constants';
+import { buildHistoryGroupSeasonRows } from '../services/history-service';
 import {
   normalizeDir,
   sanitizeSeasonDirSegment,
   buildPanDirectoryUrl,
   normalizePageUrl
-} from '../services/page-analyzer.js';
-import { disableElementDrag } from '../utils/dom.js';
+} from '../services/page-analyzer';
+import { disableElementDrag } from '../utils/dom';
 
 function formatHistoryTimestamp(timestamp) {
   if (!Number.isFinite(timestamp) || timestamp <= 0) {

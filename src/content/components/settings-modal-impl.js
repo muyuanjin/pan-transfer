@@ -10,9 +10,9 @@ import {
   HISTORY_BATCH_RATE_LIMIT_MS,
   MIN_HISTORY_RATE_LIMIT_MS,
   MAX_HISTORY_RATE_LIMIT_MS
-} from '../constants.js';
-import { panelDom, state } from '../state/index.js';
-import { normalizeDir } from '../services/page-analyzer.js';
+} from '../constants';
+import { panelDom, state } from '../state';
+import { normalizeDir } from '../services/page-analyzer';
 
 export function clampHistoryRateLimit(value) {
   const ms = Number(value);

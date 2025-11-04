@@ -2,18 +2,20 @@ const STORAGE_INVALIDATION_WARNING = '[Chaospace Transfer]';
 
 let storageInvalidationWarned = false;
 
-export function isExtensionContextInvalidated(error) {
+export function isExtensionContextInvalidated(error: unknown): boolean {
   if (!error) {
     return false;
   }
-  const message = typeof error === 'string' ? error : error.message;
+  const message = typeof error === 'string'
+    ? error
+    : (error as { message?: unknown })?.message;
   if (!message) {
     return false;
   }
-  return message.toLowerCase().includes('context invalidated');
+  return String(message).toLowerCase().includes('context invalidated');
 }
 
-export function warnStorageInvalidation(operation = 'Storage operation') {
+export function warnStorageInvalidation(operation = 'Storage operation'): void {
   if (storageInvalidationWarned) {
     return;
   }
@@ -21,24 +23,31 @@ export function warnStorageInvalidation(operation = 'Storage operation') {
   storageInvalidationWarned = true;
 }
 
-export function resetStorageInvalidationWarning() {
+export function resetStorageInvalidationWarning(): void {
   storageInvalidationWarned = false;
 }
 
-export async function safeStorageGet(keys, contextLabel = 'storage') {
+export async function safeStorageGet<T = Record<string, unknown>>(
+  keys: string | string[] | Record<string, unknown>,
+  contextLabel = 'storage'
+): Promise<T & Record<string, unknown>> {
   try {
-    return await chrome.storage.local.get(keys);
+    const result = await chrome.storage.local.get(keys);
+    return result as T & Record<string, unknown>;
   } catch (error) {
     if (isExtensionContextInvalidated(error)) {
       warnStorageInvalidation('Storage read');
-      return {};
+      return {} as T & Record<string, unknown>;
     }
     console.error('[Chaospace Transfer] Failed to read ' + contextLabel, error);
-    return {};
+    return {} as T & Record<string, unknown>;
   }
 }
 
-export async function safeStorageSet(entries, contextLabel = 'storage') {
+export async function safeStorageSet(
+  entries: Record<string, unknown>,
+  contextLabel = 'storage'
+): Promise<void> {
   try {
     await chrome.storage.local.set(entries);
   } catch (error) {
@@ -50,7 +59,10 @@ export async function safeStorageSet(entries, contextLabel = 'storage') {
   }
 }
 
-export async function safeStorageRemove(keys, contextLabel = 'storage') {
+export async function safeStorageRemove(
+  keys: string | string[],
+  contextLabel = 'storage'
+): Promise<void> {
   try {
     await chrome.storage.local.remove(keys);
   } catch (error) {

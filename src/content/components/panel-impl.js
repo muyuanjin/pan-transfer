@@ -1,7 +1,7 @@
 import { createApp } from 'vue';
 import PanelRoot from './PanelRoot.vue';
-import { disableElementDrag } from '../utils/dom.js';
-import { safeStorageGet, safeStorageSet } from '../utils/storage.js';
+import { disableElementDrag } from '../utils/dom';
+import { safeStorageGet, safeStorageSet } from '../utils/storage';
 
 const PANEL_MARGIN = 16;
 const PANEL_MIN_WIDTH = 360;

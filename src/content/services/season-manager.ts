@@ -1,25 +1,45 @@
 import {
   ALL_SEASON_TAB_ID,
   NO_SEASON_TAB_ID
-} from '../constants.js';
-import { state, panelDom } from '../state/index.js';
+} from '../constants';
+import { state, panelDom } from '../state';
 import {
   normalizeDir,
   sanitizeSeasonDirSegment,
   deriveSeasonDirectory
-} from './page-analyzer.js';
-import { extractCleanTitle } from '../utils/title.js';
+} from './page-analyzer';
+import { extractCleanTitle } from '../utils/title';
+import type {
+  ResourceItem,
+  SeasonResolvedPath
+} from '../types';
 
-function isTvShowPage() {
+type SeasonTabType = 'all' | 'season' | 'misc';
+
+interface SeasonTabItem {
+  id: string;
+  name: string;
+  count: number;
+  type: SeasonTabType;
+  index: number;
+}
+
+interface SeasonTabState {
+  tabItems: SeasonTabItem[];
+  activeId: string | null;
+  activeTab: SeasonTabItem | null;
+}
+
+function isTvShowPage(): boolean {
   return /\/tvshows\/\d+\.html/.test(window.location.pathname);
 }
 
-function dedupeSeasonDirMap() {
+function dedupeSeasonDirMap(): void {
   if (!state.seasonDirMap || typeof state.seasonDirMap !== 'object') {
     state.seasonDirMap = {};
     return;
   }
-  const used = new Map();
+  const used = new Map<string, number>();
   Object.entries(state.seasonDirMap).forEach(([key, name]) => {
     let sanitized = sanitizeSeasonDirSegment(name);
     if (!sanitized) {
@@ -39,7 +59,7 @@ function dedupeSeasonDirMap() {
   });
 }
 
-function getTargetPath(baseDir, useTitleSubdir, pageTitle) {
+function getTargetPath(baseDir: string, useTitleSubdir: boolean, pageTitle: string): string {
   const normalizedBase = normalizeDir(baseDir);
   let targetDirectory = normalizedBase || '/';
 
@@ -51,24 +71,24 @@ function getTargetPath(baseDir, useTitleSubdir, pageTitle) {
   return targetDirectory;
 }
 
-function updateSeasonExampleDir() {
+function updateSeasonExampleDir(): void {
   if (!state.useSeasonSubdir) {
     state.seasonResolvedPaths = [];
     return;
   }
 
   const base = getTargetPath(state.baseDir, state.useTitleSubdir, state.pageTitle);
-  const resolved = [];
-  const seen = new Set();
+  const resolved: SeasonResolvedPath[] = [];
+  const seen = new Set<string>();
 
-  (state.items || []).forEach(item => {
+  (state.items || []).forEach((item: ResourceItem | undefined) => {
     if (!item || !item.seasonId || seen.has(item.seasonId)) {
       return;
     }
     const rawDir = state.seasonDirMap[item.seasonId];
     const safeDir = sanitizeSeasonDirSegment(rawDir);
     const path = safeDir ? (base === '/' ? `/${safeDir}` : `${base}/${safeDir}`) : base;
-    const label = item.seasonLabel || `第${Number.isFinite(item.seasonIndex) ? item.seasonIndex + 1 : 1}季`;
+    const label = item.seasonLabel || `第${Number.isFinite(item.seasonIndex) ? Number(item.seasonIndex) + 1 : 1}季`;
     resolved.push({
       id: item.seasonId,
       label,
@@ -94,7 +114,7 @@ function updateSeasonExampleDir() {
   state.seasonResolvedPaths = resolved;
 }
 
-function computeItemTargetPath(item, defaultPath) {
+function computeItemTargetPath(item: ResourceItem | null | undefined, defaultPath: string): string {
   if (!state.useSeasonSubdir || !item || !item.seasonId) {
     return defaultPath;
   }
@@ -104,7 +124,7 @@ function computeItemTargetPath(item, defaultPath) {
   if (!dirName || !sanitizeSeasonDirSegment(dirName)) {
     dirName = deriveSeasonDirectory(item.seasonLabel, item.seasonIndex);
     if (!dirName) {
-      dirName = `第${Number.isFinite(item.seasonIndex) ? item.seasonIndex + 1 : 1}季`;
+      dirName = `第${Number.isFinite(item.seasonIndex) ? Number(item.seasonIndex) + 1 : 1}季`;
     }
     state.seasonDirMap[seasonId] = dirName;
     dedupeSeasonDirMap();
@@ -121,22 +141,22 @@ function computeItemTargetPath(item, defaultPath) {
   return cleanBase === '/' ? `/${safeDir}` : `${cleanBase}/${safeDir}`;
 }
 
-function getAvailableSeasonIds() {
+function getAvailableSeasonIds(): string[] {
   return state.items
     .map(item => item && item.seasonId)
-    .filter(Boolean);
+    .filter((id): id is string => Boolean(id));
 }
 
-function getSeasonCount() {
+function getSeasonCount(): number {
   return new Set(getAvailableSeasonIds()).size;
 }
 
-function buildSeasonTabItems() {
-  const seasonMap = new Map();
+function buildSeasonTabItems(): SeasonTabItem[] {
+  const seasonMap = new Map<string, { id: string; name: string; count: number; index: number }>();
   let miscCount = 0;
   let total = 0;
 
-  state.items.forEach(item => {
+  state.items.forEach((item: ResourceItem | undefined) => {
     if (!item) {
       return;
     }
@@ -146,10 +166,10 @@ function buildSeasonTabItems() {
       const normalizedLabel = typeof item.seasonLabel === 'string' ? item.seasonLabel.trim() : '';
       const numericSuffix = String(key).match(/\d+$/);
       const fallbackLabel = Number.isFinite(item.seasonIndex)
-        ? `第${item.seasonIndex + 1}季`
+        ? `第${Number(item.seasonIndex) + 1}季`
         : (numericSuffix ? `第${numericSuffix[0]}季` : `季 ${seasonMap.size + 1}`);
       const label = normalizedLabel || fallbackLabel || '未知季';
-      const index = Number.isFinite(item.seasonIndex) ? item.seasonIndex : Number.MAX_SAFE_INTEGER;
+      const index = Number.isFinite(item.seasonIndex) ? Number(item.seasonIndex) : Number.MAX_SAFE_INTEGER;
       const existing = seasonMap.get(key);
       if (existing) {
         existing.count += 1;
@@ -170,9 +190,11 @@ function buildSeasonTabItems() {
     }
   });
 
-  const seasons = Array.from(seasonMap.values()).map(entry => ({
-    ...entry,
+  const seasons: SeasonTabItem[] = Array.from(seasonMap.values()).map(entry => ({
+    id: entry.id,
     name: entry.name || '未知季',
+    count: entry.count,
+    type: 'season',
     index: Number.isFinite(entry.index) ? entry.index : Number.MAX_SAFE_INTEGER
   }));
 
@@ -189,7 +211,7 @@ function buildSeasonTabItems() {
     return [];
   }
 
-  const tabs = [];
+  const tabs: SeasonTabItem[] = [];
   if (hasMultipleSeasons || (miscCount > 0 && seasons.length)) {
     tabs.push({
       id: ALL_SEASON_TAB_ID,
@@ -201,13 +223,7 @@ function buildSeasonTabItems() {
   }
 
   seasons.forEach(entry => {
-    tabs.push({
-      id: entry.id,
-      name: entry.name,
-      count: entry.count,
-      type: 'season',
-      index: entry.index
-    });
+    tabs.push(entry);
   });
 
   if (miscCount > 0) {
@@ -223,7 +239,7 @@ function buildSeasonTabItems() {
   return tabs;
 }
 
-function resolveActiveSeasonId(tabItems) {
+function resolveActiveSeasonId(tabItems: SeasonTabItem[]): string | null {
   if (!tabItems || !tabItems.length) {
     return null;
   }
@@ -235,10 +251,11 @@ function resolveActiveSeasonId(tabItems) {
   if (firstSeasonTab) {
     return firstSeasonTab.id;
   }
-  return tabItems[0].id;
+  const fallback = tabItems[0] ?? null;
+  return fallback ? fallback.id : null;
 }
 
-function computeSeasonTabState({ syncState = false } = {}) {
+function computeSeasonTabState({ syncState = false }: { syncState?: boolean } = {}): SeasonTabState {
   const tabItems = buildSeasonTabItems();
   if (!tabItems.length) {
     if (syncState && state.activeSeasonId) {
@@ -254,7 +271,7 @@ function computeSeasonTabState({ syncState = false } = {}) {
   return { tabItems, activeId, activeTab };
 }
 
-function filterItemsForActiveSeason(items, activeId) {
+function filterItemsForActiveSeason(items: ResourceItem[], activeId: string | null): ResourceItem[] {
   if (!Array.isArray(items) || !items.length) {
     return [];
   }
@@ -267,10 +284,10 @@ function filterItemsForActiveSeason(items, activeId) {
   return items.filter(item => item && item.seasonId === activeId);
 }
 
-function rebuildSeasonDirMap({ preserveExisting = true } = {}) {
+function rebuildSeasonDirMap({ preserveExisting = true }: { preserveExisting?: boolean } = {}): void {
   const existing = preserveExisting && state.seasonDirMap ? { ...state.seasonDirMap } : {};
-  const next = {};
-  state.items.forEach(item => {
+  const next: Record<string, string> = {};
+  state.items.forEach((item: ResourceItem | undefined) => {
     if (!item || !item.seasonId) {
       return;
     }
@@ -282,7 +299,7 @@ function rebuildSeasonDirMap({ preserveExisting = true } = {}) {
       candidate = deriveSeasonDirectory(item.seasonLabel, item.seasonIndex);
     }
     if (!candidate) {
-      candidate = `第${Number.isFinite(item.seasonIndex) ? item.seasonIndex + 1 : 1}季`;
+      candidate = `第${Number.isFinite(item.seasonIndex) ? Number(item.seasonIndex) + 1 : 1}季`;
     }
     next[item.seasonId] = candidate;
   });
@@ -291,7 +308,7 @@ function rebuildSeasonDirMap({ preserveExisting = true } = {}) {
   updateSeasonExampleDir();
 }
 
-function ensureSeasonSubdirDefault() {
+function ensureSeasonSubdirDefault(): void {
   if (state.hasSeasonSubdirPreference) {
     return;
   }
@@ -299,25 +316,26 @@ function ensureSeasonSubdirDefault() {
   state.useSeasonSubdir = isTvShowPage() && seasonCount > 1;
 }
 
-function renderSeasonHint() {
-  if (!panelDom.seasonPathHint) {
+function renderSeasonHint(): void {
+  const seasonPathHint = panelDom['seasonPathHint'] as HTMLElement | null | undefined;
+  if (!seasonPathHint) {
     return;
   }
   const entries = state.seasonResolvedPaths || [];
   const showHint = state.useSeasonSubdir && entries.length;
   if (!showHint) {
-    panelDom.seasonPathHint.textContent = '';
-    panelDom.seasonPathHint.classList.add('is-empty');
+    seasonPathHint.textContent = '';
+    seasonPathHint.classList.add('is-empty');
     return;
   }
 
-  panelDom.seasonPathHint.classList.remove('is-empty');
-  panelDom.seasonPathHint.textContent = '';
+  seasonPathHint.classList.remove('is-empty');
+  seasonPathHint.textContent = '';
 
   const heading = document.createElement('div');
   heading.className = 'chaospace-path-heading';
   heading.textContent = '📂 实际转存路径';
-  panelDom.seasonPathHint.appendChild(heading);
+  seasonPathHint.appendChild(heading);
 
   entries.forEach(entry => {
     const row = document.createElement('div');
@@ -333,19 +351,21 @@ function renderSeasonHint() {
     valueSpan.textContent = String(entry.path || '/');
     row.appendChild(valueSpan);
 
-    panelDom.seasonPathHint.appendChild(row);
+    seasonPathHint.appendChild(row);
   });
 }
 
-function renderSeasonControls() {
+function renderSeasonControls(): void {
+  const seasonRow = panelDom['seasonRow'] as HTMLElement | null | undefined;
+  const useSeasonCheckbox = panelDom['useSeasonCheckbox'] as HTMLInputElement | null | undefined;
   const seasonCount = getSeasonCount();
   const shouldShow = isTvShowPage() && seasonCount > 1;
-  if (panelDom.seasonRow) {
-    panelDom.seasonRow.style.display = shouldShow ? 'flex' : 'none';
+  if (seasonRow) {
+    seasonRow.style.display = shouldShow ? 'flex' : 'none';
   }
-  if (panelDom.useSeasonCheckbox) {
-    panelDom.useSeasonCheckbox.checked = shouldShow ? state.useSeasonSubdir : false;
-    panelDom.useSeasonCheckbox.disabled = state.transferStatus === 'running';
+  if (useSeasonCheckbox) {
+    useSeasonCheckbox.checked = shouldShow ? state.useSeasonSubdir : false;
+    useSeasonCheckbox.disabled = state.transferStatus === 'running';
   }
   if (shouldShow) {
     updateSeasonExampleDir();
@@ -353,8 +373,9 @@ function renderSeasonControls() {
   renderSeasonHint();
 }
 
-function renderSeasonTabs() {
-  if (!panelDom.seasonTabs) {
+function renderSeasonTabs(): SeasonTabState {
+  const seasonTabs = panelDom['seasonTabs'] as HTMLElement | null | undefined;
+  if (!seasonTabs) {
     return computeSeasonTabState({ syncState: true });
   }
 
@@ -362,23 +383,23 @@ function renderSeasonTabs() {
   const { tabItems, activeId } = tabState;
 
   if (!tabItems.length) {
-    panelDom.seasonTabs.innerHTML = '';
-    panelDom.seasonTabs.hidden = true;
-    panelDom.seasonTabs.setAttribute('aria-hidden', 'true');
+    seasonTabs.innerHTML = '';
+    seasonTabs.hidden = true;
+    seasonTabs.setAttribute('aria-hidden', 'true');
     return tabState;
   }
 
-  panelDom.seasonTabs.hidden = false;
-  panelDom.seasonTabs.removeAttribute('aria-hidden');
-  panelDom.seasonTabs.innerHTML = '';
+  seasonTabs.hidden = false;
+  seasonTabs.removeAttribute('aria-hidden');
+  seasonTabs.innerHTML = '';
 
   const fragment = document.createDocumentFragment();
   tabItems.forEach(tab => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = `chaospace-season-tab${tab.id === activeId ? ' is-active' : ''}`;
-    button.dataset.seasonId = tab.id;
-    button.dataset.seasonType = tab.type;
+    button.dataset['seasonId'] = tab.id;
+    button.dataset['seasonType'] = tab.type;
     button.setAttribute('aria-pressed', tab.id === activeId ? 'true' : 'false');
 
     const labelSpan = document.createElement('span');
@@ -394,8 +415,8 @@ function renderSeasonTabs() {
     fragment.appendChild(button);
   });
 
-  panelDom.seasonTabs.appendChild(fragment);
-  panelDom.seasonTabs.scrollLeft = 0;
+  seasonTabs.appendChild(fragment);
+  seasonTabs.scrollLeft = 0;
   return tabState;
 }
 
@@ -412,4 +433,3 @@ export {
   renderSeasonTabs,
   getTargetPath
 };
-

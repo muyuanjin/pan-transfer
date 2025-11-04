@@ -1,8 +1,8 @@
-function handleSuppressDrag(event) {
+function handleSuppressDrag(event: DragEvent): void {
   event.preventDefault();
 }
 
-export function disableElementDrag(element) {
+export function disableElementDrag(element: HTMLElement | null | undefined): void {
   if (!element) {
     return;
   }

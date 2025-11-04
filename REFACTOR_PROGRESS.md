@@ -126,6 +126,16 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 16. **Background Message Typings (2025-11-04 late)**  
     - Replaced the loosely typed `IncomingMessage` union in `src/background/index.ts` with explicit discriminated unions and type guards, eliminating `any` casts for history/delete/update/transfer payloads.  
     - Hardened runtime checks so malformed transfer payloads return an immediate error instead of passing unchecked data to `handleTransfer`, reducing the chance of runtime crashes when the content script misbehaves.
+17. **Content TS Migration (2025-11-05)**  
+    - Converted remaining content services, state, and utility modules to TypeScript (`src/content/services/*.ts`, `src/content/utils/*.ts`, `src/content/state/index.ts`) and introduced `src/content/types.ts` for shared interface/state definitions.  
+    - Wrapped DOM-heavy components with typed facades (`history-card.ts`, `history-detail.ts`, `panel.ts`, `resource-list.ts`, `settings-modal.ts`), keeping the implementation logic in `*-impl.js` to ease the upcoming Vue rewrite while enabling type-checked imports today.  
+    - Reimplemented light-weight helpers (`toast.ts`, `zoom-preview.ts`) directly in TypeScript and restored history messaging helpers (`deleteHistoryRecords`, `clearAllHistoryRecords`, `requestHistoryUpdate`, `fetchHistorySnapshot`) so the content entrypoint compiles without the old JS exports.  
+    - `npm run typecheck` and `npm run build` (2025-11-05 10:12 UTC-8) succeed solely from the new TypeScript sources, confirming the Vite bundle no longer depends on the `.js` modules.
+
+## Latest Session (2025-11-05)
+- Migrated the content stack to TypeScript: converted services, utilities, shared state, and introduced typed facades for panel/history/settings components while preserving existing DOM logic in `*-impl.js` for staged Vue replacement.
+- Added `src/content/types.ts` to centralize runtime/panel state signatures and updated imports across the bundle; ensured history messaging helpers remain exported from the new TypeScript services.
+- Rebuilt light helpers (`toast`, `zoom-preview`) in TypeScript and verified `npm run typecheck` + `npm run build` (2025-11-05 10:12 UTC-8) complete without relying on the legacy `.js` modules.
 
 ## Latest Session (2025-11-04, late night)
 - Refactored `parser-service.ts` into strictly typed helpers, created `parser/html-helpers.ts`, and removed the stop-gap `// @ts-nocheck` without regressing existing behaviour.
@@ -188,10 +198,12 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 - [x] Consolidate remaining DOM helpers (geometry persistence, storage wrappers) into `content/utils/` or dedicated services.
 - [ ] Continue trimming `src/content/index.js` so it only orchestrates imports, bootstrapping, and Chrome message wiring.
 - [x] Lift deferred season hydration/loader logic into a dedicated module (e.g., `services/season-loader.js`) and integrate with the season manager.
+- [ ] Replace the `*-impl.js` shims with Vue/TS components as soon as parity is verified, deleting the legacy JS wrappers.
 
 ### B. Shared Helpers & Services
 - [x] Move any remaining inline sanitizers (CSS URL, title formatters) into `src/shared/utils/` or `content/utils/` as appropriate.
 - [x] Revisit history batch logic to determine if portions belong in `services/history-service.js` (e.g., selection/filter helpers).
+- [ ] Add strict typings/tests for history messaging responses (success/error payloads) once end-to-end transfer coverage expands.
 
 ### C. Styles & Assets
 - [ ] Split legacy `floatingButton.css` (currently copied into `content/styles/main.css`) into modular styles under `src/content/styles/` (`_variables.css`, `_base.css`, `panel.css`, `components/history.css`, `components/settings.css`, `components/toast.css`, etc.).
@@ -201,12 +213,14 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 - [ ] Smoke-test the Vite build in Chrome (`chrome://extensions`) to confirm background/content parity.
 - [ ] Remove legacy `chaospace-extension/` directory once new structure is verified.
 - [ ] Document packaging flow (`npm run build` + `zip`) once validation passes.
+- [ ] Capture a before/after diff of bundle size/perf once Vue components land to ensure TS migration didn't regress load times.
 
 ### E. Testing & Verification
 - [ ] Document manual smoke test steps (load unpacked, visit CHAOSPACE pages, verify extraction/transfers/history banners).
 - [x] Record automated/unit testing strategy — parser-service now covered by Vitest (`npm run test`) and enforced alongside `npm run typecheck`.
 - [ ] Expand automated coverage beyond parser-service (transfer-service retry paths, background message guards) once fixtures are ready.
 - [ ] Re-run end-to-end transfer after directory sanitization change to confirm target paths exclude site suffixes.
+- [ ] Add regression coverage for content messaging helpers (`deleteHistoryRecords`, `requestHistoryUpdate`) once a testing harness is available.
 
 ## Known Issues / Blockers
 - **Content script size**: `src/content/index.js` remains unwieldy; risk of regressions until more logic is modularized.
@@ -224,16 +238,8 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 - Automated checks (2025-11-04 19:13 UTC-8): `npm run typecheck` and `npm run test -- --run` both pass after the parser-service refactor and background listener tightening.
 
 ## Next Session Checklist
-1. ✅ Load the freshly built `dist/` in Chrome, trigger a transfer, and confirm season tabs/items/path preview reflect the sanitized labels (no trailing dates/status/ratings, no `– CHAOSPACE` suffixes).
-2. ✅ Smoke-test the new Vue panel root (edge-hide, drag/resize, pin behaviour) to confirm parity with the legacy script.
-3. ✅ Regression-test the new settings modal (import/export, layout reset, theme toggles) to confirm parity with legacy behavior.
-4. ✅ Carved out deferred season hydration into `src/content/services/season-loader.js`; continue monitoring `content/index.js` for remaining orchestration logic.
-5. 🔁 Re-run `npm run build` after each major extraction to ensure bundling stays green.
-6. 🔁 Keep this archive updated after each work session so the next hand-off stays seamless.
-7. ✅ Removed the temporary `// @ts-nocheck` from `src/background/services/parser-service.ts`, split parsing into typed helpers, and added unit fixtures.
-8. ✅ Hardened background message payload typings so the listener no longer casts to `any`.
-9. ☐ Add negative-path Vitest fixtures (missing passcode, malformed gallery blocks, unexpected season markup) to guard parser-service regressions.
-10. ☐ Begin carving the Chrome message orchestration out of `src/content/index.js` into typed modules that mirror the background listener contracts.
+-11. ☐ Port the `*-impl.js` content components to Vue/TS and delete the interim facades once parity is validated.
+-12. ☐ Perform a full Chrome smoke test on the TS build (settings modal, history actions, deferred season loading, transfer flow) and document results.
 
 ## Quick References
 - Entry script: `src/content/index.js`

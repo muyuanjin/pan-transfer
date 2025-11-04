@@ -2,7 +2,7 @@ import {
   CLASSIFICATION_PATH_MAP,
   TV_SHOW_INITIAL_SEASON_BATCH,
   PAN_DISK_BASE_URL
-} from '../constants.js';
+} from '../constants';
 import {
   stripHtmlTags,
   extractCleanTitle,

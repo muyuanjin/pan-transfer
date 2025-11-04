@@ -1,4 +1,4 @@
-import { disableElementDrag } from '../utils/dom.js';
+import { disableElementDrag } from '../utils/dom';
 
 export function buildHistoryDetailFallback(group, overrides = {}) {
   if (!group) {

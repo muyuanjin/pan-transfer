@@ -1,6 +1,17 @@
-let currentToast = null;
+interface ToastStats {
+  success: number;
+  failed: number;
+  skipped: number;
+}
 
-export function showToast(type, title, message, stats = null) {
+let currentToast: HTMLDivElement | null = null;
+
+export function showToast(
+  type: string,
+  title: string,
+  message: string | null | undefined,
+  stats: ToastStats | null = null
+): void {
   try {
     if (currentToast && currentToast.parentNode) {
       currentToast.remove();

@@ -1,13 +1,47 @@
-import { state } from '../state/index.js';
-import {
-  sanitizeSeasonDirSegment
-} from './page-analyzer.js';
+import { state } from '../state';
+import { sanitizeSeasonDirSegment } from './page-analyzer';
 import {
   rebuildSeasonDirMap,
   ensureSeasonSubdirDefault,
   updateSeasonExampleDir
-} from './season-manager.js';
-import { summarizeSeasonCompletion } from '@/shared/utils/completion-status';
+} from './season-manager';
+import {
+  summarizeSeasonCompletion,
+  type CompletionStatus
+} from '@/shared/utils/completion-status';
+import type { PosterInfo } from '@/shared/utils/sanitizers';
+import type {
+  DeferredSeasonInfo,
+  ResourceItem
+} from '../types';
+
+interface FetchHtmlDocument {
+  (url: string): Promise<Document>;
+}
+
+interface ExtractItemsFromDocument {
+  (doc: Document, options: { baseUrl: string }): ResourceItem[];
+}
+
+interface ExtractSeasonPageCompletion {
+  (doc: Document, context: string): CompletionStatus | null;
+}
+
+interface ExtractPosterDetails {
+  (doc: Document, options: { baseUrl: string; fallbackAlt?: string | null }): PosterInfo | null;
+}
+
+interface SeasonLoaderDeps {
+  getFloatingPanel: () => HTMLElement | null | undefined;
+  fetchHtmlDocument: FetchHtmlDocument;
+  extractItemsFromDocument: ExtractItemsFromDocument;
+  extractSeasonPageCompletion: ExtractSeasonPageCompletion;
+  extractPosterDetails: ExtractPosterDetails;
+  renderResourceList: () => void;
+  renderPathPreview: () => void;
+  updatePanelHeader: () => void;
+  updateTransferButton: () => void;
+}
 
 export function createSeasonLoader({
   getFloatingPanel,
@@ -19,17 +53,20 @@ export function createSeasonLoader({
   renderPathPreview,
   updatePanelHeader,
   updateTransferButton
-}) {
+}: SeasonLoaderDeps): {
+  ensureDeferredSeasonLoading: () => Promise<void>;
+  resetSeasonLoader: () => void;
+} {
   let loaderRunning = false;
 
-  async function hydrateDeferredSeason(info) {
+  async function hydrateDeferredSeason(info: DeferredSeasonInfo | undefined): Promise<void> {
     if (!info || !info.url) {
       return;
     }
 
-    let seasonItems = [];
-    let completion = info.completion || null;
-    let poster = info.poster || null;
+    let seasonItems: ResourceItem[] = [];
+    let completion: CompletionStatus | null = info.completion || null;
+    let poster: PosterInfo | null = info.poster || null;
     try {
       const doc = await fetchHtmlDocument(info.url);
       seasonItems = extractItemsFromDocument(doc, { baseUrl: info.url });
@@ -64,22 +101,23 @@ export function createSeasonLoader({
     const normalizedLabel =
       sanitizeSeasonDirSegment(info.label) ||
       (typeof info.label === 'string' && info.label.trim()) ||
-      (Number.isFinite(info.index) ? `第${info.index + 1}季` : '');
+      (Number.isFinite(info.index) ? `第${Number(info.index) + 1}季` : '');
     const entryIndex = state.seasonEntries.findIndex(entry => entry.seasonId === info.seasonId);
+    const existingEntry = entryIndex >= 0 ? state.seasonEntries[entryIndex] : undefined;
     const normalizedEntry = {
       seasonId: info.seasonId,
       label: normalizedLabel,
       url: info.url,
       seasonIndex: Number.isFinite(info.index)
-        ? info.index
-        : (entryIndex >= 0 ? state.seasonEntries[entryIndex].seasonIndex : 0),
-      completion: seasonCompletion || (entryIndex >= 0 ? state.seasonEntries[entryIndex].completion : null),
-      poster: poster || (entryIndex >= 0 ? state.seasonEntries[entryIndex].poster : null),
+        ? Number(info.index)
+        : (existingEntry ? existingEntry.seasonIndex : 0),
+      completion: seasonCompletion || existingEntry?.completion || null,
+      poster: poster || existingEntry?.poster || null,
       loaded: true,
       hasItems: Array.isArray(seasonItems) && seasonItems.length > 0
     };
-    if (entryIndex >= 0) {
-      state.seasonEntries[entryIndex] = { ...state.seasonEntries[entryIndex], ...normalizedEntry };
+    if (existingEntry) {
+      state.seasonEntries[entryIndex] = { ...existingEntry, ...normalizedEntry };
     } else {
       state.seasonEntries.push(normalizedEntry);
     }
@@ -91,9 +129,10 @@ export function createSeasonLoader({
     });
 
     if (Array.isArray(seasonItems) && seasonItems.length) {
-      const normalizedItems = seasonItems.map((item, itemIndex) => ({
+      const baseIndex = Number.isFinite(info.index) ? Number(info.index) : 0;
+      const normalizedItems: ResourceItem[] = seasonItems.map((item, itemIndex) => ({
         ...item,
-        order: info.index * 10000 + (typeof item.order === 'number' ? item.order : itemIndex),
+        order: baseIndex * 10000 + (typeof item.order === 'number' ? item.order : itemIndex),
         seasonLabel: normalizedLabel,
         seasonIndex: info.index,
         seasonId: info.seasonId,
@@ -117,7 +156,8 @@ export function createSeasonLoader({
     ensureSeasonSubdirDefault();
     updateSeasonExampleDir();
 
-    const completionEntries = Object.values(state.seasonCompletion || {}).filter(Boolean);
+    const completionEntries = (Object.values(state.seasonCompletion || {})
+      .filter(Boolean) as CompletionStatus[]);
     if (completionEntries.length) {
       state.completion = summarizeSeasonCompletion(completionEntries);
     }
@@ -131,7 +171,7 @@ export function createSeasonLoader({
     renderPathPreview();
   }
 
-  async function ensureDeferredSeasonLoading() {
+  async function ensureDeferredSeasonLoading(): Promise<void> {
     if (loaderRunning) {
       return;
     }
@@ -163,7 +203,7 @@ export function createSeasonLoader({
     }
   }
 
-  function resetSeasonLoader() {
+  function resetSeasonLoader(): void {
     loaderRunning = false;
   }
 

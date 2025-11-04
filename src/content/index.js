@@ -16,8 +16,8 @@ import {
   PANEL_CREATION_RETRY_DELAY_MS,
   PANEL_CREATION_MAX_ATTEMPTS,
   PAN_DISK_BASE_URL
-} from './constants.js';
-import { state, panelDom, detailDom } from './state/index.js';
+} from './constants';
+import { state, panelDom, detailDom } from './state';
 import {
   analyzePage,
   getPageClassification,
@@ -29,7 +29,7 @@ import {
   isSupportedDetailPage,
   fetchSeasonDetail,
   isSeasonUrl
-} from './services/page-analyzer.js';
+} from './services/page-analyzer';
 import {
   computeItemTargetPath,
   dedupeSeasonDirMap,
@@ -42,8 +42,8 @@ import {
   renderSeasonControls,
   renderSeasonTabs,
   getTargetPath
-} from './services/season-manager.js';
-import { createSeasonLoader } from './services/season-loader.js';
+} from './services/season-manager';
+import { createSeasonLoader } from './services/season-loader';
 import {
   prepareHistoryRecords,
   normalizeSeasonDirectory,
@@ -55,27 +55,27 @@ import {
   canCheckHistoryGroup,
   filterHistoryGroups,
   normalizeHistoryFilter
-} from './services/history-service.js';
+} from './services/history-service';
 import {
   ensureHistoryDetailOverlay,
   renderHistoryDetail as renderHistoryDetailComponent,
   buildHistoryDetailFallback,
   normalizeHistoryDetailResponse
-} from './components/history-detail.js';
-import { renderHistoryCard as renderHistoryCardComponent } from './components/history-card.js';
-import { createResourceListRenderer } from './components/resource-list.js';
-import { createSettingsModal, clampHistoryRateLimit, sanitizePreset } from './components/settings-modal.js';
-import { mountPanelShell } from './components/panel.js';
-import { showToast } from './components/toast.js';
-import { installZoomPreview } from './components/zoom-preview.js';
-import { disableElementDrag } from './utils/dom.js';
+} from './components/history-detail';
+import { renderHistoryCard as renderHistoryCardComponent } from './components/history-card';
+import { createResourceListRenderer } from './components/resource-list';
+import { createSettingsModal, clampHistoryRateLimit, sanitizePreset } from './components/settings-modal';
+import { mountPanelShell } from './components/panel';
+import { showToast } from './components/toast';
+import { installZoomPreview } from './components/zoom-preview';
+import { disableElementDrag } from './utils/dom';
 import {
   safeStorageGet,
   safeStorageSet,
   safeStorageRemove
-} from './utils/storage.js';
-import { formatOriginLabel, sanitizeCssUrl } from './utils/format.js';
-import { extractCleanTitle } from './utils/title.js';
+} from './utils/storage';
+import { formatOriginLabel, sanitizeCssUrl } from './utils/format';
+import { extractCleanTitle } from './utils/title';
 import { summarizeSeasonCompletion } from '../shared/utils/completion-status';
 
 // chaospace content entry

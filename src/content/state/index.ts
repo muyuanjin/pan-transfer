@@ -1,9 +1,18 @@
 import {
   DEFAULT_PRESETS,
   HISTORY_BATCH_RATE_LIMIT_MS
-} from '../constants.js';
+} from '../constants';
+import type {
+  ContentState,
+  PanelDomRefs,
+  DetailDomRefs
+} from '../types';
 
-export const state = {
+type StateKey = keyof ContentState;
+
+type StateValue<K extends StateKey> = ContentState[K];
+
+const initialState: ContentState = {
   baseDir: '/',
   baseDirLocked: false,
   autoSuggestedDir: null,
@@ -14,13 +23,13 @@ export const state = {
   hasSeasonSubdirPreference: false,
   presets: [...DEFAULT_PRESETS],
   items: [],
-  itemIdSet: new Set(),
+  itemIdSet: new Set<string | number>(),
   isSeasonLoading: false,
   seasonLoadProgress: { total: 0, loaded: 0 },
   deferredSeasonInfos: [],
   sortKey: 'page',
   sortOrder: 'asc',
-  selectedIds: new Set(),
+  selectedIds: new Set<string | number>(),
   pageTitle: '',
   pageUrl: '',
   poster: null,
@@ -37,12 +46,12 @@ export const state = {
   historyRecords: [],
   historyGroups: [],
   currentHistory: null,
-  transferredIds: new Set(),
-  newItemIds: new Set(),
+  transferredIds: new Set<string | number>(),
+  newItemIds: new Set<string | number>(),
   historyExpanded: false,
-  historySeasonExpanded: new Set(),
+  historySeasonExpanded: new Set<string>(),
   historyFilter: 'all',
-  historySelectedKeys: new Set(),
+  historySelectedKeys: new Set<string>(),
   historyBatchRunning: false,
   historyBatchProgressLabel: '',
   historyRateLimitMs: HISTORY_BATCH_RATE_LIMIT_MS,
@@ -55,7 +64,7 @@ export const state = {
     error: '',
     fallback: null
   },
-  historyDetailCache: new Map(),
+  historyDetailCache: new Map<string, unknown>(),
   seasonDirMap: {},
   seasonResolvedPaths: [],
   activeSeasonId: null,
@@ -64,33 +73,38 @@ export const state = {
   }
 };
 
-export const panelDom = {};
-export const detailDom = {};
+export const state: ContentState = initialState;
 
-export function overwriteState(nextState) {
-  Object.keys(state).forEach(key => {
+export const panelDom: PanelDomRefs = {} as PanelDomRefs;
+export const detailDom: DetailDomRefs = {} as DetailDomRefs;
+
+export function overwriteState(nextState: Partial<ContentState>): void {
+  (Object.keys(state) as StateKey[]).forEach((key) => {
+    if (!(key in nextState)) {
+      return;
+    }
     const value = nextState[key];
     if (value instanceof Set) {
-      state[key] = new Set(value);
+      (state as Record<StateKey, unknown>)[key] = new Set(value);
       return;
     }
     if (value instanceof Map) {
-      state[key] = new Map(value);
+      (state as Record<StateKey, unknown>)[key] = new Map(value);
       return;
     }
-    state[key] = value;
+    (state as Record<StateKey, unknown>)[key] = value as StateValue<typeof key>;
   });
 }
 
-export function resetTransientState() {
-  state.itemIdSet = new Set();
+export function resetTransientState(): void {
+  state.itemIdSet = new Set<string | number>();
   state.deferredSeasonInfos = [];
   state.seasonEntries = [];
   state.seasonCompletion = {};
-  state.historyDetailCache = new Map();
-  state.selectedIds = new Set();
-  state.newItemIds = new Set();
-  state.transferredIds = new Set();
+  state.historyDetailCache = new Map<string, unknown>();
+  state.selectedIds = new Set<string | number>();
+  state.newItemIds = new Set<string | number>();
+  state.transferredIds = new Set<string | number>();
   state.logs = [];
   state.lastResult = null;
   state.jobId = null;

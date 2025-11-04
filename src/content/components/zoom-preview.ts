@@ -2,7 +2,55 @@ const STYLE_ID = 'zi-preview-style';
 const EPS = 1e-6;
 let installed = false;
 
-function injectStyles() {
+interface PointerPosition {
+  x: number;
+  y: number;
+}
+
+interface DragStartState extends PointerPosition {
+  sx: number;
+  sy: number;
+}
+
+interface PinchStartState {
+  dist: number;
+  scale: number;
+  mid: PointerPosition;
+}
+
+interface ZoomState {
+  vw: number;
+  vh: number;
+  iw: number;
+  ih: number;
+  minScale: number;
+  maxScale: number;
+  scale: number;
+  x: number;
+  y: number;
+  pointers: Map<number, PointerPosition>;
+  dragging: boolean;
+  pinch: boolean;
+  dragStart: DragStartState | null;
+  pinchStart: PinchStartState | null;
+  moved: boolean;
+  alive: boolean;
+}
+
+interface ZoomPreviewOptions {
+  src?: string;
+  alt?: string;
+  maxScale?: number;
+  margin?: number;
+}
+
+declare global {
+  interface Window {
+    openZoomPreview?: (options?: ZoomPreviewOptions) => { close: () => void } | null;
+  }
+}
+
+function injectStyles(): void {
   if (document.getElementById(STYLE_ID)) {
     return;
   }
@@ -21,18 +69,18 @@ function injectStyles() {
   document.head.appendChild(style);
 }
 
-function clamp(value, min, max) {
+function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-export function openZoomPreview(opts = {}) {
+export function openZoomPreview(opts: ZoomPreviewOptions = {}): { close: () => void } | null {
   const src = opts.src || '';
   if (!src) {
     return null;
   }
   const alt = opts.alt || '';
-  const maxScaleInput = Number.isFinite(opts.maxScale) ? opts.maxScale : 8;
-  const margin = Number.isFinite(opts.margin) ? opts.margin : 64;
+  const maxScaleInput = Number.isFinite(opts.maxScale) ? Number(opts.maxScale) : 8;
+  const margin = Number.isFinite(opts.margin) ? Number(opts.margin) : 64;
 
   injectStyles();
 
@@ -73,7 +121,7 @@ export function openZoomPreview(opts = {}) {
     event.preventDefault();
   });
 
-  const state = {
+  const state: ZoomState = {
     vw: window.innerWidth,
     vh: window.innerHeight,
     iw: 0,
@@ -83,7 +131,7 @@ export function openZoomPreview(opts = {}) {
     scale: 1,
     x: 0,
     y: 0,
-    pointers: new Map(),
+    pointers: new Map<number, PointerPosition>(),
     dragging: false,
     pinch: false,
     dragStart: null,
@@ -92,12 +140,12 @@ export function openZoomPreview(opts = {}) {
     alive: true
   };
 
-  function applyTransform() {
+  function applyTransform(): void {
     clampPan();
     content.style.transform = `translate3d(-50%, -50%, 0) translate3d(${state.x}px, ${state.y}px, 0) scale(${state.scale})`;
   }
 
-  function overflow() {
+  function overflow(): { ox: number; oy: number } {
     const availW = Math.max(0, state.vw - margin * 2);
     const availH = Math.max(0, state.vh - margin * 2);
     const cw = state.iw * state.scale;
@@ -108,13 +156,13 @@ export function openZoomPreview(opts = {}) {
     };
   }
 
-  function clampPan() {
+  function clampPan(): void {
     const { ox, oy } = overflow();
     state.x = ox === 0 ? 0 : clamp(state.x, -ox, ox);
     state.y = oy === 0 ? 0 : clamp(state.y, -oy, oy);
   }
 
-  function fitAndInit() {
+  function fitAndInit(): void {
     if (!state.alive) {
       return;
     }
@@ -133,30 +181,30 @@ export function openZoomPreview(opts = {}) {
     applyTransform();
   }
 
-  function updatePointer(event) {
+  function updatePointer(event: PointerEvent): void {
     state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
   }
 
-  function removePointer(event) {
+  function removePointer(event: PointerEvent): void {
     state.pointers.delete(event.pointerId);
   }
 
-  function twoPoints() {
+  function twoPoints(): [PointerPosition, PointerPosition] | null {
     const entries = [...state.pointers.values()];
-    return entries.length >= 2 ? entries.slice(0, 2) : null;
+    return entries.length >= 2 ? entries.slice(0, 2) as [PointerPosition, PointerPosition] : null;
   }
 
-  function dist(a, b) {
+  function dist(a: PointerPosition, b: PointerPosition): number {
     const dx = a.x - b.x;
     const dy = a.y - b.y;
     return Math.hypot(dx, dy);
   }
 
-  function mid(a, b) {
+  function mid(a: PointerPosition, b: PointerPosition): PointerPosition {
     return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
   }
 
-  function setScale(next, pivot) {
+  function setScale(next: number, pivot?: PointerPosition): void {
     const prev = state.scale;
     const clamped = clamp(next, state.minScale, state.maxScale);
     const changed = Math.abs(clamped - prev) > EPS;
@@ -177,7 +225,7 @@ export function openZoomPreview(opts = {}) {
     applyTransform();
   }
 
-  function wheelToScale(event) {
+  function wheelToScale(event: WheelEvent): void {
     event.preventDefault();
     const unit = event.deltaMode === 1 ? 16 : (event.deltaMode === 2 ? window.innerHeight : 1);
     const delta = event.deltaY * unit;
@@ -185,7 +233,7 @@ export function openZoomPreview(opts = {}) {
     setScale(state.scale * factor, { x: event.clientX, y: event.clientY });
   }
 
-  function onPointerDown(event) {
+  function onPointerDown(event: PointerEvent): void {
     if (!state.alive) {
       return;
     }
@@ -199,7 +247,11 @@ export function openZoomPreview(opts = {}) {
       state.dragStart = { x: event.clientX, y: event.clientY, sx: state.x, sy: state.y };
     } else if (state.pointers.size === 2) {
       state.dragging = false;
-      const [a, b] = twoPoints();
+      const points = twoPoints();
+      if (!points) {
+        return;
+      }
+      const [a, b] = points;
       state.pinch = true;
       state.pinchStart = {
         dist: dist(a, b),
@@ -209,23 +261,28 @@ export function openZoomPreview(opts = {}) {
     }
   }
 
-  function onPointerMove(event) {
+  function onPointerMove(event: PointerEvent): void {
     if (!state.alive) {
       return;
     }
     updatePointer(event);
 
     if (state.pinch && state.pointers.size >= 2) {
-      const [a, b] = twoPoints();
+      const points = twoPoints();
+      const pinchState = state.pinchStart;
+      if (!points || !pinchState) {
+        return;
+      }
+      const [a, b] = points;
       const distance = Math.max(1, dist(a, b));
-      const ratio = distance / Math.max(1, state.pinchStart.dist);
-      const nextScale = state.pinchStart.scale * ratio;
-      setScale(nextScale, state.pinchStart.mid);
+      const ratio = distance / Math.max(1, pinchState.dist);
+      const nextScale = pinchState.scale * ratio;
+      setScale(nextScale, pinchState.mid);
       state.moved = true;
       return;
     }
 
-    if (state.dragging && state.pointers.size === 1) {
+    if (state.dragging && state.pointers.size === 1 && state.dragStart) {
       const dx = event.clientX - state.dragStart.x;
       const dy = event.clientY - state.dragStart.y;
       state.x = state.dragStart.sx + dx;
@@ -235,7 +292,7 @@ export function openZoomPreview(opts = {}) {
     }
   }
 
-  function onPointerUp(event) {
+  function onPointerUp(event: PointerEvent): void {
     const isCancel = event.type === 'pointercancel';
     removePointer(event);
     if (state.pinch && state.pointers.size < 2) {
@@ -257,7 +314,7 @@ export function openZoomPreview(opts = {}) {
     }
   }
 
-  function onResize() {
+  function onResize(): void {
     if (!state.alive || !state.iw || !state.ih) {
       return;
     }
@@ -267,13 +324,13 @@ export function openZoomPreview(opts = {}) {
     setScale(state.minScale * Math.max(1, ratio));
   }
 
-  function onKeydown(event) {
+  function onKeydown(event: KeyboardEvent): void {
     if (event.key === 'Escape') {
       close();
     }
   }
 
-  function onOverlayClick(event) {
+  function onOverlayClick(event: MouseEvent): void {
     if (!state.alive) {
       return;
     }
@@ -285,14 +342,14 @@ export function openZoomPreview(opts = {}) {
     }
   }
 
-  function close() {
+  function close(): void {
     if (!state.alive) {
       return;
     }
     state.alive = false;
     window.removeEventListener('resize', onResize);
     window.removeEventListener('keydown', onKeydown, true);
-    stage.removeEventListener('wheel', wheelToScale, { passive: false });
+    stage.removeEventListener('wheel', wheelHandler);
     stage.removeEventListener('pointerdown', onPointerDown);
     stage.removeEventListener('pointermove', onPointerMove);
     stage.removeEventListener('pointerup', onPointerUp);
@@ -303,18 +360,19 @@ export function openZoomPreview(opts = {}) {
 
   window.addEventListener('resize', onResize);
   window.addEventListener('keydown', onKeydown, true);
-  stage.addEventListener('wheel', wheelToScale, { passive: false });
+  const wheelHandler = (event: WheelEvent) => wheelToScale(event);
+  stage.addEventListener('wheel', wheelHandler, false);
   stage.addEventListener('pointerdown', onPointerDown);
   stage.addEventListener('pointermove', onPointerMove);
   stage.addEventListener('pointerup', onPointerUp);
   stage.addEventListener('pointercancel', onPointerUp);
   overlay.addEventListener('click', onOverlayClick);
-  closeBtn.addEventListener('click', event => {
+  closeBtn.addEventListener('click', (event: MouseEvent) => {
     event.stopPropagation();
     close();
   });
 
-  function initOnLoad() {
+  function initOnLoad(): void {
     spinner.classList.add('zi-hidden');
     state.iw = img.naturalWidth || img.width || 1;
     state.ih = img.naturalHeight || img.height || 1;

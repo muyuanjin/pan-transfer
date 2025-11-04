@@ -1,4 +1,4 @@
-export function extractCleanTitle(rawTitle) {
+export function extractCleanTitle(rawTitle: string | null | undefined): string {
   if (!rawTitle) return '未命名资源';
 
   let title = rawTitle.trim();
@@ -20,4 +20,3 @@ export function extractCleanTitle(rawTitle) {
 
   return title || '未命名资源';
 }
-
