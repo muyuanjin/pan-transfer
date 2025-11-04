@@ -8,6 +8,8 @@
     "typecheck": "vue-tsc --noEmit -p tsconfig.app.json",
     "build": "npm run typecheck && vite build --mode production",
     "test": "vitest run",
+    "e2e": "playwright test",
+    "check": "npm run build && npm run test && npm run e2e",
     "test:watch": "vitest",
     "preview": "vite preview"
   },
@@ -23,6 +25,7 @@
   },
   "homepage": "https://github.com/muyuanjin/pan-transfer#readme",
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "@tsconfig/strictest": "^2.0.7",
     "@types/chrome": "^0.1.27",
     "@types/node": "^24.10.0",

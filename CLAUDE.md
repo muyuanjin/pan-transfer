@@ -114,6 +114,16 @@ npm run build  # vite build --mode production
 web-ext lint --source-dir dist
 ```
 
+**端到端覆盖**(需已构建 `dist/`, 首次运行前执行 `npx playwright install chromium` 安装浏览器):
+```bash
+npm run e2e  # Playwright 驱动真实 Chromium 加载扩展并访问 chaospace.cc
+```
+
+**完整检查流程**(类型检查 → 构建 → 单测 → 浏览器端到端验证, Playwright 步骤在最后):
+```bash
+npm run check
+```
+
 **重要**:
 - 构建产物输出到 `dist/` 目录(非 `chaospace-extension/`!)
 - 加载扩展时选择 `dist/` 目录,**不要加载** `chaospace-extension/`

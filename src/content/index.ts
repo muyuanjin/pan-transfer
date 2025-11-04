@@ -1577,7 +1577,7 @@ import { summarizeSeasonCompletion } from '../shared/utils/completion-status';
       const link = document.createElement('link');
       link.id = 'chaospace-float-styles';
       link.rel = 'stylesheet';
-      link.href = chrome.runtime.getURL('floatingButton.css');
+      link.href = chrome.runtime.getURL('content/styles/main.css');
 
       if (document.head) {
         document.head.appendChild(link);
