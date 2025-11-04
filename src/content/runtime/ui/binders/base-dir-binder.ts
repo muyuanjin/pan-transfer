@@ -1,0 +1,118 @@
+import { normalizeDir } from '../../../services/page-analyzer'
+import { dedupeSeasonDirMap, updateSeasonExampleDir } from '../../../services/season-manager'
+import type { PanelDomRefs, ContentState } from '../../../types'
+import type { createPanelPreferencesController } from '../../../controllers/panel-preferences'
+import type { ToastHandler } from '../../../components/toast'
+
+type PanelPreferencesController = ReturnType<typeof createPanelPreferencesController>
+
+interface BaseDirBinderDeps {
+  panelDom: PanelDomRefs
+  state: ContentState
+  preferences: PanelPreferencesController
+  renderResourceList: () => void
+  showToast: ToastHandler
+}
+
+export interface Binder {
+  bind: () => () => void
+}
+
+export function createBaseDirBinder({
+  panelDom,
+  state,
+  preferences,
+  renderResourceList,
+  showToast,
+}: BaseDirBinderDeps): Binder {
+  return {
+    bind(): () => void {
+      const abort = new AbortController()
+      const { signal } = abort
+      const add = <T extends EventTarget>(
+        target: T | null | undefined,
+        event: string,
+        handler: EventListenerOrEventListenerObject,
+      ) => {
+        target?.addEventListener(event, handler, { signal })
+      }
+
+      if (panelDom.baseDirInput) {
+        panelDom.baseDirInput.value = state.baseDir
+
+        add(panelDom.baseDirInput, 'change', () => {
+          preferences.setBaseDir(panelDom.baseDirInput?.value ?? state.baseDir)
+        })
+
+        add(panelDom.baseDirInput, 'input', () => {
+          if (!panelDom.baseDirInput) {
+            return
+          }
+          panelDom.baseDirInput.dataset['dirty'] = 'true'
+          panelDom.baseDirInput.classList.remove('is-invalid')
+          state.baseDir = normalizeDir(panelDom.baseDirInput.value)
+          preferences.renderPathPreview()
+        })
+
+        add(panelDom.baseDirInput, 'keydown', (event) => {
+          if ((event as KeyboardEvent).key !== 'Enter') {
+            return
+          }
+          event.preventDefault()
+          if (!panelDom.baseDirInput) {
+            return
+          }
+          preferences.setBaseDir(panelDom.baseDirInput.value)
+          const preset = preferences.ensurePreset(panelDom.baseDirInput.value)
+          if (preset) {
+            showToast('success', '已收藏路径', `${preset} 已加入候选列表`)
+          }
+          preferences.renderPresets()
+        })
+      }
+
+      if (panelDom.useTitleCheckbox) {
+        panelDom.useTitleCheckbox.checked = state.useTitleSubdir
+        add(panelDom.useTitleCheckbox, 'change', () => {
+          state.useTitleSubdir = Boolean(panelDom.useTitleCheckbox?.checked)
+          void preferences.saveSettings()
+          preferences.renderPathPreview()
+        })
+      }
+
+      if (panelDom.useSeasonCheckbox) {
+        panelDom.useSeasonCheckbox.checked = state.useSeasonSubdir
+        add(panelDom.useSeasonCheckbox, 'change', () => {
+          state.useSeasonSubdir = Boolean(panelDom.useSeasonCheckbox?.checked)
+          state.hasSeasonSubdirPreference = true
+          dedupeSeasonDirMap()
+          updateSeasonExampleDir()
+          preferences.renderPathPreview()
+          renderResourceList()
+          void preferences.saveSettings()
+        })
+      }
+
+      if (panelDom.addPresetButton) {
+        add(panelDom.addPresetButton, 'click', () => {
+          const preset = preferences.ensurePreset(
+            panelDom.baseDirInput ? panelDom.baseDirInput.value : state.baseDir,
+          )
+          if (preset) {
+            preferences.setBaseDir(preset, { fromPreset: true })
+            showToast('success', '已收藏路径', `${preset} 已加入候选列表`)
+          }
+        })
+      }
+
+      if (panelDom.themeToggle) {
+        add(panelDom.themeToggle, 'click', () => {
+          const nextTheme = state.theme === 'dark' ? 'light' : 'dark'
+          preferences.setTheme(nextTheme)
+        })
+      }
+
+      return () => abort.abort()
+    },
+  }
+}

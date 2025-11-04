@@ -13,3 +13,14 @@ export function disableElementDrag(element: HTMLElement | null | undefined): voi
     // Ignore unsupported nodes.
   }
 }
+
+export function closestElement<T extends Element = Element>(
+  target: EventTarget | null,
+  selector: string,
+): T | null {
+  if (!(target instanceof Element)) {
+    return null
+  }
+  const match = target.closest(selector)
+  return (match as T | null) ?? null
+}
