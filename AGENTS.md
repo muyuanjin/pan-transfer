@@ -1,33 +1,49 @@
-# Repository Guidelines
+# Chaospace Extension — Agent Guide
 
-## Project Structure & Module Organization
+_Last updated: 2025-11-05 (UTC-8)_
 
-- Core extension source now lives under `src/` and is bundled via Vite (see `REFACTOR_PROGRESS.md` for the latest module map). Background automation bootstraps from `src/background/index.js`, the content runtime from `src/content/index.js`, and shared helpers sit under `src/shared/`.
-- The legacy `chaospace-extension/` directory is frozen for parity checks only; do not patch bugs or add features there. Any missing behaviour should be recreated inside `src/` and pulled through the build.
-- Keep reusable helpers close to their consumers; create subfolders inside `src/` only when the code is shared by multiple scripts.
-- Store temporary assets or reference captures under `src/public/` (for build assets) or `chaospace-extension/assets/` when validating legacy behaviour. Avoid committing large binaries.
+## Core Principles
 
-## **Important**: Make sure to run `npm run check` and ensure all checks pass before submitting code/ending the task.
+- **Mission**: Deliver a Manifest V3 Chrome extension using Vite 7 + TypeScript 5.9 + Vue 3 that mirrors the legacy behaviour while adding modern safety/tooling.
+- **Source of truth**: All active code lives in `src/`. Treat `chaospace-extension/` as read-only reference for parity checks.
+- **Quality gate**: Keep `npm run check` green (format → typecheck → lint → build → vitest → playwright) before handing work back.
+- **Logging**: Prefix runtime logs with `[Chaospace Transfer]` across background, content, and UI contexts.
 
-## Coding Style & Naming Conventions
+## Architecture Snapshot
 
-- Follow the existing two-space indentation, trailing commas where beneficial, and prefer `const`/`let` over `var`.
-- Keep logging uniform with the `[Chaospace Transfer]` prefix so console output stays searchable across background, popup, and content contexts.
-- DOM hooks use clear, kebab-case IDs or class names, while exported functions in JavaScript use camelCase (e.g., `normalizePath`, `buildSurl`).
+- **Background service worker**: `src/background/index.ts` (module). Uses typed message guards, services under `src/background/services/`, and storage/cache utilities in `src/background/storage/`.
+- **Content runtime**: `src/content/index.ts` instantiates `ContentRuntime` (`src/content/runtime/runtime.ts`). Vue components render the floating panel (`components/PanelRoot.vue`), resource list (`components/ResourceListView.vue`), history overlays (`components/history/*.vue`), and detail modal. Controllers/binders live under `src/content/{controllers,history,runtime/ui}`; shared state sits in `src/content/state/index.ts`.
+- **Shared modules**: Cross-context types in `src/shared/types/transfer.ts`; sanitizers/completion helpers in `src/shared/utils/`.
+- **Styles**: Modular CSS under `src/content/styles/{foundation,overlays,utilities}` with `styles.loader.ts` for on-demand injection.
+- **Testing**: Vitest specs cover parser/page analyzer/history/resource renderers (`src/**/__tests__`), and Playwright e2e (`tests/e2e/panel.spec.ts`) validates the built extension.
 
-## Testing Guidelines
+## Tooling & Commands
 
-- Smoke-test every change by reloading the unpacked `dist/` build, visiting a CHAOSPACE episode page, and confirming that link extraction, transfer, and error banners still work.
-- When modifying request flows in `src/background/`, verify API responses through the Chrome DevTools Network tab and confirm retries handle known errno cases.
-- Document any new manual test scenario in the pull request description so others can reproduce it quickly.
+- Install deps once with `npm install`.
+- Development preview: `npm run dev`.
+- Primary checks: `npm run check` (required), which runs format, typecheck, lint, build, unit tests, then e2e.
+- Individual commands:
+  - `npm run typecheck` — `vue-tsc --noEmit -p tsconfig.app.json`
+  - `npm run build` — typecheck + Vite production build to `dist/`
+  - `npm run test` — Vitest suites
+  - `npm run e2e` — Playwright smoke (uses `dist/`)
+- Optional: `web-ext lint --source-dir dist` for manifest/API validation.
 
-## Commit & Pull Request Guidelines
+## Coding Conventions
 
-- Follow the lightweight Conventional Commits style seen in history (`feat: ...`, `fix: ...`) and keep scope hints clear.
-- Each PR should describe the user-facing impact, list manual verification steps, and include screenshots or screen recordings when UI behavior changes.
-- Reference relevant issue IDs or discussion threads, and request review from a maintainer familiar with the touched area before merging.
+- TypeScript + Vue SFC; two-space indentation; prefer `const`/`let`; trailing commas when helpful.
+- DOM hooks follow clear kebab-case data-role or class selectors. Exported functions use camelCase (`normalizePath`, `buildSurl`).
+- Keep reusable helpers near consumers; only create new shared subdirectories when multiple entry points rely on the code.
+- New Vue components should load scoped styles via existing modular CSS patterns.
 
-## Security & Configuration Notes
+## Testing Expectations
 
-- Never commit personal Baidu cookies, tokens, or account-specific configuration; rely on local `.env` or Chrome profile storage instead.
-- If a change introduces new permissions in `manifest.json`, call them out explicitly so reviewers can assess the risk.
+- Run Playwright (`npm run e2e`) after building; ensure the panel loads on real CHAOSPACE pages without `[Chaospace Transfer]` errors.
+- When touching background transfer/history flows, manually verify via Chrome devtools (Network tab) and ensure retries handle known Baidu errno codes.
+- Document new manual verification steps alongside code changes (PR descriptions or notes).
+
+## Safety & Compliance
+
+- Never commit personal Baidu credentials, cookies, or user data; rely on local `.env` or Chrome profile storage.
+- Highlight any new permissions requested in `src/manifest.json` so reviewers can assess risk.
+- Remember the legacy MV2 bundle is frozen—do not modify files in `chaospace-extension/`.
