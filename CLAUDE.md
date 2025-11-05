@@ -129,26 +129,27 @@ npm run e2e    # playwright test - 端到端测试(需先构建 dist/)
 **完整质量检查流程**:
 
 ```bash
-npm run check  # 按顺序运行: typecheck → lint → format:check → build → test → e2e
+npm run check  # 按顺序运行: format:silent → typecheck → lint → build → test → e2e
 ```
 
 #### 完整 check 流程详解
 
 `npm run check` 会按以下顺序执行所有质量检查:
 
-1. **类型检查** (`npm run typecheck`)
+1. **自动格式化** (`npm run format:silent`)
+   - 使用 Prettier 自动修复所有格式问题
+   - 静默模式: 仅显示警告和错误,不显示已格式化的文件列表
+   - **为什么放在第一步**: 格式化会修改代码,必须在类型检查和构建前执行
+
+2. **类型检查** (`npm run typecheck`)
    - 运行 `vue-tsc --noEmit -p tsconfig.app.json`
    - 确保所有 TypeScript 类型正确
    - 检查 `.ts`、`.tsx` 和 `.vue` 文件
 
-2. **代码质量检查** (`npm run lint`)
+3. **代码质量检查** (`npm run lint`)
    - 运行 ESLint 扫描所有源代码
    - 检查潜在的 bug、不良实践、代码规范问题
    - 当前配置: 0 错误为通过标准(警告不阻塞)
-
-3. **格式检查** (`npm run format:check`)
-   - 使用 Prettier 检查代码格式一致性
-   - 确保所有文件符合项目格式规范
 
 4. **生产构建** (`npm run build`)
    - 运行 Vite 构建生产版本

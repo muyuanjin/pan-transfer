@@ -356,6 +356,8 @@ export class ContentRuntime {
       panelState: this.panelState,
       scheduleEdgeHide,
       cancelEdgeHide,
+      applyPanelSize,
+      applyPanelPosition,
       showToast,
       setBaseDir: (value, options) => {
         const normalized = options || {}

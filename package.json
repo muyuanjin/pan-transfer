@@ -10,10 +10,11 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "format:silent": "prettier --write . --log-level=warn",
     "build": "npm run typecheck && vite build --mode production",
     "test": "vitest run",
     "e2e": "playwright test && node -e \"require('node:fs').rmSync('test-results',{recursive:true,force:true})\"",
-    "check": "npm run typecheck && npm run format && npm run build && npm run test && npm run e2e",
+    "check": "npm run format:silent && npm run typecheck && npm run lint && npm run build && npm run test && npm run e2e",
     "test:watch": "vitest",
     "preview": "vite preview"
   },

@@ -202,6 +202,12 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 - Replaced the inline `summarizeSeasonCompletion` helper with the shared implementation from `src/shared/utils/completion-status.js` to remove duplication.
 - Re-ran `npm run build` (2025-11-04, UTC-8) to confirm Vite bundles remain green after the extraction.
 
+## Latest Session (2025-11-05, morning)
+
+- Audited `src/content/index.ts` after the runtime extraction; the entry file now just bootstraps `ContentRuntime` (13 LOC) while the real logic lives under `src/content/runtime/**` as typed controllers/binders.
+- Walked through the runtime modules (panel state, transfer controller, UI binders, hydrators) to confirm dependencies align and no residual `// @ts-nocheck` guards or legacy imports remain in the entrypoint.
+- Re-verified that the legacy `main.css` has been replaced by the modular stack under `src/content/styles/{critical.css,index.css,foundation/,components/,overlays/,utilities/}`, so future styling tweaks flow through the Vite-managed layers.
+
 ## Latest Session (2025-11-03, afternoon)
 
 - Shifted history group completion/type helpers and filter normalization into `src/content/services/history-service.js` so `content/index.js` retains orchestration duties only.
@@ -245,8 +251,8 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 
 ## Work in Progress / Partial Refactors
 
-- `src/content/index.js` is down to ~3.4k LOC; deferred season hydration, transfer dispatch, and logging/event wiring remain inline and should be modularized next.
-- Vue ports now cover the floating panel, settings modal, history list/detail, and resource views; remaining imperative code lives inside the large content orchestrator until it is further modularized.
+- `src/content/index.ts` is now a 13-line bootstrap that spins up `ContentRuntime`; orchestration lives in the new `src/content/runtime/**` tree, which still needs documentation, unit coverage, and eventual splitting by concern (transfer, selection, hydration).
+- Vue ports now cover the floating panel, settings modal, history list/detail, and resource views; imperative glue now resides inside typed runtime modules, but we still lack automated coverage for their interactions.
 - Legacy `chaospace-extension/` assets remain untouched for parity until refactor completes.
 
 ## Outstanding Tasks & TODOs
@@ -258,7 +264,8 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 - [x] Extract resource list rendering, selection toggles, and pagination into `components/resource-list.ts` + `ResourceListView.vue`.
 - [x] Move settings modal logic into `components/settings-modal.ts` (Vue conversion pending; still delegates to `settings-modal-impl.js`).
 - [x] Consolidate remaining DOM helpers (geometry persistence, storage wrappers) into `content/utils/` or dedicated services.
-- [ ] Continue trimming `src/content/index.js` so it only orchestrates imports, bootstrapping, and Chrome message wiring.
+- [x] Continue trimming `src/content/index.ts` so it only orchestrates imports, bootstrapping, and Chrome message wiring (completed by delegating to `ContentRuntime`).
+- [ ] Add targeted docs/tests for `src/content/runtime/**` (transfer controller, binders, hydrator) so future contributors understand the new split entry flow.
 - [x] Lift deferred season hydration/loader logic into a dedicated module (e.g., `services/season-loader.js`) and integrate with the season manager.
 - [x] Replace the remaining imperative shims (`panel-impl.js`, `settings-modal-impl.js`) with Vue/TS components and drop the temporary `// @ts-nocheck` scaffolding.
 
@@ -291,7 +298,7 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 
 ## Known Issues / Blockers
 
-- **Content script size**: `src/content/index.ts` still carries `// @ts-nocheck` and a large amount of panel wiring; risk of regressions until the remaining logic is modularized.
+- **Content runtime reliability**: main entry is trimmed, but the heavy logic now spans `src/content/runtime/**` controllers/binders without documentation or automated coverage, so regressions could still slip in.
 - **Styles**: Modular CSS now lives under `src/content/styles/` with `critical.css` for eager imports and overlay styles loaded on demand via `styles.loader.ts`.
 - **Parity validation**: Season directory sanitization/path builder changes need confirmation on fresh transfers (prior runs still showed `– CHAOSPACE` suffix before the latest fix).
 - **Parser coverage scope**: Newly added Vitest suite validates primary flows but lacks negative cases for malformed CHAOSPACE markup; add failing fixtures before broadening deployments.
@@ -299,6 +306,7 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 
 ## Manual Verification Status
 
+- Code inspection (2025-11-05 09:30 UTC-8) confirmed `src/content/index.ts` now only bootstraps `ContentRuntime` and that the modular CSS stack (`src/content/styles/{critical.css,index.css,foundation/,components/,overlays/,utilities/}`) replaces the old `main.css` entry.
 - Manual Chrome smoke test (2025-11-04 15:10 UTC-8) on a live CHAOSPACE episode exercised the Vue floating panel mount timing, drag/resize, edge-hide/pin, and settings overlay; all behaviors matched the legacy script with no regressions observed.
 - Link/title sanitization sanity check (same session) confirmed resource cards and generated transfer paths no longer append trailing status text or the `– CHAOSPACE` suffix.
 - Vite production build succeeds as of 2025-11-04 (UTC-8) after introducing the season loader service (`npm run build`).

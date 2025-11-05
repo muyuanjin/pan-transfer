@@ -52,6 +52,16 @@ interface SettingsSnapshot {
   [key: string]: unknown
 }
 
+interface PanelSizeSnapshot {
+  width: number
+  height: number
+}
+
+interface PanelPositionSnapshot {
+  left: number
+  top: number
+}
+
 interface SettingsDomRefs {
   overlay: HTMLElement | null
   form: HTMLFormElement | null
@@ -83,6 +93,8 @@ export interface CreateSettingsModalOptions {
   panelState: PanelRuntimeState
   scheduleEdgeHide: ((delay?: number) => void) | undefined
   cancelEdgeHide: ((options?: { show?: boolean }) => void) | undefined
+  applyPanelSize?: (width?: number, height?: number) => PanelSizeSnapshot | null
+  applyPanelPosition?: (left?: number, top?: number) => PanelPositionSnapshot
   showToast: ToastFn
   setBaseDir: (value: string, options?: Record<string, unknown>) => void
   renderSeasonHint: () => void
@@ -154,6 +166,32 @@ function resetFileInput(input: HTMLInputElement | null): void {
   if (input) {
     input.value = ''
   }
+}
+
+export function normalizePanelSizeSnapshot(value: unknown): PanelSizeSnapshot | null {
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+  const record = value as Record<string, unknown>
+  const width = Number(record['width'])
+  const height = Number(record['height'])
+  if (!Number.isFinite(width) || !Number.isFinite(height)) {
+    return null
+  }
+  return { width, height }
+}
+
+export function normalizePanelPositionSnapshot(value: unknown): PanelPositionSnapshot | null {
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+  const record = value as Record<string, unknown>
+  const left = Number(record['left'])
+  const top = Number(record['top'])
+  if (!Number.isFinite(left) || !Number.isFinite(top)) {
+    return null
+  }
+  return { left, top }
 }
 
 interface ExtractFormOptions {
@@ -234,6 +272,8 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     panelState,
     scheduleEdgeHide,
     cancelEdgeHide,
+    applyPanelSize: _applyPanelSize,
+    applyPanelPosition: _applyPanelPosition,
     showToast,
     setBaseDir,
     renderSeasonHint,
@@ -414,6 +454,38 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     showToast('success', '设置已导入', '已更新所有可配置参数')
   }
 
+  function applyImportedPanelGeometry(
+    sizeSnapshot: PanelSizeSnapshot | null,
+    positionSnapshot: PanelPositionSnapshot | null,
+  ): boolean {
+    const sizeFn = typeof _applyPanelSize === 'function' ? _applyPanelSize : null
+    const positionFn = typeof _applyPanelPosition === 'function' ? _applyPanelPosition : null
+    if (!sizeFn && !positionFn) {
+      return false
+    }
+    let sizeApplied = false
+    let positionApplied = false
+    if (sizeSnapshot && sizeFn) {
+      sizeApplied = Boolean(sizeFn(sizeSnapshot.width, sizeSnapshot.height))
+    }
+    if (positionFn) {
+      const targetPosition = positionSnapshot || panelState.lastKnownPosition || null
+      if (targetPosition) {
+        if (panelState.edgeState) {
+          panelState.edgeState.isHidden = false
+        }
+        const applied = positionFn(targetPosition.left, targetPosition.top)
+        panelState.lastKnownPosition = applied
+        positionApplied = Boolean(positionSnapshot)
+      }
+    }
+    if (sizeApplied || positionApplied) {
+      cancelEdgeHide?.({ show: true })
+      return true
+    }
+    return false
+  }
+
   async function importFullBackup(payload: unknown): Promise<void> {
     if (!payload || typeof payload !== 'object') {
       throw new Error('文件内容不合法')
@@ -456,18 +528,18 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
       data['panel'] && typeof data['panel'] === 'object'
         ? (data['panel'] as Record<string, unknown>)
         : {}
+    const normalizedPanelSize = normalizePanelSizeSnapshot(panelData['size'])
+    const normalizedPanelPosition = normalizePanelPositionSnapshot(panelData['position'])
     if ('position' in panelData) {
-      const positionData = panelData['position']
-      if (positionData) {
-        entries[POSITION_KEY] = positionData
+      if (panelData['position'] && normalizedPanelPosition) {
+        entries[POSITION_KEY] = normalizedPanelPosition
       } else {
         removals.push(POSITION_KEY)
       }
     }
     if ('size' in panelData) {
-      const sizeData = panelData['size']
-      if (sizeData) {
-        entries[SIZE_KEY] = sizeData
+      if (panelData['size'] && normalizedPanelSize) {
+        entries[SIZE_KEY] = normalizedPanelSize
       } else {
         removals.push(SIZE_KEY)
       }
@@ -489,7 +561,11 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     }
     state.historyDetailCache = new Map()
     closeHistoryDetail?.({ hideDelay: 0 })
-    showToast('success', '数据已导入', '备份内容已写入，历史记录与缓存已更新')
+    const geometrySynced = applyImportedPanelGeometry(normalizedPanelSize, normalizedPanelPosition)
+    const detail = geometrySynced
+      ? '备份内容已写入，面板布局、历史记录与缓存已更新'
+      : '备份内容已写入，历史记录与缓存已更新'
+    showToast('success', '数据已导入', detail)
   }
 
   const handleSettingsKeydown = (event: KeyboardEvent) => {
