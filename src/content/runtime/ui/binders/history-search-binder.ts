@@ -1,3 +1,5 @@
+import { ref, watch } from 'vue'
+import { onKeyStroke, refDebounced, useEventListener } from '@vueuse/core'
 import type { PanelDomRefs } from '../../../types'
 import type { ContentStore } from '../../../state'
 import type { createHistoryController } from '../../../history/controller'
@@ -23,52 +25,76 @@ export function createHistorySearchBinder({
         return () => {}
       }
       const clearBtn = panelDom.historySearchClear ?? null
+      const disposeFns: Array<() => void> = []
+      const initialValue = state.historySearchTerm || ''
+      input.value = initialValue
+      const searchTerm = ref(initialValue)
+      const debouncedSearch = refDebounced(searchTerm, 250)
 
-      const abort = new AbortController()
-      const { signal } = abort
-
-      input.value = state.historySearchTerm || ''
-      const handleInput = () => {
-        history.setHistorySearchTerm(input.value)
-        if (clearBtn) {
-          clearBtn.hidden = !input.value
-          clearBtn.disabled = !input.value
-        }
-      }
-      const handleKeydown = (event: KeyboardEvent) => {
-        if (event.key !== 'Escape' || !input.value) {
+      const updateClearButtonState = (value: string): void => {
+        if (!clearBtn) {
           return
         }
-        event.preventDefault()
-        history.setHistorySearchTerm('')
-        input.value = ''
-        if (clearBtn) {
-          clearBtn.hidden = true
-          clearBtn.disabled = true
-        }
-        input.focus()
+        const hasValue = Boolean(value)
+        clearBtn.hidden = !hasValue
+        clearBtn.disabled = !hasValue
       }
 
-      input.addEventListener('input', handleInput, { signal })
-      input.addEventListener('keydown', handleKeydown, { signal })
+      updateClearButtonState(initialValue)
+
+      const stopWatch = watch(
+        debouncedSearch,
+        (value) => {
+          history.setHistorySearchTerm(value)
+          updateClearButtonState(value)
+        },
+        { immediate: true },
+      )
+      disposeFns.push(stopWatch)
+
+      disposeFns.push(
+        useEventListener(input, 'input', () => {
+          searchTerm.value = input.value
+          updateClearButtonState(input.value)
+        }),
+      )
+
+      disposeFns.push(
+        onKeyStroke(
+          'Escape',
+          (event) => {
+            if (!input.value) {
+              return
+            }
+            event.preventDefault()
+            searchTerm.value = ''
+            input.value = ''
+            history.setHistorySearchTerm('')
+            updateClearButtonState('')
+            input.focus()
+          },
+          { target: input },
+        ),
+      )
 
       if (clearBtn) {
-        clearBtn.hidden = !state.historySearchTerm
-        clearBtn.disabled = !state.historySearchTerm
-        const handleClear = () => {
-          if (!input.value && !state.historySearchTerm) {
-            return
-          }
-          history.setHistorySearchTerm('')
-          input.value = ''
-          clearBtn.hidden = true
-          clearBtn.disabled = true
-          input.focus()
-        }
-        clearBtn.addEventListener('click', handleClear, { signal })
+        disposeFns.push(
+          useEventListener(clearBtn, 'click', () => {
+            if (!input.value && !state.historySearchTerm) {
+              return
+            }
+            searchTerm.value = ''
+            input.value = ''
+            history.setHistorySearchTerm('')
+            updateClearButtonState('')
+            input.focus()
+          }),
+        )
       }
 
-      return () => abort.abort()
+      return () => {
+        disposeFns.forEach((stop) => stop())
+      }
     },
   }
 }

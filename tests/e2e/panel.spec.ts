@@ -16,7 +16,7 @@ const EXTENSION_ARGS = (extensionPath: string) => [
 ]
 
 const PANEL_SELECTOR = '.chaospace-panel-host .chaospace-float-panel'
-const PANEL_RENDER_TIMEOUT = 30000
+const PANEL_RENDER_TIMEOUT = 15000 // 降低面板渲染超时从 30s 到 15s
 const CHAOSPACE_LOG_PREFIX = '[Chaospace Transfer]'
 
 type ChaospaceErrorTracker = {
@@ -155,9 +155,9 @@ test.describe('Chaospace panel overlay', () => {
       const errorTracker = createChaospaceErrorTracker(page)
 
       try {
-        await page.goto(targetUrl, { waitUntil: 'domcontentloaded' })
+        await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 15000 })
         // 使用 load 而非 networkidle,避免等待所有网络请求完成(可能永远无法满足)
-        await page.waitForLoadState('load', { timeout: 20000 }).catch(() => {})
+        await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {})
 
         const panelLocator = page.locator(PANEL_SELECTOR)
         const waitForPanelRender = async () => {

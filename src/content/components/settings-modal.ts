@@ -17,6 +17,7 @@ import type { PanelRuntimeState } from '../types'
 import type { ToastHandler } from './toast'
 import settingsCssHref from '../styles/overlays/settings.css?url'
 import { loadCss } from '../styles.loader'
+import { onClickOutside, useEventListener } from '@vueuse/core'
 
 const settingsCssUrl = settingsCssHref
 let settingsCssPromise: Promise<void> | null = null
@@ -118,6 +119,7 @@ export interface SettingsModalHandles {
     options?: { persist?: boolean },
   ) => SettingsSnapshot & { themeChanged: boolean }
   buildSettingsSnapshot: () => SettingsSnapshot
+  destroy: () => void
 }
 
 function buildSettingsSnapshot(): SettingsSnapshot {
@@ -575,6 +577,50 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     }
   }
 
+  let stopSettingsKeydown: (() => void) | null = null
+  let stopOutsideClick: (() => void) | null = null
+  const eventDisposers: Array<() => void> = []
+  let listenersBound = false
+
+  const registerEventDisposer = (stop?: () => void) => {
+    if (typeof stop === 'function') {
+      eventDisposers.push(stop)
+    }
+  }
+
+  const detachEventListeners = (): void => {
+    if (!listenersBound) {
+      return
+    }
+    while (eventDisposers.length) {
+      const stop = eventDisposers.pop()
+      try {
+        stop?.()
+      } catch (error) {
+        console.error('[Chaospace Transfer] Failed to detach settings listener', error)
+      }
+    }
+    listenersBound = false
+    stopOutsideClick = null
+  }
+
+  const bindSettingsKeydown = () => {
+    if (stopSettingsKeydown) {
+      return
+    }
+    stopSettingsKeydown = useEventListener(document, 'keydown', handleSettingsKeydown, {
+      capture: true,
+    })
+  }
+
+  const unbindSettingsKeydown = () => {
+    if (!stopSettingsKeydown) {
+      return
+    }
+    stopSettingsKeydown()
+    stopSettingsKeydown = null
+  }
+
   function openSettingsPanel(): void {
     if (!domRefs.overlay) {
       return
@@ -600,7 +646,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
       focusTarget?.focus({ preventScroll: true })
       panelState.pointerInside = true
       cancelEdgeHide?.({ show: true })
-      document.addEventListener('keydown', handleSettingsKeydown, true)
+      bindSettingsKeydown()
     }
 
     void ensureSettingsStyles()
@@ -622,7 +668,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     domRefs.overlay?.setAttribute('aria-hidden', 'true')
     domRefs.toggleBtn?.setAttribute('aria-expanded', 'false')
     floatingPanel?.classList.remove('is-settings-open')
-    document.removeEventListener('keydown', handleSettingsKeydown, true)
+    unbindSettingsKeydown()
     if (!panelState.isPinned) {
       scheduleEdgeHide?.()
     }
@@ -632,147 +678,172 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
   }
 
   function attachEventListeners(): void {
-    domRefs.toggleBtn?.addEventListener('click', () => {
-      if (state.settingsPanel.isOpen) {
-        closeSettingsPanel({ restoreFocus: true })
-      } else {
-        openSettingsPanel()
-      }
-    })
+    if (listenersBound) {
+      return
+    }
+    listenersBound = true
 
-    domRefs.closeBtn?.addEventListener('click', () => {
-      closeSettingsPanel({ restoreFocus: true })
-    })
+    if (!stopOutsideClick) {
+      const ignoredElements = domRefs.toggleBtn ? [domRefs.toggleBtn] : []
+      stopOutsideClick = onClickOutside(
+        () => domRefs.overlay?.querySelector<HTMLElement>('.chaospace-settings-dialog') ?? null,
+        () => {
+          if (!state.settingsPanel.isOpen) {
+            return
+          }
+          closeSettingsPanel({ restoreFocus: false })
+        },
+        { ignore: ignoredElements },
+      )
+      registerEventDisposer(stopOutsideClick)
+    }
 
-    domRefs.cancelBtn?.addEventListener('click', () => {
-      closeSettingsPanel({ restoreFocus: true })
-    })
+    if (domRefs.toggleBtn) {
+      registerEventDisposer(
+        useEventListener(domRefs.toggleBtn, 'click', () => {
+          if (state.settingsPanel.isOpen) {
+            closeSettingsPanel({ restoreFocus: true })
+          } else {
+            openSettingsPanel()
+          }
+        }),
+      )
+    }
 
-    domRefs.overlay?.addEventListener('click', (event) => {
-      if (event.target === domRefs.overlay) {
-        closeSettingsPanel({ restoreFocus: false })
-      }
-    })
-
-    floatingPanel?.addEventListener(
-      'click',
-      (event) => {
-        if (!state.settingsPanel.isOpen) {
-          return
-        }
-        const overlayEl = domRefs.overlay
-        if (!overlayEl) {
-          return
-        }
-        const targetNode = event.target instanceof Node ? event.target : null
-        if (!targetNode) {
-          return
-        }
-        if (overlayEl.contains(targetNode)) {
-          return
-        }
-        if (domRefs.toggleBtn?.contains(targetNode)) {
-          return
-        }
-        closeSettingsPanel({ restoreFocus: false })
-      },
-      true,
-    )
-
-    domRefs.form?.addEventListener('submit', async (event) => {
-      event.preventDefault()
-      domRefs.historyRateInput?.classList.remove('is-invalid')
-      try {
-        const update = extractSettingsFormValues(domRefs, { strict: true })
-        if (!update) {
+    if (domRefs.closeBtn) {
+      registerEventDisposer(
+        useEventListener(domRefs.closeBtn, 'click', () => {
           closeSettingsPanel({ restoreFocus: true })
-          return
-        }
-        applySettingsUpdate(update, { persist: true })
-        showToast('success', '设置已保存', '所有参数已更新并立即生效')
-        closeSettingsPanel({ restoreFocus: true })
-      } catch (error) {
-        console.error('[Chaospace Transfer] Failed to save settings', error)
-        const message = error instanceof Error ? error.message : '请检查输入是否正确'
-        if (domRefs.historyRateInput && message.includes('间隔')) {
-          domRefs.historyRateInput.classList.add('is-invalid')
-          domRefs.historyRateInput.focus({ preventScroll: true })
-        }
-        showToast('error', '保存失败', message)
-      }
-    })
+        }),
+      )
+    }
 
-    domRefs.exportSettingsBtn?.addEventListener('click', () => {
-      void exportSettingsSnapshot()
-    })
+    if (domRefs.cancelBtn) {
+      registerEventDisposer(
+        useEventListener(domRefs.cancelBtn, 'click', () => {
+          closeSettingsPanel({ restoreFocus: true })
+        }),
+      )
+    }
 
-    domRefs.exportDataBtn?.addEventListener('click', () => {
-      void exportFullBackup()
-    })
+    if (domRefs.form) {
+      registerEventDisposer(
+        useEventListener(domRefs.form, 'submit', async (event) => {
+          event.preventDefault()
+          domRefs.historyRateInput?.classList.remove('is-invalid')
+          try {
+            const update = extractSettingsFormValues(domRefs, { strict: true })
+            if (!update) {
+              closeSettingsPanel({ restoreFocus: true })
+              return
+            }
+            applySettingsUpdate(update, { persist: true })
+            showToast('success', '设置已保存', '所有参数已更新并立即生效')
+            closeSettingsPanel({ restoreFocus: true })
+          } catch (error) {
+            console.error('[Chaospace Transfer] Failed to save settings', error)
+            const message = error instanceof Error ? error.message : '请检查输入是否正确'
+            if (domRefs.historyRateInput && message.includes('间隔')) {
+              domRefs.historyRateInput.classList.add('is-invalid')
+              domRefs.historyRateInput.focus({ preventScroll: true })
+            }
+            showToast('error', '保存失败', message)
+          }
+        }),
+      )
+    }
+
+    if (domRefs.exportSettingsBtn) {
+      registerEventDisposer(
+        useEventListener(domRefs.exportSettingsBtn, 'click', () => {
+          void exportSettingsSnapshot()
+        }),
+      )
+    }
+
+    if (domRefs.exportDataBtn) {
+      registerEventDisposer(
+        useEventListener(domRefs.exportDataBtn, 'click', () => {
+          void exportFullBackup()
+        }),
+      )
+    }
 
     if (domRefs.importSettingsTrigger && domRefs.importSettingsInput) {
-      domRefs.importSettingsTrigger.addEventListener('click', () => {
-        domRefs.importSettingsInput?.click()
-      })
-      domRefs.importSettingsInput.addEventListener('change', async (event) => {
-        const input = event.currentTarget as HTMLInputElement | null
-        const file = input?.files && input.files[0]
-        if (!file) {
-          return
-        }
-        try {
-          const text = await readFileAsText(file)
-          const parsed = JSON.parse(text)
-          if (parsed.type && parsed.type !== 'chaospace-settings-export') {
-            throw new Error('请选择通过“导出设置”生成的 JSON 文件')
+      registerEventDisposer(
+        useEventListener(domRefs.importSettingsTrigger, 'click', () => {
+          domRefs.importSettingsInput?.click()
+        }),
+      )
+      registerEventDisposer(
+        useEventListener(domRefs.importSettingsInput, 'change', async (event) => {
+          const input = event.currentTarget as HTMLInputElement | null
+          const file = input?.files && input.files[0]
+          if (!file) {
+            return
           }
-          await importSettingsSnapshot(parsed)
-        } catch (error) {
-          console.error('[Chaospace Transfer] Settings import failed', error)
-          const message = error instanceof Error ? error.message : '无法导入设置文件'
-          showToast('error', '导入失败', message)
-        } finally {
-          resetFileInput(domRefs.importSettingsInput)
-        }
-      })
+          try {
+            const text = await readFileAsText(file)
+            const parsed = JSON.parse(text)
+            if (parsed.type && parsed.type !== 'chaospace-settings-export') {
+              throw new Error('请选择通过“导出设置”生成的 JSON 文件')
+            }
+            await importSettingsSnapshot(parsed)
+          } catch (error) {
+            console.error('[Chaospace Transfer] Settings import failed', error)
+            const message = error instanceof Error ? error.message : '无法导入设置文件'
+            showToast('error', '导入失败', message)
+          } finally {
+            resetFileInput(domRefs.importSettingsInput)
+          }
+        }),
+      )
     }
 
     if (domRefs.importDataTrigger && domRefs.importDataInput) {
-      domRefs.importDataTrigger.addEventListener('click', () => {
-        domRefs.importDataInput?.click()
-      })
-      domRefs.importDataInput.addEventListener('change', async (event) => {
-        const input = event.currentTarget as HTMLInputElement | null
-        const file = input?.files && input.files[0]
-        if (!file) {
-          return
-        }
-        try {
-          const text = await readFileAsText(file)
-          const parsed = JSON.parse(text)
-          if (parsed.type && parsed.type !== 'chaospace-transfer-backup') {
-            throw new Error('请选择通过“导出全部数据”生成的 JSON 文件')
+      registerEventDisposer(
+        useEventListener(domRefs.importDataTrigger, 'click', () => {
+          domRefs.importDataInput?.click()
+        }),
+      )
+      registerEventDisposer(
+        useEventListener(domRefs.importDataInput, 'change', async (event) => {
+          const input = event.currentTarget as HTMLInputElement | null
+          const file = input?.files && input.files[0]
+          if (!file) {
+            return
           }
-          await importFullBackup(parsed)
-        } catch (error) {
-          console.error('[Chaospace Transfer] Backup import failed', error)
-          const message = error instanceof Error ? error.message : '无法导入数据备份'
-          showToast('error', '导入失败', message)
-        } finally {
-          resetFileInput(domRefs.importDataInput)
-        }
-      })
+          try {
+            const text = await readFileAsText(file)
+            const parsed = JSON.parse(text)
+            if (parsed.type && parsed.type !== 'chaospace-transfer-backup') {
+              throw new Error('请选择通过“导出全部数据”生成的 JSON 文件')
+            }
+            await importFullBackup(parsed)
+          } catch (error) {
+            console.error('[Chaospace Transfer] Backup import failed', error)
+            const message = error instanceof Error ? error.message : '无法导入数据备份'
+            showToast('error', '导入失败', message)
+          } finally {
+            resetFileInput(domRefs.importDataInput)
+          }
+        }),
+      )
     }
 
-    domRefs.resetLayoutBtn?.addEventListener('click', async () => {
-      try {
-        await onResetLayout?.()
-      } catch (error) {
-        console.error('[Chaospace Transfer] Failed to reset layout from settings', error)
-        const message = error instanceof Error ? error.message : '无法完成布局重置'
-        showToast('error', '重置失败', message)
-      }
-    })
+    if (domRefs.resetLayoutBtn) {
+      registerEventDisposer(
+        useEventListener(domRefs.resetLayoutBtn, 'click', async () => {
+          try {
+            await onResetLayout?.()
+          } catch (error) {
+            console.error('[Chaospace Transfer] Failed to reset layout from settings', error)
+            const message = error instanceof Error ? error.message : '无法完成布局重置'
+            showToast('error', '重置失败', message)
+          }
+        }),
+      )
+    }
   }
 
   attachEventListeners()
@@ -784,5 +855,9 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     close: closeSettingsPanel,
     applySettingsUpdate,
     buildSettingsSnapshot,
+    destroy: () => {
+      detachEventListeners()
+      unbindSettingsKeydown()
+    },
   }
 }

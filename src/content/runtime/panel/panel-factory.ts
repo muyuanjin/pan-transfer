@@ -277,6 +277,7 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
 
   const disposePanel = (): void => {
     disposeBinders()
+    settingsModal?.destroy()
     settingsModal = null
     setFloatingPanel(null)
   }

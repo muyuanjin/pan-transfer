@@ -1,9 +1,10 @@
-import { createApp } from 'vue'
+import { createApp, effectScope } from 'vue'
 import PanelRoot from './PanelRoot.vue'
 import { disableElementDrag } from '../utils/dom'
 import { safeStorageGet, safeStorageSet } from '../utils/storage'
 import { pinia } from '../state'
 import type { PanelRuntimeState, PanelDomRefs, PanelBounds } from '../types'
+import { useDraggable, useEventListener } from '@vueuse/core'
 
 const PANEL_MARGIN = 16
 const PANEL_MIN_WIDTH = 360
@@ -160,27 +161,28 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     panelState.edgeTransitionUnbind()
     panelState.edgeTransitionUnbind = null
   }
-  panel.style.transition = 'none'
-  if (!panelState.documentPointerDownBound) {
-    document.addEventListener('pointerdown', handleDocumentPointerDown, true)
-    panelState.documentPointerDownBound = true
-  }
-
   const clamp = (value: number, min: number, max: number): number =>
     Math.min(Math.max(value, min), max)
 
   let lastKnownPosition = { left: PANEL_MARGIN, top: PANEL_MARGIN }
   let isDragging = false
   let isResizing = false
-  let currentX = 0
-  let currentY = 0
-  let initialX = 0
-  let initialY = 0
   let resizeStartX = 0
   let resizeStartY = 0
   let resizeStartWidth = 0
   let resizeStartHeight = 0
   let resizeAnchorRight = 0
+  const dragScope = effectScope()
+  let draggableState: ReturnType<typeof useDraggable> | null = null
+  let stopDocumentPointerDown: (() => void) | null = null
+
+  panel.style.transition = 'none'
+  if (!panelState.documentPointerDownBound) {
+    stopDocumentPointerDown = useEventListener(document, 'pointerdown', handleDocumentPointerDown, {
+      capture: true,
+    })
+    panelState.documentPointerDownBound = true
+  }
 
   const updatePointerPosition = (event?: PointerEvent) => {
     if (!event) {
@@ -221,6 +223,18 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     const panelCenter = lastKnownPosition.left + panel.offsetWidth / 2
     const viewportCenter = window.innerWidth / 2
     return panelCenter < viewportCenter ? 'left' : 'right'
+  }
+
+  const syncDraggablePosition = (position: { left: number; top: number }): void => {
+    if (!draggableState || !draggableState.x || !draggableState.y) {
+      return
+    }
+    if (draggableState.x.value !== position.left) {
+      draggableState.x.value = position.left
+    }
+    if (draggableState.y.value !== position.top) {
+      draggableState.y.value = position.top
+    }
   }
 
   const getPanelBounds = (): PanelBounds => {
@@ -410,6 +424,7 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     panel.style.right = 'auto'
     panelState.edgeState.side = determineDockSide()
     applyEdgeHiddenPosition()
+    syncDraggablePosition(lastKnownPosition)
     return lastKnownPosition
   }
 
@@ -619,6 +634,25 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     }
   }
 
+  const refreshHoverState = (): void => {
+    window.requestAnimationFrame(() => {
+      if (!panel || !panel.isConnected) {
+        return
+      }
+      const hovering = panel.matches(':hover')
+      panelState.pointerInside = hovering
+      if (hovering) {
+        panel.classList.add('is-hovering')
+        panel.classList.remove('is-leaving')
+        cancelEdgeHide({ show: true })
+      } else {
+        panel.classList.remove('is-hovering')
+        panel.classList.add('is-leaving')
+        scheduleEdgeHide()
+      }
+    })
+  }
+
   panel.addEventListener('pointerenter', handlePointerEnter)
   panel.addEventListener('pointermove', updatePointerPosition)
   panel.addEventListener('pointerdown', updatePointerPosition)
@@ -629,29 +663,16 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
 
   const header = panelDom.header
 
-  const startDrag = (event: MouseEvent) => {
-    if (event.button !== 0 || !(header instanceof HTMLElement)) {
-      return
+  const shouldIgnoreDragTarget = (event: Event): boolean => {
+    const target = event.target
+    if (!(target instanceof HTMLElement)) {
+      return false
     }
-    const target = event.target as HTMLElement | null
-    if (
-      target?.closest('button') ||
-      target?.closest('input') ||
-      target?.closest('.chaospace-theme-toggle')
-    ) {
-      return
-    }
-    cancelEdgeHide({ show: true })
-    panelState.edgeState.isHidden = false
-    panelState.pointerInside = true
-    applyEdgeHiddenPosition()
-    isDragging = true
-    const rect = panel.getBoundingClientRect()
-    initialX = event.clientX - rect.left
-    initialY = event.clientY - rect.top
-    panel.style.transition = 'none'
-    document.body.style.userSelect = 'none'
-    header.style.cursor = 'grabbing'
+    return Boolean(
+      target.closest('button') ||
+        target.closest('input') ||
+        target.closest('.chaospace-theme-toggle'),
+    )
   }
 
   const startResize = (event: MouseEvent) => {
@@ -680,97 +701,99 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
   }
 
   if (header instanceof HTMLElement) {
-    header.addEventListener('mousedown', startDrag)
+    dragScope.run(() => {
+      const state = useDraggable(() => panel, {
+        handle: () => header,
+        initialValue: () => ({
+          x: lastKnownPosition.left,
+          y: lastKnownPosition.top,
+        }),
+        preventDefault: true,
+        stopPropagation: true,
+        draggingElement: () => document,
+        onStart: (_position, event) => {
+          if (shouldIgnoreDragTarget(event)) {
+            return false
+          }
+          cancelEdgeHide({ show: true })
+          panelState.edgeState.isHidden = false
+          panelState.pointerInside = true
+          applyEdgeHiddenPosition()
+          isDragging = true
+          panel.style.transition = 'none'
+          document.body.style.userSelect = 'none'
+          header.style.cursor = 'grabbing'
+          return undefined
+        },
+        onMove: (position) => {
+          if (!isDragging) {
+            return
+          }
+          lastKnownPosition = applyPanelPosition(position.x, position.y)
+        },
+        onEnd: () => {
+          if (!isDragging) {
+            return
+          }
+          isDragging = false
+          panel.style.transition = ''
+          panel.style.removeProperty('transform')
+          header.style.cursor = 'move'
+          document.body.style.userSelect = ''
+          void safeStorageSet(
+            {
+              [POSITION_KEY]: lastKnownPosition,
+            },
+            'panel position',
+          )
+          refreshHoverState()
+        },
+      })
+      draggableState = state
+      syncDraggablePosition(lastKnownPosition)
+    })
   }
 
-  if (panelDom.resizeHandle instanceof HTMLElement) {
-    panelDom.resizeHandle.addEventListener('mousedown', startResize)
-  }
+  const stopResizeHandleMouseDown = panelDom.resizeHandle
+    ? useEventListener(panelDom.resizeHandle, 'mousedown', startResize)
+    : null
 
   const handleDocumentMouseMove = (event: MouseEvent) => {
-    if (isResizing) {
-      event.preventDefault()
-      const deltaX = resizeStartX - event.clientX
-      const deltaY = event.clientY - resizeStartY
-      const nextSize = applyPanelSize(resizeStartWidth + deltaX, resizeStartHeight + deltaY)
-      if (nextSize) {
-        const targetLeft = resizeAnchorRight - nextSize.width
-        lastKnownPosition = applyPanelPosition(targetLeft, lastKnownPosition.top)
-      }
-      return
-    }
-    if (!isDragging) {
+    if (!isResizing) {
       return
     }
     event.preventDefault()
-    currentX = event.clientX - initialX
-    currentY = event.clientY - initialY
-    const maxX = Math.max(PANEL_MARGIN, window.innerWidth - panel.offsetWidth - PANEL_MARGIN)
-    const maxY = Math.max(PANEL_MARGIN, window.innerHeight - panel.offsetHeight - PANEL_MARGIN)
-    currentX = clamp(currentX, PANEL_MARGIN, maxX)
-    currentY = clamp(currentY, PANEL_MARGIN, maxY)
-    panel.style.left = `${currentX}px`
-    panel.style.top = `${currentY}px`
-    panel.style.right = 'auto'
-    panel.style.bottom = 'auto'
-    panel.style.transform = 'translate3d(0, 0, 0)'
-    lastKnownPosition = { left: currentX, top: currentY }
+    const deltaX = resizeStartX - event.clientX
+    const deltaY = event.clientY - resizeStartY
+    const nextSize = applyPanelSize(resizeStartWidth + deltaX, resizeStartHeight + deltaY)
+    if (nextSize) {
+      const targetLeft = resizeAnchorRight - nextSize.width
+      lastKnownPosition = applyPanelPosition(targetLeft, lastKnownPosition.top)
+    }
   }
 
   const handleDocumentMouseUp = () => {
-    let shouldRestoreSelection = false
-    if (isDragging) {
-      isDragging = false
-      panel.style.transition = ''
-      panel.style.removeProperty('transform')
-      if (header instanceof HTMLElement) {
-        header.style.cursor = 'move'
-      }
-      safeStorageSet(
-        {
-          [POSITION_KEY]: lastKnownPosition,
-        },
-        'panel position',
-      )
-      shouldRestoreSelection = true
+    if (!isResizing) {
+      return
     }
-    if (isResizing) {
-      isResizing = false
-      panel.classList.remove('is-resizing')
-      panel.style.transition = ''
-      lastKnownPosition = applyPanelPosition(lastKnownPosition.left, lastKnownPosition.top)
-      safeStorageSet(
-        {
-          [SIZE_KEY]: panelState.lastKnownSize,
-          [POSITION_KEY]: lastKnownPosition,
-        },
-        'panel geometry',
-      )
-      shouldRestoreSelection = true
-    }
-    if (shouldRestoreSelection) {
-      document.body.style.userSelect = ''
-      window.requestAnimationFrame(() => {
-        if (!panel || !panel.isConnected) {
-          return
-        }
-        const hovering = panel.matches(':hover')
-        panelState.pointerInside = hovering
-        if (hovering) {
-          panel.classList.add('is-hovering')
-          panel.classList.remove('is-leaving')
-          cancelEdgeHide({ show: true })
-        } else {
-          panel.classList.remove('is-hovering')
-          panel.classList.add('is-leaving')
-          scheduleEdgeHide()
-        }
-      })
-    }
+    isResizing = false
+    panel.classList.remove('is-resizing')
+    panel.style.transition = ''
+    lastKnownPosition = applyPanelPosition(lastKnownPosition.left, lastKnownPosition.top)
+    document.body.style.userSelect = ''
+    syncDraggablePosition(lastKnownPosition)
+    void safeStorageSet(
+      {
+        [SIZE_KEY]: panelState.lastKnownSize,
+        [POSITION_KEY]: lastKnownPosition,
+      },
+      'panel geometry',
+    )
+    refreshHoverState()
   }
 
-  document.addEventListener('mousemove', handleDocumentMouseMove)
-  document.addEventListener('mouseup', handleDocumentMouseUp)
+  const stopDocumentMouseMove = useEventListener(document, 'mousemove', handleDocumentMouseMove)
+  const stopDocumentMouseUp = useEventListener(document, 'mouseup', handleDocumentMouseUp)
 
   const handleWindowResize = () => {
     if (!panel || !panel.isConnected) {
@@ -789,9 +812,9 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     )
   }
 
-  window.addEventListener('resize', handleWindowResize)
+  const stopWindowResize = useEventListener(window, 'resize', handleWindowResize)
   panelState.detachWindowResize = () => {
-    window.removeEventListener('resize', handleWindowResize)
+    stopWindowResize()
   }
 
   const destroy = () => {
@@ -803,14 +826,11 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     panel.removeEventListener('pointerleave', handlePointerLeave)
     panel.removeEventListener('focusin', handleFocusIn)
     panel.removeEventListener('focusout', handleFocusOut)
-    if (header instanceof HTMLElement) {
-      header.removeEventListener('mousedown', startDrag)
-    }
-    if (panelDom.resizeHandle instanceof HTMLElement) {
-      panelDom.resizeHandle.removeEventListener('mousedown', startResize)
-    }
-    document.removeEventListener('mousemove', handleDocumentMouseMove)
-    document.removeEventListener('mouseup', handleDocumentMouseUp)
+    dragScope.stop()
+    draggableState = null
+    stopResizeHandleMouseDown?.()
+    stopDocumentMouseMove()
+    stopDocumentMouseUp()
     if (panelState.detachWindowResize) {
       panelState.detachWindowResize()
       panelState.detachWindowResize = null
@@ -828,7 +848,8 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
       panelState.hideTimer = null
     }
     if (panelState.documentPointerDownBound) {
-      document.removeEventListener('pointerdown', handleDocumentPointerDown, true)
+      stopDocumentPointerDown?.()
+      stopDocumentPointerDown = null
       panelState.documentPointerDownBound = false
     }
     panelState.scheduleEdgeHide = null
