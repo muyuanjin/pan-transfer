@@ -12,7 +12,10 @@ import {
   type CompletionStatus,
   type SeasonEntry,
 } from '@/shared/utils/completion-status'
-import { normalizeSeasonLabel as normalizeSeasonLabelUtil } from '@/shared/utils/chinese-numeral'
+import {
+  normalizeSeasonLabel as normalizeSeasonLabelUtil,
+  resolveSeasonOrdinalValue,
+} from '@/shared/utils/chinese-numeral'
 import type { DeferredSeasonInfo, ResourceItem } from '../types'
 
 export type MediaClassification = 'movie' | 'tvshow' | 'anime' | 'unknown'
@@ -101,6 +104,16 @@ interface SeasonCollectionResult {
 
 type SeasonEntryInternal = SeasonEntry & { lastHydratedAt?: number }
 
+interface SeasonPageContext {
+  seasonId: string
+  seasonUrl: string
+  parentUrl: string | null
+  parentTitle: string | null
+  showTitle: string | null
+  seasonLabel: string
+  seasonIndex: number
+}
+
 interface ExtractPosterOptions {
   baseUrl?: string
   fallbackAlt?: string | null
@@ -171,6 +184,182 @@ function stripSeasonTrailingNoise(value: string | null | undefined): string {
     }
   }
   return result
+}
+
+function normalizeShowTitleText(value: string | null | undefined): string {
+  const cleaned = extractCleanTitle(value || '')
+  if (!cleaned) {
+    return ''
+  }
+  let normalized = cleaned.trim()
+  normalized = normalized.replace(/^剧集\s*[《「『【(（]?/u, '')
+  normalized = normalized.replace(/^[《「『【(（]/u, '')
+  normalized = normalized.replace(/[》」』】)）]+$/u, '')
+  return normalized.trim()
+}
+
+function isSeasonDescriptor(value: string | null | undefined): boolean {
+  const text = (value || '').trim()
+  if (!text) {
+    return false
+  }
+  if (/^第[\d一二三四五六七八九十百零两]+季/iu.test(text)) {
+    return true
+  }
+  if (/^(?:Season|S)\s*\d+/i.test(text)) {
+    return true
+  }
+  return false
+}
+
+function splitSeasonHeading(value: string | null | undefined): {
+  showTitle: string
+  seasonLabel: string
+} {
+  const text = (value || '').trim()
+  if (!text) {
+    return { showTitle: '', seasonLabel: '' }
+  }
+  const delimiters = ['：', ':', ' - ', ' – ', ' — ']
+  for (const delimiter of delimiters) {
+    const index = text.lastIndexOf(delimiter)
+    if (index > 0) {
+      const suffix = text.slice(index + delimiter.length).trim()
+      if (isSeasonDescriptor(suffix)) {
+        return {
+          showTitle: text.slice(0, index).trim(),
+          seasonLabel: suffix,
+        }
+      }
+    }
+  }
+  const suffixMatch =
+    text.match(/(第[\d一二三四五六七八九十百零两]+季[\s\S]*)$/u) ||
+    text.match(/((?:Season|SEASON)\s*\d+[\s\S]*)$/) ||
+    text.match(/(S\d+\b[\s\S]*)$/i)
+  if (suffixMatch && typeof suffixMatch.index === 'number') {
+    const label = stripSeasonTrailingNoise(suffixMatch[1] || '').trim()
+    const prefix = text
+      .slice(0, suffixMatch.index)
+      .replace(/[:：\-\s]+$/u, '')
+      .trim()
+    return {
+      showTitle: prefix,
+      seasonLabel: label,
+    }
+  }
+  return {
+    showTitle: text,
+    seasonLabel: '',
+  }
+}
+
+function inferSeasonIndexFromLabel(label: string | null | undefined): number {
+  const cleaned = stripSeasonTrailingNoise(label || '')
+  if (!cleaned) {
+    return 0
+  }
+  const zhMatch = cleaned.match(/第([\d一二三四五六七八九十百零两]+)季/i)
+  if (zhMatch?.[1]) {
+    const ordinal = resolveSeasonOrdinalValue(zhMatch[1])
+    if (Number.isFinite(ordinal) && ordinal > 0) {
+      return ordinal - 1
+    }
+  }
+  const enMatch = cleaned.match(/(?:Season|S)\s*(\d+)/i)
+  if (enMatch?.[1]) {
+    const ordinal = parseInt(enMatch[1], 10)
+    if (Number.isFinite(ordinal) && ordinal > 0) {
+      return ordinal - 1
+    }
+  }
+  const fallbackDigits = cleaned.match(/(\d+)/)
+  if (fallbackDigits?.[1]) {
+    const ordinal = parseInt(fallbackDigits[1], 10)
+    if (Number.isFinite(ordinal) && ordinal > 0) {
+      return ordinal - 1
+    }
+  }
+  return 0
+}
+
+function resolveSeasonParentTvShowUrl(
+  root: Document | Element = document,
+  options: { seasonId?: string } = {},
+): string | null {
+  const doc = root instanceof Document ? root : (root?.ownerDocument ?? document)
+  const baseHref = doc.defaultView?.location?.href || window.location.href
+  const selectors = [
+    '.sgeneros a[href*="/tvshows/"]',
+    '.sheader .poster a[href*="/tvshows/"]',
+    '.sheader .data a[href*="/tvshows/"]',
+    'a[href*="/tvshows/"]',
+  ]
+  for (const selector of selectors) {
+    const anchor = doc.querySelector<HTMLAnchorElement>(selector)
+    if (anchor) {
+      const href = anchor.getAttribute('href') || anchor.href
+      const normalized = resolveAbsoluteUrl(href, baseHref)
+      if (normalized && /\/tvshows\/\d+\.html/.test(normalized)) {
+        return normalized
+      }
+    }
+  }
+  const fallbackSeasonId =
+    options.seasonId ||
+    (doc.defaultView?.location?.pathname || window.location.pathname).match(
+      /\/seasons\/(\d+)\.html/i,
+    )?.[1]
+  if (fallbackSeasonId) {
+    try {
+      const origin = new URL(baseHref).origin
+      return `${origin}/tvshows/${fallbackSeasonId}.html`
+    } catch (_error) {
+      return `${window.location.origin}/tvshows/${fallbackSeasonId}.html`
+    }
+  }
+  return null
+}
+
+function extractSeasonPageContext(root: Document = document): SeasonPageContext | null {
+  const currentLocation = root.defaultView?.location ?? window.location
+  const currentHref = currentLocation?.href || window.location.href
+  const match = currentHref.match(/\/seasons\/(\d+)\.html/i)
+  if (!match) {
+    return null
+  }
+  const seasonId = match[1] || ''
+  if (!seasonId) {
+    return null
+  }
+  const headingNode =
+    root.querySelector<HTMLElement>('.sheader .data h1') ||
+    root.querySelector<HTMLElement>('.sheader h1') ||
+    root.querySelector<HTMLElement>('h1')
+  const headingText = extractCleanTitle(headingNode?.textContent || '')
+  const { showTitle, seasonLabel } = splitSeasonHeading(headingText)
+  const normalizedShowTitle =
+    normalizeShowTitleText(showTitle) || normalizeShowTitleText(headingText)
+  const inferredIndex = inferSeasonIndexFromLabel(seasonLabel)
+  const labelBase = seasonLabel || `第${inferredIndex + 1}季`
+  let normalizedSeasonLabel = normalizeSeasonLabel(labelBase, inferredIndex)
+  if (!normalizedSeasonLabel) {
+    normalizedSeasonLabel = `第${inferredIndex + 1}季`
+  }
+  const parentUrl = resolveSeasonParentTvShowUrl(root, { seasonId })
+  const parentAnchor =
+    root.querySelector<HTMLAnchorElement>('.sgeneros a[href*="/tvshows/"]') ||
+    root.querySelector<HTMLAnchorElement>('.sheader .poster a[href*="/tvshows/"]')
+  const parentTitle = normalizeShowTitleText(parentAnchor?.textContent || '')
+  return {
+    seasonId,
+    seasonUrl: resolveAbsoluteUrl(currentHref),
+    parentUrl,
+    parentTitle: parentTitle || null,
+    showTitle: normalizedShowTitle || parentTitle || null,
+    seasonLabel: normalizedSeasonLabel,
+    seasonIndex: inferredIndex,
+  }
 }
 
 class ChaospaceClassifier implements ClassificationCache {
@@ -396,24 +585,7 @@ class ChaospaceClassifier implements ClassificationCache {
   }
 
   private findMainPageUrl(): string | null {
-    try {
-      const container = document.querySelector('.sgeneros')
-      if (container) {
-        const anchor = container.querySelector<HTMLAnchorElement>('a[href*="/tvshows/"]')
-        if (anchor?.href) {
-          return anchor.href
-        }
-      }
-    } catch (error) {
-      console.warn('[Chaospace Transfer] Failed to resolve main page via .sgeneros', error)
-    }
-
-    const seasonPathMatch = window.location.pathname.match(/\/seasons\/(\d+)/i)
-    if (seasonPathMatch?.[1]) {
-      return `${window.location.origin}/tvshows/${seasonPathMatch[1]}.html`
-    }
-
-    return null
+    return resolveSeasonParentTvShowUrl(document)
   }
 
   private extractTVChannels(doc: Document): string[] {
@@ -790,10 +962,13 @@ export async function fetchSeasonDetail(
 
 async function collectLinks(options: AnalyzePageOptions = {}): Promise<PageAnalysisResult> {
   const { deferTvSeasons = false, initialSeasonBatchSize = TV_SHOW_INITIAL_SEASON_BATCH } = options
+  const currentUrl = window.location.href || ''
+  const currentOrigin = window.location.origin || ''
+  const seasonContext = isSeasonUrl(currentUrl) ? extractSeasonPageContext() : null
   const baseResult: PageAnalysisResult = {
     items: [],
-    url: window.location.href || '',
-    origin: window.location.origin || '',
+    url: currentUrl,
+    origin: currentOrigin,
     title: getPageCleanTitle(),
     poster: extractPosterDetails(),
     completion: null,
@@ -815,11 +990,11 @@ async function collectLinks(options: AnalyzePageOptions = {}): Promise<PageAnaly
     let seasonEntries: SeasonEntry[] = []
     let items: ResourceItem[] = extractItemsFromDocument(document)
 
-    if (isSeasonUrl(window.location.href)) {
+    if (seasonContext) {
       completion = extractSeasonPageCompletion(document)
     }
 
-    if (isTvShowUrl(window.location.href)) {
+    if (isTvShowUrl(currentUrl)) {
       const seasonData = await collectTvShowSeasonItems({
         defer: deferTvSeasons,
         initialBatchSize: initialSeasonBatchSize,
@@ -834,6 +1009,42 @@ async function collectLinks(options: AnalyzePageOptions = {}): Promise<PageAnaly
       seasonEntries = seasonData.seasonEntries
       if (completion == null && seasonData.completion) {
         completion = seasonData.completion
+      }
+    }
+
+    if (seasonContext) {
+      const seasonIndexValue = Number.isFinite(seasonContext.seasonIndex)
+        ? seasonContext.seasonIndex
+        : 0
+      const seasonLabel = seasonContext.seasonLabel || `第${seasonIndexValue + 1}季`
+      if (items.length) {
+        items = items.map((item) => ({
+          ...item,
+          seasonId: seasonContext.seasonId,
+          seasonLabel,
+          seasonIndex: seasonIndexValue,
+          seasonUrl: seasonContext.seasonUrl,
+        }))
+      }
+      if (!seasonEntries.length) {
+        seasonEntries = [
+          {
+            seasonId: seasonContext.seasonId,
+            url: seasonContext.seasonUrl,
+            label: seasonLabel,
+            seasonIndex: seasonIndexValue,
+            completion: completion ?? null,
+            poster: baseResult.poster,
+            loaded: true,
+            hasItems: items.length > 0,
+          },
+        ]
+      }
+      if (completion && !seasonCompletion[seasonContext.seasonId]) {
+        seasonCompletion = {
+          ...seasonCompletion,
+          [seasonContext.seasonId]: completion,
+        }
       }
     }
 
@@ -871,8 +1082,22 @@ async function collectLinks(options: AnalyzePageOptions = {}): Promise<PageAnaly
       label: normalizeSeasonLabel(info.label, info.index),
     }))
 
+    const finalUrl = seasonContext?.parentUrl || baseResult.url
+    let finalOrigin = baseResult.origin
+    if (seasonContext?.parentUrl) {
+      try {
+        finalOrigin = new URL(seasonContext.parentUrl).origin
+      } catch (_error) {
+        finalOrigin = baseResult.origin
+      }
+    }
+    const finalTitle = seasonContext?.showTitle ? seasonContext.showTitle : baseResult.title
+
     return {
       ...baseResult,
+      url: finalUrl,
+      origin: finalOrigin,
+      title: finalTitle,
       items: normalizedItems,
       completion,
       seasonCompletion,
@@ -891,8 +1116,22 @@ async function collectLinks(options: AnalyzePageOptions = {}): Promise<PageAnaly
     } catch (_error) {
       classificationDetail = null
     }
+    const finalUrl = seasonContext?.parentUrl || baseResult.url
+    let finalOrigin = baseResult.origin
+    if (seasonContext?.parentUrl) {
+      try {
+        finalOrigin = new URL(seasonContext.parentUrl).origin
+      } catch (_error) {
+        finalOrigin = baseResult.origin
+      }
+    }
+    const finalTitle = seasonContext?.showTitle ? seasonContext.showTitle : baseResult.title
+
     return {
       ...baseResult,
+      url: finalUrl,
+      origin: finalOrigin,
+      title: finalTitle,
       classification: classificationDetail?.classification ?? 'unknown',
       classificationDetail,
     }

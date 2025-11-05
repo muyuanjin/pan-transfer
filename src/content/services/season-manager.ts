@@ -21,7 +21,7 @@ interface SeasonTabState {
 }
 
 function isTvShowPage(): boolean {
-  return /\/tvshows\/\d+\.html/.test(window.location.pathname)
+  return /\/(tvshows|seasons)\/\d+\.html/.test(window.location.pathname)
 }
 
 function dedupeSeasonDirMap(): void {

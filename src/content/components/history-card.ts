@@ -127,13 +127,7 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
     historyListApp.mount(historyList)
   }
 
-  const summaryEntry =
-    entries.find((group) => {
-      if (!Array.isArray(group.urls) || !group.urls.length) {
-        return true
-      }
-      return !group.urls.some((url) => normalizePageUrl(url) === currentUrl)
-    }) || null
+  const summaryEntry = entries[0] || null
 
   const summaryData = summaryEntry ? buildSummaryData(summaryEntry) : null
 

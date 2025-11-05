@@ -169,6 +169,26 @@ describe('page-analyzer 使用 chaospace 真实页面', () => {
     expect(result.deferredSeasons).toHaveLength(0)
   })
 
+  it('季页面应继承父剧集上下文并生成季目录', async () => {
+    const seasonUrl = 'https://www.chaospace.cc/seasons/428609.html'
+    loadFixtureIntoDocument('chaospace-season-428609.html', seasonUrl)
+
+    const { analyzePage } = await import('./page-analyzer')
+
+    const result = await analyzePage()
+
+    expect(result.url).toBe('https://www.chaospace.cc/tvshows/428607.html')
+    expect(result.origin).toBe('https://www.chaospace.cc')
+    expect(result.title).toBe('身为暗杀者的我明显比勇者还强')
+    expect(result.items.length).toBeGreaterThan(0)
+    expect(result.items.every((item) => item.seasonId === '428609')).toBe(true)
+    expect(result.items.every((item) => item.seasonLabel === '第1季')).toBe(true)
+    expect(result.seasonEntries).toHaveLength(1)
+    expect(result.seasonEntries[0]?.url).toBe(seasonUrl)
+    expect(result.seasonEntries[0]?.seasonIndex).toBe(0)
+    expect(result.seasonCompletion['428609']?.label).toBeDefined()
+  })
+
   it('fetchSeasonDetail 应从季页面提取全部网盘资源及完成度信息', async () => {
     const seasonUrl = 'https://www.chaospace.cc/seasons/428609.html'
     const html = stripScripts(readFixture('chaospace-season-428609.html'))
