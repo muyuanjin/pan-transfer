@@ -4,6 +4,7 @@ import {
   ensureDirectoryExists,
   fetchDirectoryFileNames,
   transferShare,
+  fetchShareDirectoryEntries,
 } from '../api/baidu-pan'
 import { fetchLinkDetail } from '../api/chaospace'
 import type { LinkDetailResult } from '../api/chaospace'
@@ -70,6 +71,88 @@ function logStage(
 }
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
+type ShareEntry = ShareMetadataSuccess['entries'] extends Array<infer Item> ? Item : never
+
+function getSingleRootDirectoryEntry(meta: ShareMetadataSuccess | null): ShareEntry | null {
+  if (!meta || !Array.isArray(meta.entries) || meta.entries.length !== 1) {
+    return null
+  }
+  const [entry] = meta.entries
+  if (!entry || !entry.isDir) {
+    return null
+  }
+  const hasName = typeof entry.serverFilename === 'string' && entry.serverFilename.trim()
+  if (!hasName) {
+    return null
+  }
+  const rawPath = typeof entry.path === 'string' ? entry.path.trim() : ''
+  const normalizedPath = rawPath
+    ? rawPath.startsWith('/')
+      ? rawPath
+      : `/${rawPath}`
+    : `/${entry.serverFilename}`
+  return { ...entry, path: normalizedPath }
+}
+
+async function maybeStripShareRootDirectory(
+  meta: ShareMetadataSuccess,
+  detail: LinkDetailResult,
+  bdstoken: string,
+  options: TransferRuntimeOptions,
+): Promise<void> {
+  const candidate = getSingleRootDirectoryEntry(meta)
+  if (!candidate) {
+    return
+  }
+  const referer = detail.linkUrl || 'https://pan.baidu.com/disk/home'
+  const dirPath = candidate.path || `/${candidate.serverFilename}`
+  const { jobId, context = '' } = options
+  const titleLabel = context ? `《${context}》` : '资源'
+  logStage(jobId, 'list', `${titleLabel}检测到独立根目录：${candidate.serverFilename}，准备剥离`)
+  try {
+    const entries = await fetchShareDirectoryEntries(
+      meta.shareId,
+      meta.userId,
+      dirPath,
+      bdstoken,
+      detail.passCode,
+      referer,
+      options,
+    )
+    if (!entries.length) {
+      logStage(jobId, 'list', `${titleLabel}根目录为空：${candidate.serverFilename}`)
+      return
+    }
+    meta.fsIds = entries.map((entry) => entry.fsId)
+    meta.fileNames = entries.map((entry) => entry.serverFilename)
+    meta.entries = entries
+    logStage(
+      jobId,
+      'list',
+      `${titleLabel}根目录已剥离：${candidate.serverFilename}（${entries.length} 项）`,
+      {
+        level: 'success',
+      },
+    )
+  } catch (error) {
+    const err = error as Error
+    console.warn('[Chaospace Transfer] strip root directory failed', {
+      shareId: meta.shareId,
+      dir: dirPath,
+      error: err?.message,
+    })
+    logStage(
+      jobId,
+      'list',
+      `${titleLabel}剥离根目录失败：${candidate.serverFilename}，将按原结构转存`,
+      {
+        level: 'warning',
+        detail: err?.message,
+      },
+    )
+  }
+}
 
 async function filterAlreadyTransferred(
   meta: ShareMetadataSuccess,
@@ -406,6 +489,8 @@ export async function handleTransfer(
           continue
         }
         const meta = metaResult
+
+        await maybeStripShareRootDirectory(meta, detail, bdstoken, metaOptions)
 
         const targetPath = normalizePath(item.targetPath || normalizedBaseDir)
         emitProgress(jobId, {

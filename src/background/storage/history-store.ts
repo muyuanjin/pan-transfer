@@ -1,5 +1,6 @@
 import { HISTORY_VERSION, STORAGE_KEYS, MAX_HISTORY_RECORDS } from '../common/constants'
 import { storageGet, storageSet } from './utils'
+import { removeCompletedShares, clearCompletedShareCache } from './cache-store'
 import {
   mergeCompletionStatus,
   mergeSeasonCompletionMap,
@@ -14,6 +15,7 @@ import {
 } from '@/shared/utils/completion-status'
 import { sanitizePosterInfo, type PosterInput } from '@/shared/utils/sanitizers'
 import { normalizePath } from '../utils/path'
+import { buildSurl } from '../utils/share'
 import type {
   HistoryRecord,
   HistoryRecordItem,
@@ -224,6 +226,25 @@ export function normalizeHistoryPath(value: unknown, fallback = '/'): string {
     return fallback
   }
   return normalizePath(value)
+}
+
+function collectRecordSurls(records: Iterable<HistoryRecord>): string[] {
+  const surls = new Set<string>()
+  for (const record of records) {
+    if (!record || !record.items) {
+      continue
+    }
+    Object.values(record.items).forEach((item) => {
+      if (!item || typeof item.linkUrl !== 'string') {
+        return
+      }
+      const surl = buildSurl(item.linkUrl)
+      if (surl) {
+        surls.add(surl)
+      }
+    })
+  }
+  return Array.from(surls)
 }
 
 function applyResultToHistoryRecord(
@@ -496,10 +517,23 @@ export async function deleteHistoryRecords(
     return { ok: true, removed: 0, total: historyState.records.length }
   }
   const beforeCount = historyState.records.length
-  historyState.records = historyState.records.filter((record) => !targets.has(record.pageUrl))
+  const removedRecords: HistoryRecord[] = []
+  historyState.records = historyState.records.filter((record) => {
+    if (targets.has(record.pageUrl)) {
+      removedRecords.push(record)
+      return false
+    }
+    return true
+  })
   const removed = beforeCount - historyState.records.length
   if (!removed) {
     return { ok: true, removed: 0, total: historyState.records.length }
+  }
+  if (removedRecords.length) {
+    const surls = collectRecordSurls(removedRecords)
+    if (surls.length) {
+      await removeCompletedShares(surls)
+    }
   }
   rebuildHistoryIndex()
   await persistHistoryNow()
@@ -521,6 +555,7 @@ export async function clearHistoryRecords(): Promise<{
     return { ok: true, removed: 0, total: 0 }
   }
   historyState = createDefaultHistoryState()
+  await clearCompletedShareCache()
   rebuildHistoryIndex()
   await persistHistoryNow()
   return { ok: true, removed, total: 0, cleared: true }

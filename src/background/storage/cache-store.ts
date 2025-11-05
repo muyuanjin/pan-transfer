@@ -214,3 +214,41 @@ export function recordCompletedShare(surl: string | null | undefined): void {
   persistentCacheState.completedShares[surl] = timestamp
   pruneCompletedShareCacheIfNeeded()
 }
+
+export async function removeCompletedShares(
+  surls: Iterable<string | null | undefined>,
+): Promise<number> {
+  await ensureCacheLoaded()
+  if (!persistentCacheState) {
+    persistentCacheState = createDefaultCacheState()
+  }
+  let removed = 0
+  for (const surl of surls) {
+    const normalized = typeof surl === 'string' ? surl.trim() : ''
+    if (!normalized) {
+      continue
+    }
+    const deletedFromMemory = completedShareCache.delete(normalized)
+    const hasPersistent = Boolean(persistentCacheState.completedShares?.[normalized])
+    if (hasPersistent) {
+      delete persistentCacheState.completedShares[normalized]
+    }
+    if (deletedFromMemory || hasPersistent) {
+      removed += 1
+    }
+  }
+  if (removed) {
+    await persistCacheNow()
+  }
+  return removed
+}
+
+export async function clearCompletedShareCache(): Promise<void> {
+  await ensureCacheLoaded()
+  completedShareCache.clear()
+  if (!persistentCacheState) {
+    persistentCacheState = createDefaultCacheState()
+  }
+  persistentCacheState.completedShares = {}
+  await persistCacheNow()
+}

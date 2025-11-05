@@ -25,9 +25,18 @@ export interface ShareMetadataSuccess {
   userId: string
   fsIds: number[]
   fileNames: string[]
+  entries: ShareFileEntry[]
 }
 
 export type ShareMetadata = ShareMetadataSuccess | { error: number | string }
+
+export interface ShareFileEntry {
+  fsId: number
+  serverFilename: string
+  isDir: boolean
+  size: number
+  path: string
+}
 
 interface DirectoryEntry {
   server_filename?: string
@@ -41,7 +50,22 @@ interface ShareMetadataPayload {
     server_filename?: string
     isdir?: number
     size?: number
+    path?: string
   }>
+}
+
+interface ShareListEntryPayload {
+  fs_id?: number | string
+  server_filename?: string
+  isdir?: number | string
+  size?: number | string
+  path?: string
+}
+
+interface ShareListResponse {
+  errno?: number
+  list?: ShareListEntryPayload[]
+  has_more?: number | string | boolean
 }
 
 export interface TransferShareMeta {
@@ -70,6 +94,7 @@ type FetchJsonOptions = RequestInit & {
 
 let cachedBdstoken: string | null = null
 let cachedBdstokenAt = 0
+const SHARE_LIST_PAGE_SIZE = 100
 
 function withPanHeaders(
   headers: Record<string, string> = {},
@@ -80,6 +105,17 @@ function withPanHeaders(
     Referer: referer,
     ...headers,
   }
+}
+
+const normalizeShareDirPath = (dir: string): string => {
+  if (!dir || typeof dir !== 'string') {
+    return '/'
+  }
+  const trimmed = dir.trim()
+  if (!trimmed) {
+    return '/'
+  }
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`
 }
 
 function delay(ms: number): Promise<void> {
@@ -335,6 +371,7 @@ export async function fetchShareMetadata(
   logStage?.(jobId, 'list', `${titleLabel}解析文件列表，共 ${fileList.length} 项`)
   const fsIds: number[] = []
   const fileNames: string[] = []
+  const entries: ShareFileEntry[] = []
   for (const entry of fileList) {
     if (!entry) continue
     if (entry.isdir === 0 && entry.size === 0) {
@@ -345,9 +382,17 @@ export async function fetchShareMetadata(
       continue
     }
     fsIds.push(numericId)
-    if (typeof entry.server_filename === 'string') {
-      fileNames.push(entry.server_filename)
-    }
+    const serverFilename =
+      typeof entry.server_filename === 'string' ? entry.server_filename : String(entry.fs_id ?? '')
+    fileNames.push(serverFilename)
+    const rawPath = typeof entry.path === 'string' ? entry.path : ''
+    entries.push({
+      fsId: numericId,
+      serverFilename,
+      isDir: Number(entry.isdir) === 1,
+      size: typeof entry.size === 'number' ? entry.size : Number(entry.size) || 0,
+      path: rawPath && rawPath.trim() ? rawPath : `/${serverFilename}`,
+    })
   }
 
   if (!shareId) {
@@ -369,6 +414,7 @@ export async function fetchShareMetadata(
     userId: String(userId),
     fsIds,
     fileNames,
+    entries,
   }
 }
 
@@ -519,6 +565,108 @@ export async function fetchDirectoryFileNames(
   recordDirectoryCache(normalized, collected)
   logStage?.(jobId, 'list', `目录缓存完成：${normalized}${contextLabel}（共 ${collected.size} 项）`)
   return new Set(collected)
+}
+
+export async function fetchShareDirectoryEntries(
+  shareId: string,
+  userId: string,
+  dir: string,
+  bdstoken: string,
+  passCode: string,
+  referer: string,
+  options: TransferRuntimeOptions = {},
+): Promise<ShareFileEntry[]> {
+  const { jobId, context = '', logStage } = options
+  const normalizedDir = normalizeShareDirPath(dir)
+  const entries: ShareFileEntry[] = []
+  let start = 0
+  const contextLabel = context ? `（${context}）` : ''
+
+  while (true) {
+    const params = new URLSearchParams({
+      shareid: shareId,
+      uk: userId,
+      dir: normalizedDir,
+      start: String(start),
+      limit: String(SHARE_LIST_PAGE_SIZE),
+      order: 'name',
+      desc: '0',
+      web: '1',
+      channel: 'chunlei',
+      clienttype: '0',
+      app_id: '250528',
+    })
+    if (passCode) {
+      params.set('pwd', passCode)
+    }
+    if (bdstoken) {
+      params.set('bdstoken', bdstoken)
+    }
+
+    const url = `https://pan.baidu.com/share/list?${params.toString()}`
+    logStage?.(jobId, 'list', `枚举分享目录：${normalizedDir}${contextLabel} · 起始 ${start}`)
+    const response = await fetch(url, {
+      credentials: 'include',
+      headers: withPanHeaders({}, referer || 'https://pan.baidu.com/disk/home'),
+    })
+
+    const data = (await response.json()) as ShareListResponse
+    const errno = typeof data.errno === 'number' ? data.errno : -1
+    if (errno !== 0) {
+      if (maybeHandleLoginRequired(errno, 'share-list')) {
+        throw createLoginRequiredError()
+      }
+      logStage?.(
+        jobId,
+        'list',
+        `分享目录枚举失败：${normalizedDir}${contextLabel}（errno ${errno}）`,
+        {
+          level: 'error',
+        },
+      )
+      throw new Error(`分享目录枚举失败(${normalizedDir})：${errno}`)
+    }
+
+    const list = Array.isArray(data.list) ? data.list : []
+    for (const entry of list) {
+      if (!entry) {
+        continue
+      }
+      const numericId = Number(entry.fs_id)
+      if (!Number.isFinite(numericId)) {
+        continue
+      }
+      const serverFilename =
+        typeof entry.server_filename === 'string'
+          ? entry.server_filename
+          : String(entry.fs_id ?? '')
+      const rawPath = typeof entry.path === 'string' ? entry.path : ''
+      entries.push({
+        fsId: numericId,
+        serverFilename,
+        isDir: Number(entry.isdir) === 1,
+        size: typeof entry.size === 'number' ? entry.size : Number(entry.size) || 0,
+        path: rawPath && rawPath.trim() ? rawPath : `${normalizedDir}/${serverFilename}`,
+      })
+    }
+
+    const hasMore =
+      data.has_more === true ||
+      data.has_more === 1 ||
+      data.has_more === '1' ||
+      (typeof data.has_more === 'string' && data.has_more !== '0')
+    if (!hasMore || !list.length) {
+      break
+    }
+    start += list.length
+  }
+
+  logStage?.(
+    jobId,
+    'list',
+    `分享目录枚举完成：${normalizedDir}${contextLabel}（${entries.length} 项）`,
+  )
+  return entries
 }
 
 export async function ensureDirectoryExists(
