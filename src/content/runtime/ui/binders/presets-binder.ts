@@ -2,6 +2,7 @@ import { closestElement } from '../../../utils/dom'
 import type { PanelDomRefs } from '../../../types'
 import type { ContentStore } from '../../../state'
 import type { createPanelPreferencesController } from '../../../controllers/panel-preferences'
+import type { Binder } from './types'
 
 type PanelPreferencesController = ReturnType<typeof createPanelPreferencesController>
 
@@ -11,9 +12,7 @@ interface PresetsBinderDeps {
   preferences: PanelPreferencesController
 }
 
-export function createPresetsBinder({ panelDom, state, preferences }: PresetsBinderDeps): {
-  bind: () => () => void
-} {
+export function createPresetsBinder({ panelDom, state, preferences }: PresetsBinderDeps): Binder {
   return {
     bind(): () => void {
       if (!panelDom.presetList) {

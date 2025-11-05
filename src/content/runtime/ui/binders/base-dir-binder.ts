@@ -4,6 +4,7 @@ import type { PanelDomRefs } from '../../../types'
 import type { ContentStore } from '../../../state'
 import type { createPanelPreferencesController } from '../../../controllers/panel-preferences'
 import type { ToastHandler } from '../../../components/toast'
+import type { Binder } from './types'
 
 type PanelPreferencesController = ReturnType<typeof createPanelPreferencesController>
 
@@ -13,10 +14,6 @@ interface BaseDirBinderDeps {
   preferences: PanelPreferencesController
   renderResourceList: () => void
   showToast: ToastHandler
-}
-
-export interface Binder {
-  bind: () => () => void
 }
 
 export function createBaseDirBinder({

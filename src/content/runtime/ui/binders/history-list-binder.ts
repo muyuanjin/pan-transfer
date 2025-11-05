@@ -3,6 +3,7 @@ import { closestElement } from '../../../utils/dom'
 import type { PanelDomRefs } from '../../../types'
 import type { ContentStore } from '../../../state'
 import type { createHistoryController } from '../../../history/controller'
+import type { Binder } from './types'
 
 type HistoryController = ReturnType<typeof createHistoryController>
 
@@ -12,9 +13,11 @@ interface HistoryListBinderDeps {
   history: HistoryController
 }
 
-export function createHistoryListBinder({ panelDom, state, history }: HistoryListBinderDeps): {
-  bind: () => () => void
-} {
+export function createHistoryListBinder({
+  panelDom,
+  state,
+  history,
+}: HistoryListBinderDeps): Binder {
   const toggleSeasonGroup = (toggle: HTMLElement, groupKey: string): void => {
     const expanded = state.historySeasonExpanded.has(groupKey)
     if (expanded) {
