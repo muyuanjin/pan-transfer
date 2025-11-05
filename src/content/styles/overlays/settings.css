@@ -154,27 +154,15 @@
     background 0.2s ease;
 }
 
-.chaospace-settings-form select {
-  border-radius: 12px;
-  border: 1px solid var(--cp-border);
-  background: var(--cp-surface);
-  color: var(--cp-text-primary);
-  font-size: 13px;
-  padding: 10px 14px;
-  font-family: var(--font-sans);
-  letter-spacing: 0.2px;
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease,
-    background 0.2s ease;
-}
-
 .chaospace-settings-form input:focus,
-.chaospace-settings-form textarea:focus,
-.chaospace-settings-form select:focus {
+.chaospace-settings-form textarea:focus {
   outline: none;
   border-color: rgba(99, 102, 241, 0.6);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+.chaospace-settings-form .chaospace-segmented--settings {
+  width: 100%;
 }
 
 .chaospace-settings-form textarea {

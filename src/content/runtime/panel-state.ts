@@ -23,3 +23,12 @@ export function createPanelRuntimeState(): PanelRuntimeState {
     lastKnownPosition: { left: 16, top: 16 },
   }
 }
+
+export function resetPanelRuntimeState(target: PanelRuntimeState): void {
+  const next = createPanelRuntimeState()
+  const record = target as Record<string, unknown>
+  for (const key of Object.keys(record)) {
+    delete record[key]
+  }
+  Object.assign(target, next)
+}

@@ -6,4 +6,10 @@ export class ContentRuntime {
   init(): void {
     this.app.init()
   }
+
+  destroy(): void {
+    if (typeof this.app.destroy === 'function') {
+      this.app.destroy()
+    }
+  }
 }

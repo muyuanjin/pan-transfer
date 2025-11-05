@@ -6,6 +6,17 @@ import type { createHistoryController } from '../../history/controller'
 
 type HistoryController = ReturnType<typeof createHistoryController>
 
+type StorageChangeListener = (
+  changes: Record<string, chrome.storage.StorageChange>,
+  areaName: chrome.storage.AreaName,
+) => void
+
+type MessageListener = (
+  message: unknown,
+  sender: chrome.runtime.MessageSender,
+  sendResponse: (response?: unknown) => void,
+) => boolean | void
+
 export function registerChromeEvents(deps: {
   history: HistoryController
   applyTheme: () => void
@@ -15,7 +26,7 @@ export function registerChromeEvents(deps: {
   setStatusProgress: (progress: unknown) => void
   getFloatingPanel: () => HTMLElement | null
   analyzePageForMessage: () => Promise<unknown>
-}): void {
+}): () => void {
   const {
     history,
     applyTheme,
@@ -27,7 +38,7 @@ export function registerChromeEvents(deps: {
     analyzePageForMessage,
   } = deps
 
-  chrome.storage.onChanged.addListener((changes, areaName) => {
+  const handleStorageChange: StorageChangeListener = (changes, areaName) => {
     if (areaName !== 'local') {
       return
     }
@@ -66,10 +77,16 @@ export function registerChromeEvents(deps: {
         renderResourceList()
       }
     }
-  })
+  }
 
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message?.type === 'chaospace:collect-links') {
+  const handleRuntimeMessage: MessageListener = (message, _sender, sendResponse) => {
+    const messageRecord =
+      message && typeof message === 'object'
+        ? (message as { type?: unknown; [key: string]: unknown })
+        : null
+    const messageType = messageRecord?.type
+
+    if (messageType === 'chaospace:collect-links') {
       analyzePageForMessage()
         .then((result) => {
           sendResponse(result)
@@ -81,10 +98,18 @@ export function registerChromeEvents(deps: {
       return true
     }
 
-    if (message?.type === 'chaospace:transfer-progress') {
+    if (messageType === 'chaospace:transfer-progress') {
       setStatusProgress(message)
     }
 
     return false
-  })
+  }
+
+  chrome.storage.onChanged.addListener(handleStorageChange)
+  chrome.runtime.onMessage.addListener(handleRuntimeMessage)
+
+  return () => {
+    chrome.storage.onChanged.removeListener(handleStorageChange)
+    chrome.runtime.onMessage.removeListener(handleRuntimeMessage)
+  }
 }

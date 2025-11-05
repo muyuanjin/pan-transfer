@@ -18,6 +18,7 @@
 @import './components/history/history-summary.css';
 @import './components/forms/input-row.css';
 @import './components/forms/controls.css';
+@import './components/forms/segmented.css';
 @import './components/forms/path.css';
 @import './components/logs/log.css';
 @import './components/toast/toast.css';

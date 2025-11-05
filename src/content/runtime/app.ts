@@ -51,6 +51,8 @@ import { showToast } from '../components/toast'
 export function createRuntimeApp() {
   const panelState = createPanelRuntimeState()
   let floatingPanel: HTMLElement | null = null
+  let cleanupChromeEvents: (() => void) | null = null
+  let initialized = false
 
   const getFloatingPanel = (): HTMLElement | null => floatingPanel
 
@@ -110,6 +112,7 @@ export function createRuntimeApp() {
     renderResourceList: () => resourceRenderer.renderResourceList(),
     renderPathPreview: () => preferences.renderPathPreview(),
     renderSeasonHint,
+    saveSettings: () => preferences.saveSettings(),
   })
 
   const selectionController = createSelectionController({
@@ -323,14 +326,18 @@ export function createRuntimeApp() {
   }
 
   const init = (): void => {
+    if (initialized) {
+      return
+    }
     if (!isSupportedDetailPage()) {
       return
     }
+    initialized = true
 
     installZoomPreview()
     injectStyles()
 
-    registerChromeEvents({
+    cleanupChromeEvents = registerChromeEvents({
       history,
       applyTheme: () => preferences.applyPanelTheme(),
       rerenderSettingsIfOpen: () => {
@@ -349,5 +356,15 @@ export function createRuntimeApp() {
     domLifecycle.observeDomChanges()
   }
 
-  return { init }
+  const destroy = (): void => {
+    domLifecycle.cancelInitialPanelCreation()
+    domLifecycle.disconnect()
+    seasonLoader.resetSeasonLoader()
+    panelFactory.disposePanel()
+    cleanupChromeEvents?.()
+    cleanupChromeEvents = null
+    initialized = false
+  }
+
+  return { init, destroy }
 }

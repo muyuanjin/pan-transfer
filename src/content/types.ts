@@ -217,7 +217,7 @@ export interface PanelDomRefs {
   settingsBaseDir?: HTMLInputElement | null
   settingsUseTitle?: HTMLInputElement | null
   settingsUseSeason?: HTMLInputElement | null
-  settingsTheme?: HTMLSelectElement | null
+  settingsThemeGroup?: HTMLElement | null
   settingsPresets?: HTMLTextAreaElement | null
   settingsHistoryRate?: HTMLInputElement | null
   settingsExportConfig?: HTMLButtonElement | null
@@ -232,7 +232,7 @@ export interface PanelDomRefs {
   logList?: HTMLUListElement | null
   resultSummary?: HTMLElement | null
   itemsContainer?: HTMLElement | null
-  sortKeySelect?: HTMLSelectElement | null
+  sortKeyGroup?: HTMLElement | null
   sortOrderButton?: HTMLButtonElement | null
   historyOverlay?: HTMLElement | null
   historyList?: HTMLElement | null

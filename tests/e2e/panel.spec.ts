@@ -16,10 +16,7 @@ const EXTENSION_ARGS = (extensionPath: string) => [
   `--load-extension=${extensionPath}`,
 ]
 
-const CHAOSPACE_FIXTURE_ROOT = path.resolve(
-  __dirname,
-  '../../src/content/services/__fixtures__',
-)
+const CHAOSPACE_FIXTURE_ROOT = path.resolve(__dirname, '../../src/content/services/__fixtures__')
 const CHAOSPACE_FIXTURE_CACHE = new Map<string, Promise<string>>()
 const CHAOSPACE_STUB_HEADERS = {
   'access-control-allow-origin': '*',
@@ -286,9 +283,7 @@ const chaospacePages = [
 
 test.describe('Chaospace panel overlay', () => {
   for (const targetUrl of chaospacePages) {
-    test(`renders without Chaospace Transfer errors for ${targetUrl}`, async ({
-      page,
-    }) => {
+    test(`renders without Chaospace Transfer errors for ${targetUrl}`, async ({ page }) => {
       const errorTracker = createChaospaceErrorTracker(page)
 
       try {

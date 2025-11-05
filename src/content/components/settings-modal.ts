@@ -71,7 +71,7 @@ interface SettingsDomRefs {
   baseDirInput: HTMLInputElement | null
   useTitleCheckbox: HTMLInputElement | null
   useSeasonCheckbox: HTMLInputElement | null
-  themeSelect: HTMLSelectElement | null
+  themeSegment: HTMLElement | null
   presetsTextarea: HTMLTextAreaElement | null
   historyRateInput: HTMLInputElement | null
   exportSettingsBtn: HTMLButtonElement | null
@@ -216,7 +216,19 @@ function extractSettingsFormValues(
   const useSeason = domRefs.useSeasonCheckbox
     ? domRefs.useSeasonCheckbox.checked
     : state.useSeasonSubdir
-  const themeValue = domRefs.themeSelect && domRefs.themeSelect.value === 'light' ? 'light' : 'dark'
+  const themeValue = (() => {
+    if (!domRefs.themeSegment) {
+      return state.theme === 'light' ? 'light' : 'dark'
+    }
+    const active =
+      domRefs.themeSegment.querySelector<HTMLButtonElement>(
+        '.chaospace-segmented-option.is-active[data-value]',
+      ) ||
+      domRefs.themeSegment.querySelector<HTMLButtonElement>(
+        '.chaospace-segmented-option[aria-checked="true"][data-value]',
+      )
+    return active?.dataset['value'] === 'light' ? 'light' : 'dark'
+  })()
   const presetsText = domRefs.presetsTextarea ? domRefs.presetsTextarea.value : ''
   const presetList = presetsText
     .split(/\n+/)
@@ -298,7 +310,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     baseDirInput: panelDom.settingsBaseDir as HTMLInputElement | null,
     useTitleCheckbox: panelDom.settingsUseTitle as HTMLInputElement | null,
     useSeasonCheckbox: panelDom.settingsUseSeason as HTMLInputElement | null,
-    themeSelect: panelDom.settingsTheme as HTMLSelectElement | null,
+    themeSegment: panelDom.settingsThemeGroup as HTMLElement | null,
     presetsTextarea: panelDom.settingsPresets as HTMLTextAreaElement | null,
     historyRateInput: panelDom.settingsHistoryRate as HTMLInputElement | null,
     exportSettingsBtn: panelDom.settingsExportConfig as HTMLButtonElement | null,
@@ -310,6 +322,71 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     resetLayoutBtn: panelDom.settingsResetLayout as HTMLButtonElement | null,
     toggleBtn: panelDom.settingsToggle as HTMLButtonElement | null,
   }
+
+  function getThemeButtons(): HTMLButtonElement[] {
+    return domRefs.themeSegment
+      ? Array.from(domRefs.themeSegment.querySelectorAll<HTMLButtonElement>('[data-value]'))
+      : []
+  }
+
+  function setThemeSegmentValue(value: 'light' | 'dark'): void {
+    const buttons = getThemeButtons()
+    buttons.forEach((button) => {
+      const buttonValue =
+        button.dataset['value'] === 'light' ? ('light' as const) : ('dark' as const)
+      const isActive = buttonValue === value
+      button.classList.toggle('is-active', isActive)
+      button.setAttribute('aria-checked', isActive ? 'true' : 'false')
+      button.tabIndex = isActive ? 0 : -1
+      if (isActive) {
+        domRefs.themeSegment?.setAttribute('data-selected', value)
+      }
+    })
+  }
+
+  function getThemeFocusTarget(): HTMLElement | null {
+    const buttons = getThemeButtons()
+    const [first] = buttons
+    return first ?? domRefs.themeSegment ?? null
+  }
+
+  function ensureThemeSegmentBinding(): void {
+    if (!domRefs.themeSegment || domRefs.themeSegment.dataset['bound'] === 'true') {
+      return
+    }
+    domRefs.themeSegment.dataset['bound'] = 'true'
+    getThemeButtons().forEach((button) => {
+      button.addEventListener('click', () => {
+        const nextValue =
+          button.dataset['value'] === 'light' ? ('light' as const) : ('dark' as const)
+        setThemeSegmentValue(nextValue)
+      })
+      button.addEventListener('keydown', (event) => {
+        if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') {
+          return
+        }
+        event.preventDefault()
+        const buttons = getThemeButtons()
+        const currentIndex = buttons.indexOf(button)
+        if (currentIndex === -1) {
+          return
+        }
+        const delta = event.key === 'ArrowRight' ? 1 : -1
+        const nextIndex = (currentIndex + delta + buttons.length) % buttons.length
+        const nextButton = buttons[nextIndex]
+        if (!nextButton) {
+          return
+        }
+        const nextValue =
+          nextButton.dataset['value'] === 'light' ? ('light' as const) : ('dark' as const)
+        setThemeSegmentValue(nextValue)
+        nextButton.focus()
+      })
+    })
+  }
+
+  ensureThemeSegmentBinding()
+  setThemeSegmentValue(state.theme === 'light' ? 'light' : 'dark')
 
   function renderSettingsPanel(): void {
     if (!domRefs.overlay) {
@@ -325,9 +402,8 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     if (domRefs.useSeasonCheckbox) {
       domRefs.useSeasonCheckbox.checked = state.useSeasonSubdir
     }
-    if (domRefs.themeSelect) {
-      domRefs.themeSelect.value = state.theme === 'light' ? 'light' : 'dark'
-    }
+    ensureThemeSegmentBinding()
+    setThemeSegmentValue(state.theme === 'light' ? 'light' : 'dark')
     if (domRefs.presetsTextarea) {
       domRefs.presetsTextarea.value = state.presets.join('\n')
     }
@@ -632,7 +708,8 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
       }
       if (state.settingsPanel.isOpen) {
         renderSettingsPanel()
-        const focusTarget = domRefs.baseDirInput || domRefs.historyRateInput || domRefs.themeSelect
+        const themeTarget = getThemeFocusTarget()
+        const focusTarget = domRefs.baseDirInput || domRefs.historyRateInput || themeTarget
         focusTarget?.focus({ preventScroll: true })
         return
       }
@@ -642,7 +719,8 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
       domRefs.toggleBtn?.setAttribute('aria-expanded', 'true')
       floatingPanel?.classList.add('is-settings-open')
       renderSettingsPanel()
-      const focusTarget = domRefs.baseDirInput || domRefs.historyRateInput || domRefs.themeSelect
+      const themeTarget = getThemeFocusTarget()
+      const focusTarget = domRefs.baseDirInput || domRefs.historyRateInput || themeTarget
       focusTarget?.focus({ preventScroll: true })
       panelState.pointerInside = true
       cancelEdgeHide?.({ show: true })

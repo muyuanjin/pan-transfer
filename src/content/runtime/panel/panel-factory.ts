@@ -25,6 +25,7 @@ import type { mountPanelShell } from '../../components/panel'
 import type { ToastHandler } from '../../components/toast'
 import { suggestDirectoryFromClassification } from '../../services/page-analyzer'
 import { formatOriginLabel } from '../../utils/format'
+import { resetPanelRuntimeState } from '../panel-state'
 
 type LoggingController = ReturnType<typeof createLoggingController>
 type PanelPreferencesController = ReturnType<typeof createPanelPreferencesController>
@@ -91,6 +92,8 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
   let panelCreationInProgress = false
   let settingsModal: SettingsModalHandle | null = null
   let binderDisposers: Array<() => void> = []
+  let lifecycleToken = 0
+  let currentShell: PanelShellInstance | null = null
 
   const disposeBinders = (): void => {
     binderDisposers.forEach((dispose) => {
@@ -201,13 +204,23 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
       return Boolean(getFloatingPanel())
     }
     panelCreationInProgress = true
+    const token = lifecycleToken
     seasonLoader.resetSeasonLoader()
     let panelCreated = false
 
     try {
       await preferences.loadSettings()
+      if (token !== lifecycleToken) {
+        return false
+      }
       await history.loadHistory({ silent: true })
+      if (token !== lifecycleToken) {
+        return false
+      }
       preferences.applyPanelTheme()
+      if (token !== lifecycleToken) {
+        return false
+      }
 
       resetRuntimeState()
 
@@ -215,6 +228,9 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
         deferTvSeasons: true,
         initialSeasonBatchSize: TV_SHOW_INITIAL_SEASON_BATCH,
       })
+      if (token !== lifecycleToken) {
+        return false
+      }
       const hasItems = Array.isArray(data.items) && data.items.length > 0
       const deferredSeasons = hydrator.normalizeDeferredSeasons(data.deferredSeasons)
       if (!hasItems && deferredSeasons.length === 0) {
@@ -225,6 +241,9 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
       applyAutoBaseDir(state.classificationDetails || state.classification)
       logging.resetLogs()
       history.applyHistoryToCurrentPage()
+      if (token !== lifecycleToken) {
+        return false
+      }
 
       const originLabel = formatOriginLabel(state.origin)
 
@@ -248,11 +267,20 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
           SIZE_KEY,
         },
       })
+      if (token !== lifecycleToken) {
+        panelShell.destroy()
+        return false
+      }
 
+      currentShell = panelShell
       const floatingPanel = panelShell.panel
       setFloatingPanel(floatingPanel)
 
       settingsModal = settingsCoordinator.attachToShell(panelShell)
+
+      if (token !== lifecycleToken) {
+        return false
+      }
 
       panelCreated = true
 
@@ -276,10 +304,20 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
   }
 
   const disposePanel = (): void => {
+    lifecycleToken += 1
     disposeBinders()
     settingsModal?.destroy()
     settingsModal = null
+    if (currentShell) {
+      try {
+        currentShell.destroy()
+      } catch (error) {
+        console.warn('[Chaospace Transfer] Failed to destroy panel shell', error)
+      }
+      currentShell = null
+    }
     setFloatingPanel(null)
+    resetPanelRuntimeState(panelState)
   }
 
   return {

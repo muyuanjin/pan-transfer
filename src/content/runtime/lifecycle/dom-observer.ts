@@ -13,6 +13,7 @@ interface DomLifecycleDeps {
 
 export interface DomLifecycleController {
   scheduleInitialPanelCreation: () => void
+  cancelInitialPanelCreation: () => void
   observeDomChanges: () => void
   disconnect: () => void
 }
@@ -25,28 +26,57 @@ export function createDomLifecycle({
 }: DomLifecycleDeps): DomLifecycleController {
   let mutationObserver: MutationObserver | null = null
   let mutationObserverTimer: number | null = null
+  let initialCreationTimer: number | null = null
+  let retryTimer: number | null = null
+  let attempts = 0
+
+  const clearInitialCreationTimer = (): void => {
+    if (initialCreationTimer) {
+      window.clearTimeout(initialCreationTimer)
+      initialCreationTimer = null
+    }
+  }
+
+  const clearRetryTimer = (): void => {
+    if (retryTimer) {
+      window.clearTimeout(retryTimer)
+      retryTimer = null
+    }
+  }
+
+  const cancelInitialPanelCreation = (): void => {
+    attempts = 0
+    clearInitialCreationTimer()
+    clearRetryTimer()
+  }
+
+  const tryCreate = async (): Promise<void> => {
+    if (hasPanel() || isCreating()) {
+      return
+    }
+    attempts += 1
+    const created = await createPanel()
+    if (created || hasPanel()) {
+      cancelInitialPanelCreation()
+      return
+    }
+    if (attempts < PANEL_CREATION_MAX_ATTEMPTS) {
+      clearRetryTimer()
+      retryTimer = window.setTimeout(() => {
+        void tryCreate()
+      }, PANEL_CREATION_RETRY_DELAY_MS)
+    }
+  }
 
   const scheduleInitialPanelCreation = (): void => {
-    let attempts = 0
-    const tryCreate = async () => {
-      if (hasPanel() || isCreating()) {
-        return
-      }
-      attempts += 1
-      const created = await createPanel()
-      if (created || hasPanel()) {
-        return
-      }
-      if (attempts < PANEL_CREATION_MAX_ATTEMPTS) {
-        window.setTimeout(tryCreate, PANEL_CREATION_RETRY_DELAY_MS)
-      }
-    }
-
+    cancelInitialPanelCreation()
     if (INITIAL_PANEL_DELAY_MS <= 0) {
       void tryCreate()
-    } else {
-      window.setTimeout(() => void tryCreate(), INITIAL_PANEL_DELAY_MS)
+      return
     }
+    initialCreationTimer = window.setTimeout(() => {
+      void tryCreate()
+    }, INITIAL_PANEL_DELAY_MS)
   }
 
   const observeDomChanges = (): void => {
@@ -82,6 +112,7 @@ export function createDomLifecycle({
   }
 
   const disconnect = (): void => {
+    cancelInitialPanelCreation()
     mutationObserver?.disconnect()
     mutationObserver = null
     if (mutationObserverTimer) {
@@ -92,6 +123,7 @@ export function createDomLifecycle({
 
   return {
     scheduleInitialPanelCreation,
+    cancelInitialPanelCreation,
     observeDomChanges,
     disconnect,
   }

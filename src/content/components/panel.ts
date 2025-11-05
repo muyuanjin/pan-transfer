@@ -509,7 +509,7 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
   panelDom.settingsUseSeason = panel.querySelector<HTMLInputElement>(
     '[data-role="settings-use-season"]',
   )
-  panelDom.settingsTheme = panel.querySelector<HTMLSelectElement>('[data-role="settings-theme"]')
+  panelDom.settingsThemeGroup = panel.querySelector<HTMLElement>('[data-role="settings-theme"]')
   panelDom.settingsPresets = panel.querySelector<HTMLTextAreaElement>(
     '[data-role="settings-presets"]',
   )
@@ -542,7 +542,7 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
   panelDom.logList = panel.querySelector<HTMLUListElement>('[data-role="log-list"]')
   panelDom.resultSummary = panel.querySelector<HTMLElement>('[data-role="result-summary"]')
   panelDom.itemsContainer = panel.querySelector<HTMLElement>('[data-role="items"]')
-  panelDom.sortKeySelect = panel.querySelector<HTMLSelectElement>('[data-role="sort-key"]')
+  panelDom.sortKeyGroup = panel.querySelector<HTMLElement>('[data-role="sort-key"]')
   panelDom.sortOrderButton = panel.querySelector<HTMLButtonElement>('[data-role="sort-order"]')
   panelDom.historyOverlay = panel.querySelector<HTMLElement>('[data-role="history-overlay"]')
   panelDom.historyList = panel.querySelector<HTMLElement>('[data-role="history-list"]')
@@ -863,6 +863,10 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     panelState.getPanelBounds = null
     panelState.detachWindowResize = null
     vueApp.unmount()
+    const domRecord = panelDom as Record<string, unknown>
+    for (const key of Object.keys(domRecord)) {
+      delete domRecord[key]
+    }
     if (host.isConnected) {
       host.remove()
     }

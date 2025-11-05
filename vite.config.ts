@@ -12,6 +12,9 @@ export default defineConfig({
     webExtension({
       manifest: 'manifest.json',
       skipManifestValidation: true,
+      webExtConfig: {
+        startUrl: ['https://www.chaospace.cc/movies/431416.html'],
+      },
     }),
   ],
   resolve: {

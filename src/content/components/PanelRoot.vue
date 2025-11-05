@@ -219,13 +219,32 @@
               <section class="chaospace-settings-section">
                 <h3>体验与限速</h3>
                 <div class="chaospace-settings-field">
-                  <label class="chaospace-settings-label" for="chaospace-settings-theme"
-                    >界面主题</label
+                  <div class="chaospace-settings-label">界面主题</div>
+                  <div
+                    class="chaospace-segmented chaospace-segmented--settings"
+                    data-role="settings-theme"
+                    role="radiogroup"
+                    aria-label="界面主题"
                   >
-                  <select id="chaospace-settings-theme" data-role="settings-theme">
-                    <option value="dark">深色</option>
-                    <option value="light">浅色</option>
-                  </select>
+                    <button
+                      type="button"
+                      class="chaospace-segmented-option"
+                      data-value="dark"
+                      role="radio"
+                      aria-checked="false"
+                    >
+                      深色
+                    </button>
+                    <button
+                      type="button"
+                      class="chaospace-segmented-option"
+                      data-value="light"
+                      role="radio"
+                      aria-checked="false"
+                    >
+                      浅色
+                    </button>
+                  </div>
                   <p class="chaospace-settings-hint">枚举值 · 影响浮动面板的背景与文字样式。</p>
                 </div>
                 <div class="chaospace-settings-field">
@@ -319,13 +338,34 @@
             <div class="chaospace-season-tabs" data-role="season-tabs" hidden></div>
             <div class="chaospace-toolbar">
               <div class="chaospace-sort-group">
-                <label class="chaospace-sort-label">
+                <div class="chaospace-sort-label">
                   <span>排序</span>
-                  <select data-role="sort-key">
-                    <option value="page">默认顺序</option>
-                    <option value="title">标题</option>
-                  </select>
-                </label>
+                  <div
+                    class="chaospace-segmented chaospace-segmented--toolbar"
+                    data-role="sort-key"
+                    role="radiogroup"
+                    aria-label="资源排序"
+                  >
+                    <button
+                      type="button"
+                      class="chaospace-segmented-option"
+                      data-value="page"
+                      role="radio"
+                      aria-checked="false"
+                    >
+                      默认顺序
+                    </button>
+                    <button
+                      type="button"
+                      class="chaospace-segmented-option"
+                      data-value="title"
+                      role="radio"
+                      aria-checked="false"
+                    >
+                      标题
+                    </button>
+                  </div>
+                </div>
                 <button type="button" class="chaospace-order-btn" data-role="sort-order">
                   正序
                 </button>

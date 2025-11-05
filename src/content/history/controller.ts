@@ -50,6 +50,7 @@ interface HistoryControllerDeps {
   renderResourceList: () => void
   renderPathPreview: () => void
   renderSeasonHint: () => void
+  saveSettings: () => void | Promise<void>
 }
 
 interface LoadHistoryOptions {
@@ -81,7 +82,14 @@ function wait(ms: number): Promise<void> {
 }
 
 export function createHistoryController(deps: HistoryControllerDeps) {
-  const { getFloatingPanel, panelState, renderResourceList } = deps
+  const {
+    getFloatingPanel,
+    panelState,
+    renderResourceList,
+    renderPathPreview,
+    renderSeasonHint,
+    saveSettings,
+  } = deps
 
   function getHistoryGroupByKey(key: string): HistoryGroup | null {
     if (!key) {
@@ -118,12 +126,26 @@ export function createHistoryController(deps: HistoryControllerDeps) {
         state.seasonDirMap = { ...state.seasonDirMap, ...seasonMap }
         dedupeSeasonDirMap()
         updateSeasonExampleDir()
-        deps.renderSeasonHint()
-        deps.renderPathPreview()
+        renderSeasonHint()
+        renderPathPreview()
       }
     }
     if (!state.hasSeasonSubdirPreference && typeof matched.useSeasonSubdir === 'boolean') {
       state.useSeasonSubdir = matched.useSeasonSubdir
+      state.hasSeasonSubdirPreference = true
+      if (panelDom.useSeasonCheckbox) {
+        panelDom.useSeasonCheckbox.checked = state.useSeasonSubdir
+      }
+      if (panelDom.settingsUseSeason) {
+        panelDom.settingsUseSeason.checked = state.useSeasonSubdir
+      }
+      renderSeasonHint()
+      renderPathPreview()
+      if (saveSettings) {
+        Promise.resolve(saveSettings()).catch((error) => {
+          console.error('[Chaospace Transfer] Failed to persist restored season preference', error)
+        })
+      }
     }
     state.transferredIds = new Set<string | number>(knownIds)
     state.items.forEach((item) => {
