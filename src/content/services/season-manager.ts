@@ -317,7 +317,7 @@ function ensureSeasonSubdirDefault(): void {
     return
   }
   const seasonCount = getSeasonCount()
-  state.useSeasonSubdir = isTvShowPage() && seasonCount > 1
+  state.useSeasonSubdir = isTvShowPage() && seasonCount > 0
 }
 
 function renderSeasonHint(): void {
@@ -363,7 +363,7 @@ function renderSeasonControls(): void {
   const seasonRow = panelDom['seasonRow']
   const useSeasonCheckbox = panelDom['useSeasonCheckbox']
   const seasonCount = getSeasonCount()
-  const shouldShow = isTvShowPage() && seasonCount > 1
+  const shouldShow = isTvShowPage() && seasonCount > 0
   if (seasonRow) {
     seasonRow.style.display = shouldShow ? 'flex' : 'none'
   }
