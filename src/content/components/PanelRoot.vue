@@ -133,143 +133,160 @@
               ✕
             </button>
           </div>
-          <form class="chaospace-settings-form" data-role="settings-form">
-            <section class="chaospace-settings-section">
-              <h3>目录策略</h3>
-              <div class="chaospace-settings-field">
-                <label class="chaospace-settings-label" for="chaospace-settings-base-dir"
-                  >基础转存目录</label
-                >
-                <input
-                  id="chaospace-settings-base-dir"
-                  type="text"
-                  placeholder="/视频/番剧"
-                  data-role="settings-base-dir"
-                />
-                <p class="chaospace-settings-hint">
-                  字符串 · 以 / 开头，作为所有转存记录的根目录。
-                </p>
-              </div>
-              <div class="chaospace-settings-field">
-                <label class="chaospace-settings-checkbox" for="chaospace-settings-use-title">
+          <div class="chaospace-settings-body">
+            <form
+              id="chaospace-settings-form"
+              class="chaospace-settings-form"
+              data-role="settings-form"
+            >
+              <section class="chaospace-settings-section">
+                <h3>目录策略</h3>
+                <div class="chaospace-settings-field">
+                  <label class="chaospace-settings-label" for="chaospace-settings-base-dir"
+                    >基础转存目录</label
+                  >
                   <input
-                    id="chaospace-settings-use-title"
-                    type="checkbox"
-                    data-role="settings-use-title"
+                    id="chaospace-settings-base-dir"
+                    type="text"
+                    placeholder="/视频/番剧"
+                    data-role="settings-base-dir"
                   />
+                  <p class="chaospace-settings-hint">
+                    字符串 · 以 / 开头，作为所有转存记录的根目录。
+                  </p>
+                </div>
+                <div class="chaospace-settings-field">
+                  <label class="chaospace-settings-checkbox" for="chaospace-settings-use-title">
+                    <input
+                      id="chaospace-settings-use-title"
+                      type="checkbox"
+                      data-role="settings-use-title"
+                    />
+                    <div>
+                      <span>按剧名创建子目录</span>
+                      <p class="chaospace-settings-hint">
+                        布尔值 · 勾选后使用当前页面标题作为子文件夹名称。
+                      </p>
+                    </div>
+                  </label>
+                  <label class="chaospace-settings-checkbox" for="chaospace-settings-use-season">
+                    <input
+                      id="chaospace-settings-use-season"
+                      type="checkbox"
+                      data-role="settings-use-season"
+                    />
+                    <div>
+                      <span>按季拆分子目录</span>
+                      <p class="chaospace-settings-hint">布尔值 · 勾选后为每季单独创建文件夹。</p>
+                    </div>
+                  </label>
+                </div>
+                <div class="chaospace-settings-field">
+                  <label class="chaospace-settings-label" for="chaospace-settings-presets"
+                    >收藏路径列表</label
+                  >
+                  <textarea
+                    id="chaospace-settings-presets"
+                    rows="4"
+                    data-role="settings-presets"
+                    placeholder="/视频/番剧&#10;/视频/影视"
+                  ></textarea>
+                  <p class="chaospace-settings-hint">
+                    字符串数组 · 每行一个路径，保存后自动去重并保留默认示例。
+                  </p>
+                </div>
+              </section>
+              <section class="chaospace-settings-section">
+                <h3>体验与限速</h3>
+                <div class="chaospace-settings-field">
+                  <label class="chaospace-settings-label" for="chaospace-settings-theme"
+                    >界面主题</label
+                  >
+                  <select id="chaospace-settings-theme" data-role="settings-theme">
+                    <option value="dark">深色</option>
+                    <option value="light">浅色</option>
+                  </select>
+                  <p class="chaospace-settings-hint">枚举值 · 影响浮动面板的背景与文字样式。</p>
+                </div>
+                <div class="chaospace-settings-field">
+                  <label class="chaospace-settings-label" for="chaospace-settings-history-rate"
+                    >批量检测间隔（秒）</label
+                  >
+                  <input
+                    id="chaospace-settings-history-rate"
+                    type="number"
+                    min="0.5"
+                    max="60"
+                    step="0.5"
+                    data-role="settings-history-rate"
+                  />
+                  <p class="chaospace-settings-hint">
+                    数字 · 控制批量刷新历史时的最小延迟，避免触发风控（0.5～60 秒）。
+                  </p>
+                </div>
+              </section>
+              <section class="chaospace-settings-section">
+                <h3>导入导出</h3>
+                <div class="chaospace-settings-row">
                   <div>
-                    <span>按剧名创建子目录</span>
+                    <div class="chaospace-settings-row-title">导出设置</div>
+                    <p class="chaospace-settings-hint">生成 JSON，包含所有可保存的参数。</p>
+                  </div>
+                  <button type="button" data-role="settings-export-config">导出</button>
+                </div>
+                <div class="chaospace-settings-row">
+                  <div>
+                    <div class="chaospace-settings-row-title">导出全部数据</div>
+                    <p class="chaospace-settings-hint">包含设置、转存历史、缓存与面板布局。</p>
+                  </div>
+                  <button type="button" data-role="settings-export-data">导出</button>
+                </div>
+                <div class="chaospace-settings-row">
+                  <div>
+                    <div class="chaospace-settings-row-title">导入设置</div>
                     <p class="chaospace-settings-hint">
-                      布尔值 · 勾选后使用当前页面标题作为子文件夹名称。
+                      选择先前导出的设置 JSON，立即覆盖当前参数。
                     </p>
                   </div>
-                </label>
-                <label class="chaospace-settings-checkbox" for="chaospace-settings-use-season">
-                  <input
-                    id="chaospace-settings-use-season"
-                    type="checkbox"
-                    data-role="settings-use-season"
-                  />
+                  <button type="button" data-role="settings-import-config-trigger">导入</button>
+                </div>
+                <div class="chaospace-settings-row">
                   <div>
-                    <span>按季拆分子目录</span>
-                    <p class="chaospace-settings-hint">布尔值 · 勾选后为每季单独创建文件夹。</p>
+                    <div class="chaospace-settings-row-title">导入全部数据</div>
+                    <p class="chaospace-settings-hint">
+                      覆盖设置、历史、缓存与布局，用于完整迁移。
+                    </p>
                   </div>
-                </label>
-              </div>
-              <div class="chaospace-settings-field">
-                <label class="chaospace-settings-label" for="chaospace-settings-presets"
-                  >收藏路径列表</label
-                >
-                <textarea
-                  id="chaospace-settings-presets"
-                  rows="4"
-                  data-role="settings-presets"
-                  placeholder="/视频/番剧&#10;/视频/影视"
-                ></textarea>
-                <p class="chaospace-settings-hint">
-                  字符串数组 · 每行一个路径，保存后自动去重并保留默认示例。
-                </p>
-              </div>
-            </section>
-            <section class="chaospace-settings-section">
-              <h3>体验与限速</h3>
-              <div class="chaospace-settings-field">
-                <label class="chaospace-settings-label" for="chaospace-settings-theme"
-                  >界面主题</label
-                >
-                <select id="chaospace-settings-theme" data-role="settings-theme">
-                  <option value="dark">深色</option>
-                  <option value="light">浅色</option>
-                </select>
-                <p class="chaospace-settings-hint">枚举值 · 影响浮动面板的背景与文字样式。</p>
-              </div>
-              <div class="chaospace-settings-field">
-                <label class="chaospace-settings-label" for="chaospace-settings-history-rate"
-                  >批量检测间隔（秒）</label
-                >
-                <input
-                  id="chaospace-settings-history-rate"
-                  type="number"
-                  min="0.5"
-                  max="60"
-                  step="0.5"
-                  data-role="settings-history-rate"
-                />
-                <p class="chaospace-settings-hint">
-                  数字 · 控制批量刷新历史时的最小延迟，避免触发风控（0.5～60 秒）。
-                </p>
-              </div>
-            </section>
-            <section class="chaospace-settings-section">
-              <h3>导入导出</h3>
-              <div class="chaospace-settings-row">
-                <div>
-                  <div class="chaospace-settings-row-title">导出设置</div>
-                  <p class="chaospace-settings-hint">生成 JSON，包含所有可保存的参数。</p>
+                  <button type="button" data-role="settings-import-data-trigger">导入</button>
                 </div>
-                <button type="button" data-role="settings-export-config">导出</button>
-              </div>
-              <div class="chaospace-settings-row">
-                <div>
-                  <div class="chaospace-settings-row-title">导出全部数据</div>
-                  <p class="chaospace-settings-hint">包含设置、转存历史、缓存与面板布局。</p>
+                <div class="chaospace-settings-row">
+                  <div>
+                    <div class="chaospace-settings-row-title">重置面板布局</div>
+                    <p class="chaospace-settings-hint">清理已保存的大小与位置，恢复默认摆放。</p>
+                  </div>
+                  <button type="button" data-role="settings-reset-layout">重置</button>
                 </div>
-                <button type="button" data-role="settings-export-data">导出</button>
-              </div>
-              <div class="chaospace-settings-row">
-                <div>
-                  <div class="chaospace-settings-row-title">导入设置</div>
-                  <p class="chaospace-settings-hint">选择先前导出的设置 JSON，立即覆盖当前参数。</p>
-                </div>
-                <button type="button" data-role="settings-import-config-trigger">导入</button>
-              </div>
-              <div class="chaospace-settings-row">
-                <div>
-                  <div class="chaospace-settings-row-title">导入全部数据</div>
-                  <p class="chaospace-settings-hint">覆盖设置、历史、缓存与布局，用于完整迁移。</p>
-                </div>
-                <button type="button" data-role="settings-import-data-trigger">导入</button>
-              </div>
-              <div class="chaospace-settings-row">
-                <div>
-                  <div class="chaospace-settings-row-title">重置面板布局</div>
-                  <p class="chaospace-settings-hint">清理已保存的大小与位置，恢复默认摆放。</p>
-                </div>
-                <button type="button" data-role="settings-reset-layout">重置</button>
-              </div>
-            </section>
+              </section>
+              <input
+                type="file"
+                data-role="settings-import-config"
+                accept="application/json"
+                hidden
+              />
+              <input
+                type="file"
+                data-role="settings-import-data"
+                accept="application/json"
+                hidden
+              />
+            </form>
             <div class="chaospace-settings-footer">
               <button type="button" data-role="settings-cancel">取消</button>
-              <button type="submit" class="chaospace-settings-save">保存设置</button>
+              <button type="submit" class="chaospace-settings-save" form="chaospace-settings-form">
+                保存设置
+              </button>
             </div>
-            <input
-              type="file"
-              data-role="settings-import-config"
-              accept="application/json"
-              hidden
-            />
-            <input type="file" data-role="settings-import-data" accept="application/json" hidden />
-          </form>
+          </div>
         </div>
       </div>
       <div class="chaospace-float-main">

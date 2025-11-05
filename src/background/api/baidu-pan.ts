@@ -18,6 +18,7 @@ import type { TransferRuntimeOptions } from '../types'
 interface VerifyShareResult {
   errno: number
   message?: string
+  randsk?: string
 }
 
 export interface ShareMetadataSuccess {
@@ -26,6 +27,7 @@ export interface ShareMetadataSuccess {
   fsIds: number[]
   fileNames: string[]
   entries: ShareFileEntry[]
+  seKey?: string
 }
 
 export type ShareMetadata = ShareMetadataSuccess | { error: number | string }
@@ -68,10 +70,21 @@ interface ShareListResponse {
   has_more?: number | string | boolean
 }
 
+interface TransferShareResponsePayload {
+  errno?: number
+  show_msg?: string
+}
+
+export interface TransferShareResult {
+  errno: number
+  showMsg?: string
+}
+
 export interface TransferShareMeta {
   shareId: string
   userId: string
   fsIds: number[]
+  seKey?: string
 }
 
 interface ListResponse {
@@ -157,6 +170,22 @@ export function getCookie(
       resolve(null)
     }
   })
+}
+
+async function getSeKeyFromCookie(): Promise<string | undefined> {
+  try {
+    const cookie = await getCookie({ url: 'https://pan.baidu.com/', name: 'BDCLND' })
+    if (!cookie || typeof cookie.value !== 'string' || !cookie.value) {
+      return undefined
+    }
+    try {
+      return decodeURIComponent(cookie.value)
+    } catch (_error) {
+      return cookie.value
+    }
+  } catch (_error) {
+    return undefined
+  }
 }
 
 export async function hasPanLoginCookie(): Promise<boolean> {
@@ -291,7 +320,11 @@ export async function verifySharePassword(
     })
   }
   logStage?.(jobId, 'verify', `${titleLabel}提取码验证通过`, { level: 'success' })
-  return { errno: 0 }
+  const result: VerifyShareResult = { errno: 0 }
+  if (typeof data.randsk === 'string' && data.randsk) {
+    result.randsk = data.randsk
+  }
+  return result
 }
 
 export async function fetchShareMetadata(
@@ -302,6 +335,7 @@ export async function fetchShareMetadata(
 ): Promise<ShareMetadata> {
   const { jobId, context = '', logStage } = options
   const titleLabel = context ? `《${context}》` : '资源'
+  let seKey: string | undefined
   if (passCode) {
     const verifyResult = await verifySharePassword(linkUrl, passCode, bdstoken, options)
     if (verifyResult.errno && verifyResult.errno !== 0) {
@@ -310,6 +344,13 @@ export async function fetchShareMetadata(
         level: 'error',
       })
       return { error: verifyResult.errno }
+    }
+    if (verifyResult.randsk) {
+      try {
+        seKey = decodeURIComponent(verifyResult.randsk)
+      } catch (_error) {
+        seKey = verifyResult.randsk
+      }
     }
     await delay(100)
   }
@@ -409,13 +450,17 @@ export async function fetchShareMetadata(
   }
 
   logStage?.(jobId, 'list', `${titleLabel}元数据准备完成`)
-  return {
+  const metadataResult: ShareMetadataSuccess = {
     shareId: String(shareId),
     userId: String(userId),
     fsIds,
     fileNames,
     entries,
   }
+  if (seKey) {
+    metadataResult.seKey = seKey
+  }
+  return metadataResult
 }
 
 export async function checkDirectoryExists(
@@ -574,6 +619,7 @@ export async function fetchShareDirectoryEntries(
   bdstoken: string,
   passCode: string,
   referer: string,
+  seKey: string | undefined,
   options: TransferRuntimeOptions = {},
 ): Promise<ShareFileEntry[]> {
   const { jobId, context = '', logStage } = options
@@ -601,6 +647,9 @@ export async function fetchShareDirectoryEntries(
     }
     if (bdstoken) {
       params.set('bdstoken', bdstoken)
+    }
+    if (seKey) {
+      params.set('sekey', seKey)
     }
 
     const url = `https://pan.baidu.com/share/list?${params.toString()}`
@@ -754,12 +803,19 @@ export async function transferShare(
   targetPath: string,
   bdstoken: string,
   referer = 'https://pan.baidu.com/disk/home',
-): Promise<number> {
+): Promise<TransferShareResult> {
   const url = `https://pan.baidu.com/share/transfer?shareid=${encodeURIComponent(meta.shareId)}&from=${encodeURIComponent(meta.userId)}&bdstoken=${encodeURIComponent(bdstoken)}&channel=chunlei&web=1&clienttype=0`
   const body = new URLSearchParams({
     fsidlist: JSON.stringify(meta.fsIds),
     path: targetPath,
   })
+  let seKey = meta.seKey
+  if (!seKey) {
+    seKey = await getSeKeyFromCookie()
+  }
+  if (seKey) {
+    body.set('sekey', seKey)
+  }
 
   const response = await fetch(url, {
     method: 'POST',
@@ -773,7 +829,12 @@ export async function transferShare(
     body: body.toString(),
   })
 
-  const data = await response.json()
-  maybeHandleLoginRequired(data.errno, 'transfer-share')
-  return typeof data.errno === 'number' ? data.errno : -999
+  const data = (await response.json()) as TransferShareResponsePayload & { errno?: number }
+  const errno = typeof data.errno === 'number' ? data.errno : -999
+  maybeHandleLoginRequired(errno, 'transfer-share')
+  const result: TransferShareResult = { errno }
+  if (typeof data.show_msg === 'string' && data.show_msg) {
+    result.showMsg = data.show_msg
+  }
+  return result
 }

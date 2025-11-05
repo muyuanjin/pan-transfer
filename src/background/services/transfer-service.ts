@@ -13,6 +13,7 @@ import {
   persistCacheNow,
   hasCompletedShare,
   recordCompletedShare,
+  invalidateDirectoryCaches,
 } from '../storage/cache-store'
 import { recordTransferHistory } from '../storage/history-store'
 import { mapErrorMessage } from '../common/errors'
@@ -72,6 +73,18 @@ function logStage(
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
+const PATH_MISSING_REGEX = /(路径|目录).*(不存在)|path\s+does\s+not\s+exist/i
+
+function isTransferPathMissing(errno: number, showMsg: string | undefined): boolean {
+  if (errno !== 2) {
+    return false
+  }
+  if (!showMsg) {
+    return false
+  }
+  return PATH_MISSING_REGEX.test(showMsg)
+}
+
 type ShareEntry = ShareMetadataSuccess['entries'] extends Array<infer Item> ? Item : never
 
 function getSingleRootDirectoryEntry(meta: ShareMetadataSuccess | null): ShareEntry | null {
@@ -118,6 +131,7 @@ async function maybeStripShareRootDirectory(
       bdstoken,
       detail.passCode,
       referer,
+      meta.seKey,
       options,
     )
     if (!entries.length) {
@@ -240,19 +254,29 @@ async function transferWithRetry(
   referer: string,
   maxAttempts = MAX_TRANSFER_ATTEMPTS,
   options: TransferRuntimeOptions = {},
-): Promise<{ errno: number; attempts: number }> {
+): Promise<{ errno: number; attempts: number; showMsg?: string; pathMissing?: boolean }> {
   const { jobId, context = '' } = options
   const titleLabel = context ? `《${context}》` : '资源'
   const detail = `目标：${targetPath}`
   let attempt = 0
   let errno = -999
+  let lastShowMsg: string | undefined
+  let lastPathMissing = false
+
+  const ensureOptions: TransferRuntimeOptions = { context, logStage }
+  if (jobId) {
+    ensureOptions.jobId = jobId
+  }
 
   while (attempt < maxAttempts) {
     attempt += 1
     logStage(jobId, 'transfer', `${titleLabel}第 ${attempt} 次发送转存请求`, {
       detail,
     })
-    errno = await transferShare(meta, targetPath, bdstoken, referer)
+    const transferResult = await transferShare(meta, targetPath, bdstoken, referer)
+    errno = transferResult.errno
+    lastShowMsg = transferResult.showMsg
+    lastPathMissing = isTransferPathMissing(errno, transferResult.showMsg)
     if (errno === 0 || errno === 666) {
       logStage(
         jobId,
@@ -263,19 +287,49 @@ async function transferWithRetry(
           detail,
         },
       )
-      return { errno, attempts: attempt }
+      const successResult: {
+        errno: number
+        attempts: number
+        showMsg?: string
+        pathMissing?: boolean
+      } = {
+        errno,
+        attempts: attempt,
+      }
+      if (transferResult.showMsg) {
+        successResult.showMsg = transferResult.showMsg
+      }
+      return successResult
     }
-    const shouldRetry = TRANSFER_RETRYABLE_ERRNOS.has(errno) && attempt < maxAttempts
+    const shouldRetryBase = TRANSFER_RETRYABLE_ERRNOS.has(errno) && attempt < maxAttempts
+    const shouldRetryForPath = lastPathMissing && attempt < maxAttempts
+    const shouldRetry = shouldRetryBase || shouldRetryForPath
     logStage(
       jobId,
       'transfer',
       `${titleLabel}转存失败（第 ${attempt} 次，errno ${errno}）${shouldRetry ? '，准备重试' : ''}`,
       {
         level: shouldRetry ? 'warning' : 'error',
-        detail,
+        detail: lastShowMsg ? `${detail} · ${lastShowMsg}` : detail,
       },
     )
-    if (!TRANSFER_RETRYABLE_ERRNOS.has(errno)) {
+    if (lastPathMissing) {
+      logStage(jobId, 'list', `${titleLabel}检测到目标目录缺失，尝试重新创建`, {
+        level: 'warning',
+        detail,
+      })
+      try {
+        await invalidateDirectoryCaches([targetPath])
+      } catch (cacheError) {
+        console.warn('[Chaospace Transfer] invalidate directory cache failed', {
+          path: targetPath,
+          error: (cacheError as Error)?.message,
+        })
+      }
+      await ensureDirectoryExists(targetPath, bdstoken, ensureOptions)
+      continue
+    }
+    if (!shouldRetry) {
       break
     }
     console.log('[Chaospace Transfer] transfer retry scheduled', {
@@ -288,9 +342,22 @@ async function transferWithRetry(
 
   logStage(jobId, 'transfer', `${titleLabel}转存最终失败（errno ${errno}）`, {
     level: 'error',
-    detail,
+    detail: lastShowMsg ? `${detail} · ${lastShowMsg}` : detail,
   })
-  return { errno, attempts: attempt }
+  const failureResult: {
+    errno: number
+    attempts: number
+    showMsg?: string
+    pathMissing?: boolean
+  } = {
+    errno,
+    attempts: attempt,
+    pathMissing: lastPathMissing,
+  }
+  if (lastShowMsg) {
+    failureResult.showMsg = lastShowMsg
+  }
+  return failureResult
 }
 
 export async function handleTransfer(
@@ -550,13 +617,16 @@ export async function handleTransfer(
           userId: meta.userId,
           fsIds: filtered.fsIds,
         }
+        if (meta.seKey) {
+          transferMeta.seKey = meta.seKey
+        }
 
         const referer = detail.linkUrl ? detail.linkUrl : 'https://pan.baidu.com/disk/home'
         const transferOptions: TransferRuntimeOptions = { context: item.title, logStage }
         if (jobId) {
           transferOptions.jobId = jobId
         }
-        const { errno, attempts } = await transferWithRetry(
+        const { errno, attempts, showMsg, pathMissing } = await transferWithRetry(
           transferMeta,
           targetPath,
           bdstoken,
@@ -587,7 +657,8 @@ export async function handleTransfer(
             passCode: detail.passCode,
           })
         } else {
-          const message = mapErrorMessage(errno, `错误码：${errno}`)
+          const fallbackMessage = showMsg || `错误码：${errno}`
+          const message = pathMissing && showMsg ? showMsg : mapErrorMessage(errno, fallbackMessage)
           emitProgress(jobId, {
             stage: 'item:error',
             message: `《${item.title}》转存失败：${message}`,

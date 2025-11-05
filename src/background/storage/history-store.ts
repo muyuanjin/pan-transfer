@@ -1,6 +1,10 @@
 import { HISTORY_VERSION, STORAGE_KEYS, MAX_HISTORY_RECORDS } from '../common/constants'
 import { storageGet, storageSet } from './utils'
-import { removeCompletedShares, clearCompletedShareCache } from './cache-store'
+import {
+  removeCompletedShares,
+  clearCompletedShareCache,
+  invalidateDirectoryCaches,
+} from './cache-store'
 import {
   mergeCompletionStatus,
   mergeSeasonCompletionMap,
@@ -518,9 +522,23 @@ export async function deleteHistoryRecords(
   }
   const beforeCount = historyState.records.length
   const removedRecords: HistoryRecord[] = []
+  const directoriesToInvalidate = new Set<string>()
+
+  const collectDirectory = (value: unknown): void => {
+    if (typeof value !== 'string') {
+      return
+    }
+    const normalized = normalizeHistoryPath(value, '/')
+    if (normalized && normalized !== '/') {
+      directoriesToInvalidate.add(normalized)
+    }
+  }
+
   historyState.records = historyState.records.filter((record) => {
     if (targets.has(record.pageUrl)) {
       removedRecords.push(record)
+      collectDirectory(record.targetDirectory)
+      collectDirectory(record.baseDir)
       return false
     }
     return true
@@ -534,6 +552,9 @@ export async function deleteHistoryRecords(
     if (surls.length) {
       await removeCompletedShares(surls)
     }
+  }
+  if (directoriesToInvalidate.size) {
+    await invalidateDirectoryCaches(directoriesToInvalidate)
   }
   rebuildHistoryIndex()
   await persistHistoryNow()
@@ -554,8 +575,29 @@ export async function clearHistoryRecords(): Promise<{
   if (!removed) {
     return { ok: true, removed: 0, total: 0 }
   }
+  const directoriesToInvalidate = new Set<string>()
+  historyState.records.forEach((record) => {
+    if (!record) {
+      return
+    }
+    if (typeof record.targetDirectory === 'string') {
+      const normalized = normalizeHistoryPath(record.targetDirectory, '/')
+      if (normalized && normalized !== '/') {
+        directoriesToInvalidate.add(normalized)
+      }
+    }
+    if (typeof record.baseDir === 'string') {
+      const normalized = normalizeHistoryPath(record.baseDir, '/')
+      if (normalized && normalized !== '/') {
+        directoriesToInvalidate.add(normalized)
+      }
+    }
+  })
   historyState = createDefaultHistoryState()
   await clearCompletedShareCache()
+  if (directoriesToInvalidate.size) {
+    await invalidateDirectoryCaches(directoriesToInvalidate)
+  }
   rebuildHistoryIndex()
   await persistHistoryNow()
   return { ok: true, removed, total: 0, cleared: true }

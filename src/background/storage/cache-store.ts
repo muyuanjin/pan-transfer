@@ -5,6 +5,7 @@ import {
   STORAGE_KEYS,
 } from '../common/constants'
 import { storageGet, storageSet } from './utils'
+import { normalizePath } from '../utils/path'
 
 interface DirectoryCacheEntry {
   files: string[]
@@ -251,4 +252,93 @@ export async function clearCompletedShareCache(): Promise<void> {
   }
   persistentCacheState.completedShares = {}
   await persistCacheNow()
+}
+
+function collectNormalizedPaths(paths: Iterable<string | null | undefined>): string[] {
+  const unique = new Set<string>()
+  for (const value of paths) {
+    if (typeof value !== 'string') {
+      continue
+    }
+    try {
+      const normalized = normalizePath(value)
+      if (normalized && normalized !== '/') {
+        unique.add(normalized)
+      }
+    } catch (_error) {
+      /* ignore invalid paths */
+    }
+  }
+  return Array.from(unique)
+}
+
+function shouldDropCacheKey(key: string, targets: string[]): boolean {
+  if (!key || key === '/') {
+    return false
+  }
+  return targets.some((target) => {
+    if (target === key) {
+      return true
+    }
+    if (target.startsWith(`${key}/`)) {
+      return true
+    }
+    if (key.startsWith(`${target}/`)) {
+      return true
+    }
+    return false
+  })
+}
+
+export async function invalidateDirectoryCaches(
+  paths: Iterable<string | null | undefined>,
+): Promise<number> {
+  const targets = collectNormalizedPaths(paths)
+  if (!targets.length) {
+    return 0
+  }
+  await ensureCacheLoaded()
+  if (!persistentCacheState) {
+    persistentCacheState = createDefaultCacheState()
+  }
+
+  let removed = 0
+  const dropKey = (key: string): boolean => shouldDropCacheKey(key, targets)
+
+  for (const key of Array.from(ensuredDirectories)) {
+    if (dropKey(key)) {
+      ensuredDirectories.delete(key)
+      if (persistentCacheState.ensured && persistentCacheState.ensured[key]) {
+        delete persistentCacheState.ensured[key]
+      }
+      removed += 1
+    }
+  }
+
+  Object.keys(persistentCacheState.ensured || {}).forEach((key) => {
+    if (dropKey(key)) {
+      delete persistentCacheState!.ensured[key]
+    }
+  })
+
+  for (const key of Array.from(directoryFileCache.keys())) {
+    if (dropKey(key)) {
+      directoryFileCache.delete(key)
+      if (persistentCacheState.directories && persistentCacheState.directories[key]) {
+        delete persistentCacheState.directories[key]
+      }
+      removed += 1
+    }
+  }
+
+  Object.keys(persistentCacheState.directories || {}).forEach((key) => {
+    if (dropKey(key)) {
+      delete persistentCacheState!.directories[key]
+    }
+  })
+
+  if (removed) {
+    await persistCacheNow()
+  }
+  return removed
 }
