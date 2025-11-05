@@ -4,6 +4,7 @@ import {
   chromium,
   type BrowserContext,
   type Page,
+  type Route,
   type ConsoleMessage,
 } from '@playwright/test'
 import fs from 'node:fs'
@@ -15,9 +16,144 @@ const EXTENSION_ARGS = (extensionPath: string) => [
   `--load-extension=${extensionPath}`,
 ]
 
+const CHAOSPACE_FIXTURE_ROOT = path.resolve(
+  __dirname,
+  '../../src/content/services/__fixtures__',
+)
+const CHAOSPACE_FIXTURE_CACHE = new Map<string, Promise<string>>()
+const CHAOSPACE_STUB_HEADERS = {
+  'access-control-allow-origin': '*',
+}
+const CHAOSPACE_LINK_PLACEHOLDER = `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>资源详情 - CHAOSPACE</title>
+  </head>
+  <body>
+    <div class="content">
+      <a class="sbtn" href="https://pan.baidu.com/s/chaospace-test" data-pass-code="abcd">百度网盘</a>
+      <div class="password">提取码：<span>abcd</span></div>
+    </div>
+  </body>
+</html>`
+
 const PANEL_SELECTOR = '.chaospace-panel-host .chaospace-float-panel'
 const PANEL_RENDER_TIMEOUT = 15000 // 降低面板渲染超时从 30s 到 15s
 const CHAOSPACE_LOG_PREFIX = '[Chaospace Transfer]'
+
+function guessContentType(pathname: string): string {
+  if (pathname.endsWith('.css')) return 'text/css; charset=utf-8'
+  if (pathname.endsWith('.js')) return 'application/javascript; charset=utf-8'
+  if (pathname.endsWith('.svg')) return 'image/svg+xml'
+  if (pathname.endsWith('.png')) return 'image/png'
+  if (pathname.endsWith('.jpg') || pathname.endsWith('.jpeg')) return 'image/jpeg'
+  if (pathname.endsWith('.gif')) return 'image/gif'
+  if (pathname.endsWith('.json')) return 'application/json; charset=utf-8'
+  return 'text/plain; charset=utf-8'
+}
+
+async function loadFixture(filename: string): Promise<string> {
+  if (!CHAOSPACE_FIXTURE_CACHE.has(filename)) {
+    const fullPath = path.join(CHAOSPACE_FIXTURE_ROOT, filename)
+    CHAOSPACE_FIXTURE_CACHE.set(filename, fs.promises.readFile(fullPath, 'utf8'))
+  }
+  return CHAOSPACE_FIXTURE_CACHE.get(filename)!
+}
+
+function resolveChaospaceFixture(pathname: string): string | null {
+  if (pathname.startsWith('/tvshows/')) {
+    return 'chaospace-tvshow-429052.html'
+  }
+  if (pathname.startsWith('/movies/')) {
+    return 'chaospace-movie-432912.html'
+  }
+  if (pathname.startsWith('/seasons/')) {
+    return 'chaospace-season-429054.html'
+  }
+  if (pathname === '/' || pathname.startsWith('/tvshows')) {
+    return 'chaospace-tvshows.html'
+  }
+  return null
+}
+
+async function fulfillChaospace(route: Route, url: URL): Promise<boolean> {
+  const { pathname } = url
+  const method = route.request().method()
+
+  if (method !== 'GET') {
+    await route.fulfill({ status: 200, headers: CHAOSPACE_STUB_HEADERS, body: '' })
+    return true
+  }
+
+  if (pathname.startsWith('/links/')) {
+    await route.fulfill({
+      status: 200,
+      headers: {
+        ...CHAOSPACE_STUB_HEADERS,
+        'content-type': 'text/html; charset=utf-8',
+      },
+      body: CHAOSPACE_LINK_PLACEHOLDER,
+    })
+    return true
+  }
+
+  const fixture = resolveChaospaceFixture(pathname)
+  if (fixture) {
+    const body = await loadFixture(fixture)
+    await route.fulfill({
+      status: 200,
+      headers: {
+        ...CHAOSPACE_STUB_HEADERS,
+        'content-type': 'text/html; charset=utf-8',
+      },
+      body,
+    })
+    return true
+  }
+
+  const contentType = guessContentType(pathname)
+  await route.fulfill({
+    status: 200,
+    headers: {
+      ...CHAOSPACE_STUB_HEADERS,
+      'content-type': contentType,
+    },
+    body: '',
+  })
+  return true
+}
+
+async function setupOfflineRoutes(context: BrowserContext): Promise<void> {
+  await context.route('**/*', async (route) => {
+    const requestUrl = route.request().url()
+    try {
+      const url = new URL(requestUrl)
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        await route.continue()
+        return
+      }
+      const hostname = url.hostname.toLowerCase()
+      if (hostname.endsWith('chaospace.cc') || hostname.endsWith('chaospace.xyz')) {
+        const handled = await fulfillChaospace(route, url)
+        if (handled) {
+          return
+        }
+      }
+      await route.fulfill({
+        status: 204,
+        headers: CHAOSPACE_STUB_HEADERS,
+        body: '',
+      })
+    } catch (_error) {
+      await route.fulfill({
+        status: 204,
+        headers: CHAOSPACE_STUB_HEADERS,
+        body: '',
+      })
+    }
+  })
+}
 
 type ChaospaceErrorTracker = {
   consoleErrors: string[]
@@ -125,6 +261,7 @@ const test = base.extend<Fixtures>({
         get: () => undefined,
       })
     })
+    await setupOfflineRoutes(context)
     // 删除不必要的页面重载逻辑,加快启动速度
     // 扩展会在导航到目标页面时自动初始化
     try {
@@ -151,7 +288,7 @@ test.describe('Chaospace panel overlay', () => {
   for (const targetUrl of chaospacePages) {
     test(`renders without Chaospace Transfer errors for ${targetUrl}`, async ({
       page,
-    }, testInfo) => {
+    }) => {
       const errorTracker = createChaospaceErrorTracker(page)
 
       try {
