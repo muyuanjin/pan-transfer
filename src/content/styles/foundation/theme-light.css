@@ -1,0 +1,87 @@
+.chaospace-theme.theme-light,
+.chaospace-light-root {
+  --cp-panel-bg: linear-gradient(
+    150deg,
+    rgba(247, 250, 255, 0.96) 0%,
+    rgba(230, 240, 255, 0.94) 100%
+  );
+  --cp-header-bg: linear-gradient(
+    125deg,
+    rgba(96, 165, 250, 0.38) 0%,
+    rgba(129, 140, 248, 0.32) 45%,
+    rgba(241, 245, 249, 0.4) 100%
+  );
+  --cp-surface: rgba(249, 251, 255, 0.94);
+  --cp-surface-soft: rgba(241, 245, 249, 0.92);
+  --cp-overlay: rgba(236, 244, 255, 0.88);
+  --cp-border: rgba(148, 163, 184, 0.28);
+  --cp-border-strong: rgba(99, 102, 241, 0.35);
+  --cp-accent: #4f46e5;
+  --cp-accent-strong: #4338ca;
+  --cp-accent-soft: rgba(99, 102, 241, 0.16);
+  --cp-accent-softer: rgba(99, 102, 241, 0.08);
+  --cp-chip-bg: rgba(148, 163, 184, 0.16);
+  --cp-text-primary: #1e293b;
+  --cp-text-secondary: #475569;
+  --cp-text-muted: #64748b;
+  --cp-success: #059669;
+  --cp-warning: #d97706;
+  --cp-error: #dc2626;
+  --cp-shadow: 0 24px 60px rgba(15, 23, 42, 0.2);
+  --cp-toast-bg: rgba(255, 255, 255, 0.95);
+  color-scheme: light;
+}
+
+.chaospace-theme.theme-light .chaospace-sort-label select {
+  background: var(--cp-surface);
+  color: var(--cp-text-secondary);
+  border-color: var(--cp-border);
+  box-shadow: 0 2px 8px rgba(148, 163, 184, 0.1);
+}
+
+.chaospace-theme.theme-light .chaospace-sort-label select:hover {
+  border-color: var(--cp-accent);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.22);
+}
+
+.chaospace-theme.theme-light .chaospace-sort-label select:focus {
+  border-color: var(--cp-accent);
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.3),
+    0 10px 20px rgba(99, 102, 241, 0.18);
+}
+
+.chaospace-theme.theme-light .chaospace-sort-label select option {
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+.chaospace-theme.theme-light .chaospace-history-detail-close {
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--cp-text-primary);
+  border-color: rgba(148, 163, 184, 0.32);
+}
+
+.chaospace-theme.theme-light .chaospace-history-detail-close:hover {
+  background: rgba(99, 102, 241, 0.22);
+}
+
+.chaospace-theme.theme-light .chaospace-history-detail-poster {
+  background: radial-gradient(
+    circle at 50% 42%,
+    rgba(129, 140, 248, 0.26),
+    rgba(241, 245, 249, 0.32)
+  );
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+.chaospace-theme.theme-light .chaospace-history-detail-still {
+  background: rgba(241, 245, 249, 0.86);
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+.chaospace-theme.theme-light .chaospace-history-detail-modal {
+  background: rgba(249, 251, 255, 0.96);
+  border-color: rgba(148, 163, 184, 0.28);
+  box-shadow: 0 32px 80px rgba(15, 23, 42, 0.26);
+}

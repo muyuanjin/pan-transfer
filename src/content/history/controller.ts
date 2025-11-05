@@ -24,6 +24,25 @@ import { renderHistoryCard as renderHistoryCardComponent } from '../components/h
 import { showToast } from '../components/toast'
 import type { PanelRuntimeState, HistoryGroup } from '../types'
 import { HISTORY_BATCH_RATE_LIMIT_MS, EDGE_HIDE_DELAY } from '../constants'
+import historyDetailCssHref from '../styles/overlays/history-detail.css?url'
+import { loadCss } from '../styles.loader'
+
+const historyDetailCssUrl = historyDetailCssHref
+let historyDetailCssPromise: Promise<void> | null = null
+
+function ensureHistoryDetailStyles(): Promise<void> {
+  if (!historyDetailCssPromise) {
+    const href =
+      typeof chrome !== 'undefined' && chrome.runtime?.getURL
+        ? chrome.runtime.getURL(historyDetailCssUrl.replace(/^\//, ''))
+        : historyDetailCssUrl
+    historyDetailCssPromise = loadCss(href, document).catch((error) => {
+      historyDetailCssPromise = null
+      throw error
+    })
+  }
+  return historyDetailCssPromise
+}
 
 interface HistoryControllerDeps {
   getFloatingPanel: () => HTMLElement | null
@@ -240,6 +259,12 @@ export function createHistoryController(deps: HistoryControllerDeps) {
   }
 
   function renderHistoryDetail(): void {
+    const overlayExists = Boolean(detailDom['backdrop'])
+    if (!state.historyDetail.isOpen && !overlayExists) {
+      document.body.classList.remove('chaospace-history-detail-active')
+      return
+    }
+
     ensureHistoryDetailOverlayMounted()
     renderHistoryDetailComponent({
       state,
@@ -265,6 +290,11 @@ export function createHistoryController(deps: HistoryControllerDeps) {
       panelState.pointerInside = true
       floatingPanel.classList.add('is-hovering')
       floatingPanel.classList.remove('is-leaving')
+    }
+    try {
+      await ensureHistoryDetailStyles()
+    } catch (error) {
+      console.error('[Chaospace Transfer] Failed to load history detail styles:', error)
     }
     ensureHistoryDetailOverlayMounted()
     const fallback = buildHistoryDetailFallback(group, overrides)

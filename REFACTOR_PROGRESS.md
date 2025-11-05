@@ -110,7 +110,7 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
    - `utils/dom.js`: currently exposes `disableElementDrag` to share drag suppression between components.
 6. **Build Pipeline Unblocked**
    - Updated Vite config to use `src` as root so plugin resolves background entry.
-   - Ported legacy `floatingButton.css` into `content/styles/main.css` and adjusted manifest action icon schema.
+   - Ported legacy `floatingButton.css` into the new layered styles entry (`content/styles/critical.css` + `index.css`) and adjusted manifest action icon schema.
    - `npm run build` now completes successfully and emits background/content bundles plus manifest.
    - Fixed manifest icon paths so unpacked builds load in Chrome without missing asset errors.
    - Disabled manifest schema validation during Vite builds to prevent long-running HTTPS checks in offline environments.
@@ -270,8 +270,8 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 
 ### C. Styles & Assets
 
-- [ ] Split legacy `floatingButton.css` (currently copied into `content/styles/main.css`) into modular styles under `src/content/styles/` (`_variables.css`, `_base.css`, `panel.css`, `components/history.css`, `components/settings.css`, `components/toast.css`, etc.).
-- [ ] Replace the monolithic `content/styles/main.css` with modular imports once partials exist and update manifest references accordingly.
+- [x] Split legacy `floatingButton.css` into layered modules under `src/content/styles/` (`foundation/*`, `components/*`, `overlays/*`, `utilities.css`) with critical imports managed by `critical.css`.
+- [x] Replace the monolithic `content/styles/main.css` with the new `index.css` + dynamic overlay loader, updating the manifest and build inputs accordingly.
 
 ### D. Build & Integration
 
@@ -292,7 +292,7 @@ chaospace-extension/     # legacy files (background.js, contentScript.js, etc.) 
 ## Known Issues / Blockers
 
 - **Content script size**: `src/content/index.ts` still carries `// @ts-nocheck` and a large amount of panel wiring; risk of regressions until the remaining logic is modularized.
-- **Styles**: `content/styles/main.css` is currently a straight copy of the legacy stylesheet; modular split still pending.
+- **Styles**: Modular CSS now lives under `src/content/styles/` with `critical.css` for eager imports and overlay styles loaded on demand via `styles.loader.ts`.
 - **Parity validation**: Season directory sanitization/path builder changes need confirmation on fresh transfers (prior runs still showed `– CHAOSPACE` suffix before the latest fix).
 - **Parser coverage scope**: Newly added Vitest suite validates primary flows but lacks negative cases for malformed CHAOSPACE markup; add failing fixtures before broadening deployments.
 - **Type hygiene**: Content orchestrator still leans on broad `PanelDomRefs` indexing; continue tightening state/DOM typings as `content/index.ts` is broken into smaller modules.

@@ -1,0 +1,38 @@
+@keyframes chaospace-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes chaospace-spin {
+  to {
+    transform: scale(1) rotate(360deg);
+  }
+}
+
+@keyframes chaospace-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) translateX(0);
+  }
+}
+
+@keyframes cp-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

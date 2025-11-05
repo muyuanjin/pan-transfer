@@ -1,0 +1,39 @@
+:root {
+  color-scheme: dark;
+  --font-sans:
+    'Inter', 'HarmonyOS Sans SC', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI',
+    'Microsoft YaHei', 'Source Han Sans SC', 'Heiti SC', sans-serif;
+  --font-heading:
+    'Inter', 'HarmonyOS Sans SC', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI',
+    'Microsoft YaHei', 'Source Han Sans SC', 'Heiti SC', sans-serif;
+  --font-mono:
+    'JetBrains Mono', 'Cascadia Mono', 'SFMono-Regular', 'Fira Code', 'Consolas',
+    'Microsoft YaHei Mono', 'DengXian', monospace;
+  --cp-panel-bg: linear-gradient(155deg, rgba(23, 33, 54, 0.94) 0%, rgba(14, 18, 29, 0.92) 100%);
+  --cp-header-bg: linear-gradient(
+    125deg,
+    rgba(79, 70, 229, 0.32) 0%,
+    rgba(30, 64, 175, 0.28) 45%,
+    rgba(17, 24, 39, 0.28) 100%
+  );
+  --cp-surface: rgba(24, 32, 45, 0.92);
+  --cp-surface-soft: rgba(17, 24, 39, 0.82);
+  --cp-overlay: rgba(21, 27, 43, 0.78);
+  --cp-border: rgba(148, 163, 184, 0.24);
+  --cp-border-strong: rgba(148, 163, 184, 0.35);
+  --cp-accent: #6366f1;
+  --cp-accent-strong: #4f46e5;
+  --cp-accent-soft: rgba(99, 102, 241, 0.18);
+  --cp-accent-softer: rgba(99, 102, 241, 0.08);
+  --cp-chip-bg: rgba(148, 163, 184, 0.12);
+  --cp-text-primary: #f8fafc;
+  --cp-text-secondary: #cbd5f5;
+  --cp-text-muted: #94a3b8;
+  --cp-success: #34d399;
+  --cp-warning: #fbbf24;
+  --cp-error: #f87171;
+  --cp-shadow: 0 30px 80px rgba(8, 13, 24, 0.45);
+  --cp-toast-bg: rgba(17, 24, 39, 0.92);
+  --chaospace-float-z-index: 2147483647;
+  --chaospace-toast-z-index: 2147483648;
+}

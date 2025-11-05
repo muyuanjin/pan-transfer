@@ -1,0 +1,138 @@
+.chaospace-float-footer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--cp-overlay);
+  border: 1px solid var(--cp-border);
+  border-radius: 10px;
+  padding: 6px 12px;
+}
+
+.chaospace-footer-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.chaospace-float-btn-compact {
+  width: 156px;
+  height: 40px;
+  font-size: 12px;
+}
+
+.chaospace-transfer-card {
+  padding: 0;
+  background: none;
+  border: none;
+}
+
+.chaospace-float-btn {
+  width: 100%;
+  height: 54px;
+  border-radius: 16px;
+  border: 1px solid var(--cp-accent);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.9) 0%, var(--cp-accent-strong) 100%);
+  color: var(--cp-text-primary);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 20px;
+  box-shadow: 0 18px 38px rgba(99, 102, 241, 0.35);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.chaospace-float-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 22px 44px rgba(99, 102, 241, 0.45);
+  filter: brightness(1.05);
+}
+
+.chaospace-float-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.chaospace-float-panel.theme-light .chaospace-float-btn {
+  border-color: rgba(148, 163, 184, 0.38);
+  background: linear-gradient(135deg, rgba(247, 250, 255, 0.98) 0%, rgba(224, 231, 255, 0.94) 100%);
+  color: #1f2a61;
+  box-shadow: 0 9px 22px rgba(148, 163, 184, 0.28);
+  filter: none;
+}
+
+.chaospace-float-panel.theme-light .chaospace-float-btn:hover {
+  background: linear-gradient(135deg, rgba(240, 247, 255, 0.98) 0%, rgba(210, 220, 255, 0.96) 100%);
+  box-shadow: 0 11px 26px rgba(148, 163, 184, 0.32);
+  filter: none;
+}
+
+.chaospace-float-panel.theme-light .chaospace-float-btn:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgba(99, 102, 241, 0.22),
+    0 8px 20px rgba(148, 163, 184, 0.3);
+}
+
+.chaospace-btn-icon {
+  font-size: 18px;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.chaospace-btn-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(148, 163, 184, 0.3);
+  border-top-color: var(--cp-text-primary);
+  opacity: 0;
+  transform: scale(0.6);
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.chaospace-btn-spinner.is-visible {
+  display: inline-flex;
+  opacity: 1;
+  transform: scale(1);
+  animation: chaospace-spin 0.75s linear infinite;
+}
+
+.chaospace-float-btn.is-loading .chaospace-btn-icon {
+  opacity: 0;
+  transform: scale(0.6);
+  display: none;
+}
+
+.chaospace-float-panel.is-narrow .chaospace-float-footer {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.chaospace-float-panel.is-narrow .chaospace-footer-actions {
+  width: 100%;
+  justify-content: stretch;
+}
+
+.chaospace-float-panel.is-narrow .chaospace-float-btn-compact {
+  width: 100%;
+}

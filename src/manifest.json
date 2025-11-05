@@ -43,12 +43,18 @@
         "*://*.chaospace.xyz/*"
       ],
       "js": ["content/index.ts"],
-      "css": ["content/styles/main.css"]
+      "css": ["content/styles/index.css"]
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["content/styles/main.css"],
+      "resources": [
+        "assets/*.css",
+        "assets/*.js",
+        "content/styles/index.css",
+        "history-detail.css",
+        "settings.css"
+      ],
       "matches": [
         "*://chaospace.cc/*",
         "*://*.chaospace.cc/*",

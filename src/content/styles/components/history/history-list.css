@@ -1,0 +1,411 @@
+.chaospace-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.chaospace-history-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 14px;
+  row-gap: 14px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--cp-surface-soft);
+  border: 1px solid rgba(99, 102, 241, 0.14);
+  transition:
+    border-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.chaospace-history-item[data-detail-trigger='group'] {
+  cursor: pointer;
+}
+
+.chaospace-history-item[data-detail-trigger='group']:hover {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.chaospace-history-item:hover {
+  border-color: var(--cp-accent);
+  transform: translateY(-1px);
+}
+
+.chaospace-history-item.is-current {
+  border-color: var(--cp-accent);
+  box-shadow: 0 12px 28px rgba(99, 102, 241, 0.18);
+}
+
+.chaospace-history-item.is-selected {
+  border-color: rgba(99, 102, 241, 0.42);
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.chaospace-history-selector {
+  align-self: flex-start;
+  padding-top: 6px;
+  display: flex;
+  cursor: auto;
+}
+
+.chaospace-history-selector input {
+  width: 16px;
+  height: 16px;
+}
+
+.chaospace-history-item-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  grid-column: 2 / span 1;
+}
+
+.chaospace-history-poster,
+.chaospace-history-season-poster {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: radial-gradient(circle at 50% 40%, rgba(241, 245, 249, 0.18), rgba(15, 23, 42, 0.08));
+  position: relative;
+}
+
+.chaospace-history-poster {
+  width: 68px;
+  height: 96px;
+  flex-shrink: 0;
+}
+
+.chaospace-history-season-poster {
+  width: 56px;
+  height: 80px;
+  flex-shrink: 0;
+  border-radius: 10px;
+}
+
+.chaospace-history-poster img,
+.chaospace-history-season-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+button.chaospace-history-poster,
+button.chaospace-history-season-poster {
+  padding: 0;
+  border: 1px solid rgba(99, 102, 241, 0.4);
+  background: rgba(99, 102, 241, 0.12);
+  cursor: zoom-in;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+button.chaospace-history-poster:hover,
+button.chaospace-history-season-poster:hover {
+  border-color: rgba(99, 102, 241, 0.7);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.24);
+  transform: translateY(-1px);
+}
+
+.chaospace-history-poster.is-placeholder,
+.chaospace-history-season-poster.is-placeholder {
+  border: 1px dashed rgba(148, 163, 184, 0.4);
+  background: rgba(15, 23, 42, 0.06);
+  color: rgba(148, 163, 184, 0.8);
+  font-size: 11px;
+  letter-spacing: 0.3px;
+}
+
+.chaospace-history-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 auto;
+}
+
+.chaospace-history-main[data-action='history-detail'] {
+  cursor: pointer;
+}
+
+.chaospace-history-main[data-action='history-detail']:focus-visible {
+  outline: 2px solid var(--cp-accent);
+  outline-offset: 2px;
+}
+
+.chaospace-history-title {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-heading);
+  letter-spacing: 0.15px;
+  color: var(--cp-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chaospace-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--cp-text-muted);
+}
+
+.chaospace-history-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 96px;
+}
+
+.chaospace-history-season-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-left: 1px dashed rgba(148, 163, 184, 0.35);
+  margin-left: 0;
+  padding-left: calc(68px + 18px);
+  margin-top: -2px;
+  grid-column: 1 / span 2;
+}
+
+.chaospace-history-season-list[hidden] {
+  display: none;
+}
+
+.chaospace-history-season-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 12px;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.chaospace-history-season-item[data-detail-trigger='season'] {
+  cursor: pointer;
+}
+
+.chaospace-history-season-item[data-detail-trigger='season']:hover {
+  background: rgba(99, 102, 241, 0.12);
+  border-radius: 14px;
+  transform: translateY(-1px);
+}
+
+.chaospace-history-season-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chaospace-history-season-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cp-text-primary);
+  letter-spacing: 0.2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chaospace-history-season-meta {
+  font-size: 11px;
+  color: var(--cp-text-muted);
+  letter-spacing: 0.15px;
+}
+
+.chaospace-history-season-item .chaospace-history-actions {
+  min-width: 88px;
+  gap: 6px;
+  cursor: auto;
+}
+
+.chaospace-history-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(148, 163, 184, 0.18);
+  color: var(--cp-text-secondary);
+}
+
+.chaospace-history-status-inline {
+  margin-left: 0;
+}
+
+.chaospace-history-status.is-completed {
+  background: rgba(34, 197, 94, 0.22);
+  color: #34d399;
+}
+
+.chaospace-history-status.is-ongoing {
+  background: rgba(59, 130, 246, 0.22);
+  color: #60a5fa;
+}
+
+.chaospace-history-status.is-upcoming {
+  background: rgba(245, 158, 11, 0.22);
+  color: #fbbf24;
+}
+
+.chaospace-history-status.is-unknown {
+  background: rgba(148, 163, 184, 0.24);
+  color: var(--cp-text-muted);
+}
+
+.chaospace-history-season-toggle {
+  margin-left: auto;
+  height: 28px;
+  padding: 0 14px;
+  border-radius: 9px;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: rgba(14, 165, 233, 0.12);
+  color: var(--cp-text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  letter-spacing: 0.25px;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.chaospace-history-season-toggle:hover {
+  background: rgba(14, 165, 233, 0.22);
+  border-color: rgba(14, 165, 233, 0.5);
+  color: var(--cp-text-primary);
+  transform: translateY(-1px);
+}
+
+.chaospace-history-item.is-season-expanded .chaospace-history-season-list {
+  animation: cp-fade-in 0.18s ease;
+}
+
+.chaospace-history-action {
+  padding: 0 10px;
+  height: 28px;
+  border-radius: 9px;
+  border: 1px solid var(--cp-border);
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--cp-text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+  white-space: nowrap;
+}
+
+.chaospace-history-action:hover {
+  background: rgba(99, 102, 241, 0.22);
+  border-color: var(--cp-accent);
+  color: var(--cp-text-primary);
+  transform: translateY(-1px);
+}
+
+.chaospace-history-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.chaospace-float-panel.theme-light .chaospace-history-action {
+  background: rgba(241, 245, 249, 0.9);
+  border-color: rgba(148, 163, 184, 0.4);
+  color: #334155;
+}
+
+.chaospace-float-panel.theme-light .chaospace-history-action:hover {
+  background: rgba(99, 102, 241, 0.16);
+  color: #1e293b;
+}
+
+.chaospace-history-action-open {
+  border-color: rgba(34, 197, 94, 0.45);
+  background: rgba(22, 163, 74, 0.12);
+  color: rgba(34, 197, 94, 0.9);
+}
+
+.chaospace-history-action-open:hover {
+  background: rgba(34, 197, 94, 0.24);
+  border-color: rgba(34, 197, 94, 0.6);
+  color: #047857;
+}
+
+.chaospace-float-panel.theme-light .chaospace-history-action-open {
+  background: rgba(220, 252, 231, 0.9);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #047857;
+}
+
+.chaospace-float-panel.theme-light .chaospace-history-action-open:hover {
+  background: rgba(34, 197, 94, 0.28);
+  color: #065f46;
+}
+
+.chaospace-history-action-pan {
+  border-color: rgba(14, 165, 233, 0.45);
+  background: rgba(14, 165, 233, 0.14);
+  color: rgba(14, 165, 233, 0.92);
+}
+
+.chaospace-history-action-pan:hover {
+  background: rgba(14, 165, 233, 0.26);
+  border-color: rgba(14, 165, 233, 0.6);
+  color: #0369a1;
+}
+
+.chaospace-float-panel.theme-light .chaospace-history-action-pan {
+  background: rgba(224, 242, 254, 0.9);
+  border-color: rgba(14, 165, 233, 0.4);
+  color: #0369a1;
+}
+
+.chaospace-float-panel.theme-light .chaospace-history-action-pan:hover {
+  background: rgba(14, 165, 233, 0.32);
+  color: #0c4a6e;
+}
+
+.chaospace-history-action-check {
+  border-color: rgba(59, 130, 246, 0.45);
+  background: rgba(59, 130, 246, 0.12);
+  color: rgba(59, 130, 246, 0.9);
+}
+
+.chaospace-history-action-check:hover {
+  background: rgba(59, 130, 246, 0.24);
+  border-color: rgba(59, 130, 246, 0.6);
+  color: #1d4ed8;
+}
+
+.chaospace-float-panel.theme-light .chaospace-history-action-check {
+  background: rgba(219, 234, 254, 0.9);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #1d4ed8;
+}
+
+.chaospace-float-panel.theme-light .chaospace-history-action-check:hover {
+  background: rgba(59, 130, 246, 0.28);
+  color: #1e3a8a;
+}

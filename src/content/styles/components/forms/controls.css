@@ -1,0 +1,18 @@
+.chaospace-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--cp-text-secondary);
+}
+
+.chaospace-season-checkbox {
+  margin-top: 6px;
+}
+
+.chaospace-checkbox input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--cp-accent);
+  cursor: pointer;
+}

@@ -1,0 +1,117 @@
+.chaospace-history-summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.chaospace-history-summary-topline {
+  display: contents;
+}
+
+.chaospace-history-summary-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cp-text-muted);
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.chaospace-history-summary-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  font-size: 11px;
+  color: var(--cp-text-secondary);
+}
+
+.chaospace-history-summary-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  column-gap: 6px;
+  row-gap: 2px;
+  padding: 5px 9px;
+  border-radius: 7px;
+  background: var(--cp-surface-soft);
+  border: 1px solid var(--cp-border);
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+  align-items: center;
+}
+
+.chaospace-history-summary-item:hover {
+  border-color: var(--cp-accent);
+  transform: translateY(-1px);
+  background: rgba(99, 102, 241, 0.12);
+  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.18);
+}
+
+.chaospace-history-summary-item:focus-visible {
+  outline: 2px solid rgba(99, 102, 241, 0.4);
+  outline-offset: 2px;
+}
+
+.chaospace-history-summary-title {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-heading);
+  letter-spacing: 0.15px;
+  color: var(--cp-text-primary);
+  min-width: 0;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chaospace-history-summary-meta {
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--cp-text-muted);
+  justify-self: stretch;
+  line-height: 1.2;
+}
+
+.chaospace-history-summary-meta span {
+  white-space: nowrap;
+}
+
+.chaospace-history-summary-empty {
+  grid-column: 1 / span 3;
+  align-self: flex-start;
+  font-size: 11px;
+  color: var(--cp-text-muted);
+}
+
+.chaospace-history-summary.is-empty .chaospace-history-summary-body {
+  opacity: 0.7;
+}
+
+.chaospace-float-panel.is-history-expanded .chaospace-history-summary {
+  opacity: 0.55;
+}
+
+.chaospace-float-panel.is-history-expanded .chaospace-history-summary-body {
+  pointer-events: auto;
+}
+
+.chaospace-float-panel.is-narrow .chaospace-history-summary-title {
+  white-space: normal;
+}

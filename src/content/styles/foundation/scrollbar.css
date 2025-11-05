@@ -1,0 +1,100 @@
+.chaospace-float-main {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+
+.chaospace-float-main::-webkit-scrollbar {
+  width: 10px;
+}
+
+.chaospace-float-main::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.chaospace-float-main::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.chaospace-float-main::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chaospace-history-overlay-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+
+.chaospace-history-overlay-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.chaospace-history-overlay-scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.chaospace-history-overlay-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+.chaospace-history-overlay-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chaospace-items-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chaospace-items-scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+}
+
+.chaospace-log-container {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+
+.chaospace-log-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chaospace-log-container::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+}
+
+.chaospace-log-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+.chaospace-log-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chaospace-settings-form {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+}
+
+.chaospace-settings-form::-webkit-scrollbar {
+  width: 10px;
+}
+
+.chaospace-settings-form::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.chaospace-settings-form::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}

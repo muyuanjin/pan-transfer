@@ -15,6 +15,25 @@ import { panelDom, state } from '../state'
 import { normalizeDir } from '../services/page-analyzer'
 import type { PanelRuntimeState } from '../types'
 import type { ToastHandler } from './toast'
+import settingsCssHref from '../styles/overlays/settings.css?url'
+import { loadCss } from '../styles.loader'
+
+const settingsCssUrl = settingsCssHref
+let settingsCssPromise: Promise<void> | null = null
+
+function ensureSettingsStyles(): Promise<void> {
+  if (!settingsCssPromise) {
+    const href =
+      typeof chrome !== 'undefined' && chrome.runtime?.getURL
+        ? chrome.runtime.getURL(settingsCssUrl.replace(/^\//, ''))
+        : settingsCssUrl
+    settingsCssPromise = loadCss(href, document).catch((error) => {
+      settingsCssPromise = null
+      throw error
+    })
+  }
+  return settingsCssPromise
+}
 
 type ToastFn = ToastHandler
 type SafeStorageSetFn = (
@@ -484,23 +503,38 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     if (!domRefs.overlay) {
       return
     }
-    if (state.settingsPanel.isOpen) {
+
+    const finalizeOpen = () => {
+      if (!domRefs.overlay) {
+        return
+      }
+      if (state.settingsPanel.isOpen) {
+        renderSettingsPanel()
+        const focusTarget = domRefs.baseDirInput || domRefs.historyRateInput || domRefs.themeSelect
+        focusTarget?.focus({ preventScroll: true })
+        return
+      }
+      state.settingsPanel.isOpen = true
+      domRefs.overlay.classList.add('is-open')
+      domRefs.overlay.setAttribute('aria-hidden', 'false')
+      domRefs.toggleBtn?.setAttribute('aria-expanded', 'true')
+      floatingPanel?.classList.add('is-settings-open')
       renderSettingsPanel()
       const focusTarget = domRefs.baseDirInput || domRefs.historyRateInput || domRefs.themeSelect
       focusTarget?.focus({ preventScroll: true })
-      return
+      panelState.pointerInside = true
+      cancelEdgeHide?.({ show: true })
+      document.addEventListener('keydown', handleSettingsKeydown, true)
     }
-    state.settingsPanel.isOpen = true
-    domRefs.overlay.classList.add('is-open')
-    domRefs.overlay.setAttribute('aria-hidden', 'false')
-    domRefs.toggleBtn?.setAttribute('aria-expanded', 'true')
-    floatingPanel?.classList.add('is-settings-open')
-    renderSettingsPanel()
-    const focusTarget = domRefs.baseDirInput || domRefs.historyRateInput || domRefs.themeSelect
-    focusTarget?.focus({ preventScroll: true })
-    panelState.pointerInside = true
-    cancelEdgeHide?.({ show: true })
-    document.addEventListener('keydown', handleSettingsKeydown, true)
+
+    void ensureSettingsStyles()
+      .then(() => {
+        finalizeOpen()
+      })
+      .catch((error) => {
+        console.error('[Chaospace Transfer] Failed to load settings styles:', error)
+        finalizeOpen()
+      })
   }
 
   function closeSettingsPanel({ restoreFocus = false }: { restoreFocus?: boolean } = {}): void {
@@ -543,6 +577,31 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
         closeSettingsPanel({ restoreFocus: false })
       }
     })
+
+    floatingPanel?.addEventListener(
+      'click',
+      (event) => {
+        if (!state.settingsPanel.isOpen) {
+          return
+        }
+        const overlayEl = domRefs.overlay
+        if (!overlayEl) {
+          return
+        }
+        const targetNode = event.target instanceof Node ? event.target : null
+        if (!targetNode) {
+          return
+        }
+        if (overlayEl.contains(targetNode)) {
+          return
+        }
+        if (domRefs.toggleBtn?.contains(targetNode)) {
+          return
+        }
+        closeSettingsPanel({ restoreFocus: false })
+      },
+      true,
+    )
 
     domRefs.form?.addEventListener('submit', async (event) => {
       event.preventDefault()

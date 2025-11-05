@@ -354,6 +354,12 @@ export function renderHistoryDetail(params: RenderHistoryDetailParams): void {
   if (onClose) {
     overlayOptions.onClose = onClose
   }
+  const detailState = state.historyDetail
+  const overlayExists = Boolean(detailDom.backdrop)
+  if (!detailState.isOpen && !overlayExists) {
+    document.body.classList.remove('chaospace-history-detail-active')
+    return
+  }
   ensureHistoryDetailOverlay(detailDom, overlayOptions)
 
   const overlay = detailDom.backdrop
@@ -366,7 +372,6 @@ export function renderHistoryDetail(params: RenderHistoryDetailParams): void {
     detailDom.hideTimer = null
   }
 
-  const detailState = state.historyDetail
   if (!detailState.isOpen) {
     overlayState.visible = false
     overlayState.loading = false

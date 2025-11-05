@@ -219,7 +219,7 @@ npm run check
 
 ### 核心技术
 
-- **构建工具**: Vite 7.x(多入口构建:`background/index.ts`、`content/index.js`、`content/styles/main.css`)
+- **构建工具**: Vite 7.x(多入口构建:`background/index.ts`、`content/index.js`、`content/styles/index.css`)
 - **类型系统**: TypeScript 5.x + `@tsconfig/strictest`(background 已全面应用)
 - **前端框架**: Vue 3.x(浮动面板 UI,渐进式迁移中)
 - **浏览器 API**: Chrome Extensions Manifest V3(`chrome.storage`、`chrome.runtime`、`chrome.declarativeNetRequest`)

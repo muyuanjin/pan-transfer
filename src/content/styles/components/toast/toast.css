@@ -1,0 +1,81 @@
+.chaospace-toast {
+  position: fixed;
+  top: 28px;
+  right: 26px;
+  z-index: var(--chaospace-toast-z-index, 2147483648);
+  min-width: 260px;
+  max-width: 360px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid var(--cp-border);
+  background: var(--cp-toast-bg);
+  box-shadow: 0 24px 60px rgba(8, 13, 24, 0.28);
+  color: var(--cp-text-primary);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: chaospace-toast-in 0.25s ease;
+}
+
+.chaospace-toast::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.6), rgba(236, 72, 153, 0.6));
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.chaospace-toast.success {
+  border-color: rgba(52, 211, 153, 0.42);
+}
+
+.chaospace-toast.warning {
+  border-color: rgba(251, 191, 36, 0.42);
+}
+
+.chaospace-toast.error {
+  border-color: rgba(248, 113, 113, 0.42);
+}
+
+/* 海报预览样式已移至 openZoomPreview 内联样式 */
+
+.chaospace-toast-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.chaospace-toast-message {
+  font-size: 12px;
+  color: var(--cp-text-secondary);
+}
+
+.chaospace-toast-stats {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--cp-text-muted);
+}
+
+.chaospace-toast-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chaospace-toast-stat.success {
+  color: var(--cp-success);
+}
+
+.chaospace-toast-stat.failed {
+  color: var(--cp-error);
+}
+
+.chaospace-toast-stat.skipped {
+  color: var(--cp-warning);
+}

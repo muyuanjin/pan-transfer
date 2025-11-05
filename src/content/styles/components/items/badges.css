@@ -1,0 +1,75 @@
+.chaospace-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.24);
+  color: var(--cp-text-secondary);
+}
+
+.chaospace-badge-success {
+  background: rgba(52, 211, 153, 0.18);
+  border-color: rgba(52, 211, 153, 0.4);
+  color: var(--cp-success);
+}
+
+.chaospace-badge-new {
+  background: rgba(59, 130, 246, 0.18);
+  border-color: rgba(59, 130, 246, 0.4);
+  color: #60a5fa;
+}
+
+.chaospace-badge-pending {
+  background: rgba(251, 191, 36, 0.18);
+  border-color: rgba(251, 191, 36, 0.4);
+  color: var(--cp-warning);
+}
+
+.chaospace-chip-group {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--cp-border);
+  background: var(--cp-chip-bg);
+  overflow: hidden;
+}
+
+.chaospace-chip-button {
+  padding: 6px 14px;
+  border: none;
+  background: transparent;
+  color: var(--cp-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.chaospace-chip-button:hover {
+  background: rgba(99, 102, 241, 0.16);
+  color: var(--cp-text-primary);
+}
+
+.chaospace-chip-button.is-active {
+  background: rgba(99, 102, 241, 0.24);
+  color: var(--cp-text-primary);
+}
+
+.chaospace-chip-remove {
+  border: none;
+  background: transparent;
+  color: var(--cp-text-muted);
+  font-size: 14px;
+  padding: 0 10px 0 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease;
+}
+
+.chaospace-chip-remove:hover {
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--cp-error);
+}

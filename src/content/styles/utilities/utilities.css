@@ -1,0 +1,10 @@
+.chaospace-chip-button,
+.chaospace-chip-remove,
+.chaospace-select-group button,
+.chaospace-input-row button,
+.chaospace-order-btn,
+.chaospace-theme-toggle,
+.chaospace-log-header button,
+.chaospace-float-btn {
+  font-family: inherit;
+}

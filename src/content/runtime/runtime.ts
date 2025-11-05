@@ -653,7 +653,7 @@ export class ContentRuntime {
       const link = document.createElement('link')
       link.id = 'chaospace-float-styles'
       link.rel = 'stylesheet'
-      link.href = chrome.runtime.getURL('content/styles/main.css')
+      link.href = chrome.runtime.getURL('content/styles/index.css')
 
       document.head?.appendChild(link)
     } catch (error) {

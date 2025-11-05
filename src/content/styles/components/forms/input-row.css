@@ -1,0 +1,55 @@
+.chaospace-input-row {
+  display: flex;
+  gap: 10px;
+}
+
+.chaospace-input-row input {
+  flex: 1;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid var(--cp-border);
+  background: var(--cp-surface);
+  color: var(--cp-text-primary);
+  padding: 0 14px;
+  font-size: 13px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.15px;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.chaospace-input-row input:focus {
+  outline: none;
+  border-color: rgba(99, 102, 241, 0.6);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+.chaospace-input-row button {
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid var(--cp-accent);
+  background: rgba(79, 70, 229, 0.32);
+  color: var(--cp-text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+  white-space: nowrap;
+}
+
+.chaospace-input-row button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(79, 70, 229, 0.25);
+}
+
+.chaospace-float-panel.is-compact .chaospace-input-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.chaospace-float-panel.is-compact .chaospace-input-row button {
+  width: 100%;
+}
