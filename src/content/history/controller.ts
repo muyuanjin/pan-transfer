@@ -139,7 +139,9 @@ export function createHistoryController(deps: HistoryControllerDeps) {
 
   function getFilteredHistoryGroups(): HistoryGroup[] {
     const groups = Array.isArray(state.historyGroups) ? state.historyGroups : []
-    return filterHistoryGroups(groups, state.historyFilter)
+    return filterHistoryGroups(groups, state.historyFilter, {
+      searchTerm: state.historySearchTerm,
+    })
   }
 
   function pruneHistorySelection(): void {
@@ -212,6 +214,18 @@ export function createHistoryController(deps: HistoryControllerDeps) {
     }
   }
 
+  function updateHistorySearchControls(): void {
+    const term = state.historySearchTerm || ''
+    if (panelDom.historySearch) {
+      panelDom.historySearch.value = term
+    }
+    if (panelDom.historySearchClear) {
+      const isEmpty = term.length === 0
+      panelDom.historySearchClear.hidden = isEmpty
+      panelDom.historySearchClear.disabled = isEmpty
+    }
+  }
+
   function updateHistoryExpansion(): void {
     const floatingPanel = getFloatingPanel()
     if (!floatingPanel) {
@@ -235,6 +249,7 @@ export function createHistoryController(deps: HistoryControllerDeps) {
   }
 
   function renderHistoryCard(): void {
+    updateHistorySearchControls()
     pruneHistorySelection()
     const filtered = getFilteredHistoryGroups()
     updateHistorySelectionSummary(filtered)
@@ -662,6 +677,16 @@ export function createHistoryController(deps: HistoryControllerDeps) {
     renderHistoryCard()
   }
 
+  function setHistorySearchTerm(term: string): void {
+    const next = typeof term === 'string' ? term.trim() : ''
+    if (state.historySearchTerm === next) {
+      return
+    }
+    state.historySearchTerm = next
+    updateHistorySearchControls()
+    renderHistoryCard()
+  }
+
   function setHistoryBatchProgressLabel(label: string): void {
     state.historyBatchProgressLabel = label
     if (panelDom.historyBatchCheck) {
@@ -711,6 +736,7 @@ export function createHistoryController(deps: HistoryControllerDeps) {
     setHistorySelection,
     setHistorySelectAll,
     setHistoryFilter,
+    setHistorySearchTerm,
     setHistoryExpanded,
     toggleHistoryExpanded,
     openHistoryDetail,

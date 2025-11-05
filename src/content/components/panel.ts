@@ -51,6 +51,47 @@ export interface MountedPanelShell {
 type PanelSizeSnapshot = { width?: number; height?: number }
 type PanelPositionSnapshot = { left?: number; top?: number }
 
+type NavigatorWithUAData = Navigator & {
+  userAgentData?: {
+    platform?: string
+  }
+}
+
+function applyFontRenderingHints(target: HTMLElement, win: Window): void {
+  const navigatorWithUAData = win.navigator as NavigatorWithUAData
+  const sources = [
+    navigatorWithUAData.userAgentData?.platform,
+    navigatorWithUAData.platform,
+    navigatorWithUAData.userAgent,
+  ]
+  const platform = sources.filter(Boolean).join(' ').toLowerCase()
+  const devicePixelRatio = Number.isFinite(win.devicePixelRatio) ? win.devicePixelRatio : 1
+
+  if (devicePixelRatio >= 1.25) {
+    target.classList.add('chaospace-font-hidpi')
+  }
+
+  if (/mac|iphone|ipad|ipod/.test(platform)) {
+    target.classList.add('chaospace-font-mac')
+    if (devicePixelRatio >= 1.5) {
+      target.classList.add('chaospace-font-mac-hidpi')
+    }
+    return
+  }
+
+  if (/win/.test(platform)) {
+    target.classList.add('chaospace-font-windows')
+    if (devicePixelRatio >= 1.2) {
+      target.classList.add('chaospace-font-windows-hidpi')
+    }
+    return
+  }
+
+  if (/android|cros|linux/.test(platform) && devicePixelRatio >= 1.5) {
+    target.classList.add('chaospace-font-retina')
+  }
+}
+
 export async function mountPanelShell(options: MountPanelShellOptions): Promise<MountedPanelShell> {
   const {
     document,
@@ -86,6 +127,7 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     host.remove()
     throw new Error('[Chaospace Transfer] Failed to mount floating panel')
   }
+  applyFontRenderingHints(panel, window)
 
   const handlePanelIntroEnd = (event: AnimationEvent) => {
     if (event.animationName === 'chaospace-panel-in') {
@@ -494,6 +536,10 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
   )
   panelDom.historyControls = panel.querySelector<HTMLElement>('[data-role="history-controls"]')
   panelDom.historyTabs = panel.querySelector<HTMLElement>('[data-role="history-tabs"]')
+  panelDom.historySearch = panel.querySelector<HTMLInputElement>('[data-role="history-search"]')
+  panelDom.historySearchClear = panel.querySelector<HTMLButtonElement>(
+    '[data-role="history-search-clear"]',
+  )
   panelDom.historySelectAll = panel.querySelector<HTMLInputElement>(
     '[data-role="history-select-all"]',
   )

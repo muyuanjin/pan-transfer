@@ -79,6 +79,26 @@
             </button>
             <button type="button" class="chaospace-history-tab" data-filter="movie">电影</button>
           </div>
+          <div class="chaospace-history-search">
+            <span class="chaospace-history-search-icon" aria-hidden="true">🔍</span>
+            <input
+              type="search"
+              class="chaospace-history-search-input"
+              data-role="history-search"
+              placeholder="搜索标题、目录或来源"
+              aria-label="搜索转存历史"
+              enterkeyhint="search"
+            />
+            <button
+              type="button"
+              class="chaospace-history-search-clear"
+              data-role="history-search-clear"
+              aria-label="清除搜索"
+              hidden
+            >
+              ✕
+            </button>
+          </div>
           <div class="chaospace-history-toolbar" data-role="history-toolbar">
             <label class="chaospace-history-select-all">
               <input type="checkbox" data-role="history-select-all" />

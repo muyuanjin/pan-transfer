@@ -1,3 +1,4 @@
+import * as TinyPinyin from 'tiny-pinyin'
 import { HISTORY_KEY, HISTORY_FILTERS, type HistoryFilter } from '../constants'
 import { normalizePageUrl } from './page-analyzer'
 import type { CompletionStatus, SeasonEntry } from '@/shared/utils/completion-status'
@@ -460,26 +461,144 @@ export function normalizeHistoryFilter(filter: unknown): HistoryFilter {
   return HISTORY_FILTERS.includes(filter as HistoryFilter) ? (filter as HistoryFilter) : 'all'
 }
 
+export interface HistoryFilterOptions {
+  searchTerm?: string
+}
+
+function appendSearchCandidates(target: string[], value: unknown): void {
+  if (typeof value !== 'string') {
+    return
+  }
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return
+  }
+  target.push(trimmed)
+  buildPinyinVariants(trimmed).forEach((variant) => {
+    if (variant) {
+      target.push(variant)
+    }
+  })
+}
+
+function buildPinyinVariants(value: string): string[] {
+  const variants: string[] = []
+  if (!value) {
+    return variants
+  }
+  try {
+    if (typeof TinyPinyin?.convertToPinyin !== 'function') {
+      return variants
+    }
+    const spaced = TinyPinyin.convertToPinyin(value, ' ', true)
+    const compact = TinyPinyin.convertToPinyin(value, '', true)
+    if (spaced && spaced !== value) {
+      variants.push(spaced)
+      const initials = spaced
+        .split(/\s+/)
+        .map((part) => part.charAt(0))
+        .join('')
+      if (initials) {
+        variants.push(initials)
+        const alphaInitials = initials.replace(/[^a-z]/g, '')
+        if (alphaInitials && alphaInitials !== initials) {
+          variants.push(alphaInitials)
+        }
+      }
+    }
+    if (compact && compact !== value) {
+      variants.push(compact)
+      const alphaCompact = compact.replace(/[^a-z]/g, '')
+      if (alphaCompact && alphaCompact !== compact) {
+        variants.push(alphaCompact)
+      }
+    }
+  } catch {
+    // Ignore conversion failures and fall back to original text only
+  }
+  return variants
+}
+
+function buildHistoryGroupSearchCandidates(group: HistoryGroup | null | undefined): string[] {
+  if (!group || typeof group !== 'object') {
+    return []
+  }
+  const candidates: string[] = []
+  appendSearchCandidates(candidates, group.title)
+  appendSearchCandidates(candidates, group.origin)
+  const main = getHistoryGroupMain(group)
+  if (main) {
+    appendSearchCandidates(candidates, main.pageTitle)
+    appendSearchCandidates(candidates, main.pageUrl)
+    appendSearchCandidates(candidates, main.targetDirectory)
+    appendSearchCandidates(candidates, main.baseDir)
+    appendSearchCandidates(candidates, main.completion?.label)
+  }
+  if (Array.isArray(group.urls)) {
+    group.urls.forEach((url) => {
+      appendSearchCandidates(candidates, url)
+    })
+  }
+  if (Array.isArray(group.seasonEntries)) {
+    group.seasonEntries.forEach((entry) => {
+      if (!entry) {
+        return
+      }
+      appendSearchCandidates(candidates, entry.label)
+    })
+  }
+  const unique = new Set(
+    candidates
+      .map((value) => (typeof value === 'string' ? value.trim().toLowerCase() : ''))
+      .filter(Boolean),
+  )
+  return Array.from(unique)
+}
+
+function matchesHistoryGroupSearch(group: HistoryGroup, tokens: string[]): boolean {
+  if (!tokens.length) {
+    return true
+  }
+  const haystack = buildHistoryGroupSearchCandidates(group)
+  if (!haystack.length) {
+    return false
+  }
+  return tokens.every((token) => haystack.some((candidate) => candidate.includes(token)))
+}
+
 export function filterHistoryGroups(
   groups: HistoryGroup[],
   filter: unknown = 'all',
+  options: HistoryFilterOptions = {},
 ): HistoryGroup[] {
   const normalized = normalizeHistoryFilter(filter)
   const list = Array.isArray(groups) ? groups : []
+  const searchInput = typeof options?.searchTerm === 'string' ? options.searchTerm : ''
+  const tokens = searchInput.trim().toLowerCase().split(/\s+/).filter(Boolean)
   return list.filter((group) => {
+    let matchesFilter = false
     switch (normalized) {
       case 'series':
-        return isHistoryGroupSeries(group)
+        matchesFilter = isHistoryGroupSeries(group)
+        break
       case 'movie':
-        return isHistoryGroupMovie(group)
+        matchesFilter = isHistoryGroupMovie(group)
+        break
       case 'ongoing':
-        return canCheckHistoryGroup(group)
+        matchesFilter = canCheckHistoryGroup(group)
+        break
       case 'completed':
-        return isHistoryGroupCompleted(group)
+        matchesFilter = isHistoryGroupCompleted(group)
+        break
       case 'all':
       default:
-        return true
+        matchesFilter = true
+        break
     }
+    if (!matchesFilter) {
+      return false
+    }
+    return matchesHistoryGroupSearch(group, tokens)
   })
 }
 

@@ -42,6 +42,7 @@ const initialState: ContentState = {
   historyExpanded: false,
   historySeasonExpanded: new Set<string>(),
   historyFilter: 'all',
+  historySearchTerm: '',
   historySelectedKeys: new Set<string>(),
   historyBatchRunning: false,
   historyBatchProgressLabel: '',

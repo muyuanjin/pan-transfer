@@ -96,7 +96,12 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
   const hasEntries = entries.length > 0
 
   const totalGroups = allGroups.length
-  const emptyMessage = totalGroups ? '当前筛选没有记录' : '还没有转存记录'
+  const hasSearch = Boolean((state.historySearchTerm || '').length)
+  const emptyMessage = totalGroups
+    ? hasSearch
+      ? '没有匹配当前搜索条件的记录'
+      : '当前筛选没有记录'
+    : '还没有转存记录'
 
   if (!hasEntries) {
     historyEmpty.textContent = emptyMessage

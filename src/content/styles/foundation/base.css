@@ -10,10 +10,22 @@
   color: var(--cp-text-primary);
 }
 
-@media (min-resolution: 2dppx) {
-  .chaospace-theme {
-    /* Preserve the lighter rendering on HiDPI displays while keeping subpixel AA elsewhere */
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
+.chaospace-theme.chaospace-font-hidpi {
+  text-rendering: optimizeLegibility;
+}
+
+.chaospace-theme.chaospace-font-mac,
+.chaospace-theme.chaospace-font-retina {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.chaospace-theme.chaospace-font-windows {
+  text-rendering: optimizeSpeed;
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
+}
+
+.chaospace-theme.chaospace-font-windows-hidpi {
+  -webkit-font-smoothing: subpixel-antialiased;
 }

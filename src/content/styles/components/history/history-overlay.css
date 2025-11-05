@@ -38,6 +38,73 @@
   gap: 8px;
 }
 
+.chaospace-history-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--cp-border);
+  background: var(--cp-surface-soft);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.chaospace-history-search:focus-within {
+  border-color: rgba(99, 102, 241, 0.6);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.chaospace-history-search-icon {
+  font-size: 12px;
+  color: var(--cp-text-muted);
+}
+
+.chaospace-history-search-input {
+  flex: 1 1 auto;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  color: var(--cp-text-primary);
+  outline: none;
+  min-width: 0;
+  padding: 0;
+}
+
+.chaospace-history-search-input::placeholder {
+  color: var(--cp-text-muted);
+}
+
+.chaospace-history-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.chaospace-history-search-clear {
+  border: 0;
+  background: transparent;
+  color: var(--cp-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.chaospace-history-search-clear:hover:not(:disabled) {
+  background: rgba(99, 102, 241, 0.18);
+  color: var(--cp-text-primary);
+}
+
+.chaospace-history-search-clear:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
 .chaospace-history-toolbar {
   display: flex;
   flex-wrap: wrap;

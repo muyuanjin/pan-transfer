@@ -180,6 +180,7 @@ export interface ContentState {
   historyExpanded: boolean
   historySeasonExpanded: Set<string>
   historyFilter: HistoryFilter
+  historySearchTerm: string
   historySelectedKeys: Set<string>
   historyBatchRunning: boolean
   historyBatchProgressLabel: string
@@ -240,6 +241,8 @@ export interface PanelDomRefs {
   historySummaryBody?: HTMLElement | null
   historyControls?: HTMLElement | null
   historyTabs?: HTMLElement | null
+  historySearch?: HTMLInputElement | null
+  historySearchClear?: HTMLButtonElement | null
   historySelectAll?: HTMLInputElement | null
   historySelectionCount?: HTMLElement | null
   historyBatchCheck?: HTMLButtonElement | null

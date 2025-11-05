@@ -417,6 +417,7 @@ export class ContentRuntime {
     this.edgeController.updatePinButton()
 
     this.bindHistoryTabs()
+    this.bindHistorySearch()
     this.bindPinButton(scheduleEdgeHide, cancelEdgeHide)
     this.bindPosterPreview(panel)
     this.panelBinderDisposers.push(this.baseDirBinder.bind())
@@ -454,6 +455,47 @@ export class ContentRuntime {
       const filter = tab.dataset?.['filter'] || 'all'
       this.history.setHistoryFilter(filter)
     })
+  }
+
+  private bindHistorySearch(): void {
+    const input = panelDom.historySearch ?? null
+    const clearBtn = panelDom.historySearchClear ?? null
+    if (!input) {
+      return
+    }
+    input.value = state.historySearchTerm || ''
+    const handleInput = () => {
+      this.history.setHistorySearchTerm(input.value)
+    }
+    const handleKeydown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || !input.value) {
+        return
+      }
+      event.preventDefault()
+      this.history.setHistorySearchTerm('')
+      input.focus()
+    }
+    input.addEventListener('input', handleInput)
+    input.addEventListener('keydown', handleKeydown)
+    this.panelBinderDisposers.push(() => {
+      input.removeEventListener('input', handleInput)
+      input.removeEventListener('keydown', handleKeydown)
+    })
+    if (clearBtn) {
+      clearBtn.hidden = !state.historySearchTerm
+      clearBtn.disabled = !state.historySearchTerm
+      const handleClear = () => {
+        if (!state.historySearchTerm) {
+          return
+        }
+        this.history.setHistorySearchTerm('')
+        input.focus()
+      }
+      clearBtn.addEventListener('click', handleClear)
+      this.panelBinderDisposers.push(() => {
+        clearBtn.removeEventListener('click', handleClear)
+      })
+    }
   }
 
   private bindPinButton(
