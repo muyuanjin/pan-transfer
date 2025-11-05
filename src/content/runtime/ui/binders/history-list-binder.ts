@@ -1,13 +1,14 @@
 import { buildPanDirectoryUrl } from '../../../services/page-analyzer'
 import { closestElement } from '../../../utils/dom'
-import type { PanelDomRefs, ContentState } from '../../../types'
+import type { PanelDomRefs } from '../../../types'
+import type { ContentStore } from '../../../state'
 import type { createHistoryController } from '../../../history/controller'
 
 type HistoryController = ReturnType<typeof createHistoryController>
 
 interface HistoryListBinderDeps {
   panelDom: PanelDomRefs
-  state: ContentState
+  state: ContentStore
   history: HistoryController
 }
 

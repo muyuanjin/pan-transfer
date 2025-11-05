@@ -2,11 +2,13 @@ import { DEFAULT_PRESETS, HISTORY_BATCH_RATE_LIMIT_MS, STORAGE_KEY } from '../co
 import { normalizeDir } from '../services/page-analyzer'
 import { clampHistoryRateLimit, sanitizePreset } from '../components/settings-modal'
 import { safeStorageGet, safeStorageSet } from '../utils/storage'
-import type { ContentState, PanelDomRefs } from '../types'
+import type { PanelDomRefs } from '../types'
+import type { ContentStore } from '../state'
+import { useDebounceFn } from '@vueuse/core'
 import type { ToastHandler } from '../components/toast'
 
 interface PanelPreferencesDeps {
-  state: ContentState
+  state: ContentStore
   panelDom: PanelDomRefs
   document: Document
   getFloatingPanel: () => HTMLElement | null
@@ -43,7 +45,7 @@ interface SetBaseDirOptions {
 
 export interface PanelPreferencesController {
   loadSettings: () => Promise<void>
-  saveSettings: () => Promise<void>
+  saveSettings: () => void
   ensurePreset: (value: string) => string | null
   removePreset: (value: string) => void
   setBaseDir: (value: string, options?: SetBaseDirOptions) => void
@@ -111,24 +113,32 @@ export function createPanelPreferencesController({
     }
   }
 
-  async function saveSettings(): Promise<void> {
-    const themeValue: 'light' | 'dark' = state.theme === 'light' ? 'light' : 'dark'
-    const settings: SettingsPayload = {
-      baseDir: state.baseDir,
-      useTitleSubdir: state.useTitleSubdir,
-      presets: state.presets,
-      theme: themeValue,
-      historyRateLimitMs: clampHistoryRateLimit(state.historyRateLimitMs),
-    }
-    if (state.hasSeasonSubdirPreference) {
-      settings.useSeasonSubdir = state.useSeasonSubdir
-    }
-    await safeStorageSet(
-      {
-        [STORAGE_KEY]: settings,
-      },
-      'settings',
-    )
+  const persistSettings = useDebounceFn(
+    async () => {
+      const themeValue: 'light' | 'dark' = state.theme === 'light' ? 'light' : 'dark'
+      const settings: SettingsPayload = {
+        baseDir: state.baseDir,
+        useTitleSubdir: state.useTitleSubdir,
+        presets: state.presets,
+        theme: themeValue,
+        historyRateLimitMs: clampHistoryRateLimit(state.historyRateLimitMs),
+      }
+      if (state.hasSeasonSubdirPreference) {
+        settings.useSeasonSubdir = state.useSeasonSubdir
+      }
+      await safeStorageSet(
+        {
+          [STORAGE_KEY]: settings,
+        },
+        'settings',
+      )
+    },
+    250,
+    { maxWait: 1000 },
+  )
+
+  function saveSettings(): void {
+    void persistSettings()
   }
 
   function renderPresets(): void {

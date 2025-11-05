@@ -1,12 +1,13 @@
 import { closestElement } from '../../../utils/dom'
-import type { PanelDomRefs, ContentState } from '../../../types'
+import type { PanelDomRefs } from '../../../types'
+import type { ContentStore } from '../../../state'
 import type { createPanelPreferencesController } from '../../../controllers/panel-preferences'
 
 type PanelPreferencesController = ReturnType<typeof createPanelPreferencesController>
 
 interface PresetsBinderDeps {
   panelDom: PanelDomRefs
-  state: ContentState
+  state: ContentStore
   preferences: PanelPreferencesController
 }
 

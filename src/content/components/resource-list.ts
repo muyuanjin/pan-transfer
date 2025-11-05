@@ -3,7 +3,9 @@ import ResourceListView, {
   type ResourceListItemView,
   type ResourceBadgeView,
 } from './ResourceListView.vue'
-import type { ContentState, ResourceItem, PanelDomRefs } from '../types'
+import type { ResourceItem, PanelDomRefs } from '../types'
+import type { ContentStore } from '../state'
+import { pinia } from '../state'
 
 export type ResourceListPanelDom = Pick<
   PanelDomRefs,
@@ -13,7 +15,7 @@ export type ResourceListPanelDom = Pick<
 }
 
 export interface ResourceListRendererParams {
-  state: ContentState & {
+  state: ContentStore & {
     items: Array<ResourceItem & { id: string | number } & Record<string, unknown>>
   }
   panelDom: ResourceListPanelDom
@@ -147,6 +149,7 @@ export function createResourceListRenderer(
         items: [],
         emptyMessage,
       })
+      listApp.use(pinia)
       listApp.mount(container)
       renderResourceSummary({ tabState, visibleCount: filteredItems.length, visibleSelected })
       updateTransferButton()
@@ -175,6 +178,7 @@ export function createResourceListRenderer(
       items: viewItems,
       emptyMessage: '',
     })
+    listApp.use(pinia)
     listApp.mount(container)
 
     renderResourceSummary({ tabState, visibleCount: sortedItems.length, visibleSelected })
@@ -217,8 +221,8 @@ function buildEmptyMessage({
 
 function sortItems(
   items: ResourceItem[],
-  sortKey: ContentState['sortKey'],
-  sortOrder: ContentState['sortOrder'],
+  sortKey: ResourceListRendererParams['state']['sortKey'],
+  sortOrder: ResourceListRendererParams['state']['sortOrder'],
 ): ResourceItem[] {
   const sorted = [...items]
   if (sortKey === 'title') {

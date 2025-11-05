@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 import PanelRoot from './PanelRoot.vue'
 import { disableElementDrag } from '../utils/dom'
 import { safeStorageGet, safeStorageSet } from '../utils/storage'
+import { pinia } from '../state'
 import type { PanelRuntimeState, PanelDomRefs, PanelBounds } from '../types'
 
 const PANEL_MARGIN = 16
@@ -119,6 +120,7 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     originLabel,
     theme,
   })
+  vueApp.use(pinia)
   vueApp.mount(host)
 
   const panel = host.querySelector<HTMLElement>('.chaospace-float-panel')

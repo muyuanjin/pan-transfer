@@ -2,7 +2,9 @@ import { createApp, type App } from 'vue'
 import HistoryListView from './history/HistoryListView.vue'
 import HistorySummaryView from './history/HistorySummaryView.vue'
 import { formatHistoryTimestamp } from './history/history-card.helpers'
-import type { HistoryGroup, ContentState } from '../types'
+import type { HistoryGroup } from '../types'
+import type { ContentStore } from '../state'
+import { pinia } from '../state'
 import { normalizePageUrl } from '../services/page-analyzer'
 import { HISTORY_DISPLAY_LIMIT } from '../constants'
 
@@ -17,9 +19,9 @@ export interface HistoryCardPanelDom {
 }
 
 export interface HistoryCardRenderParams {
-  state: ContentState & {
+  state: ContentStore & {
     historyGroups: HistoryGroup[]
-    historyDetail: ContentState['historyDetail']
+    historyDetail: ContentStore['historyDetail']
   }
   panelDom: HistoryCardPanelDom
   floatingPanel: HTMLElement | null | undefined
@@ -129,6 +131,7 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
       isHistoryGroupCompleted:
         typeof isHistoryGroupCompleted === 'function' ? isHistoryGroupCompleted : undefined,
     })
+    historyListApp.use(pinia)
     historyListApp.mount(historyList)
   }
 
@@ -147,6 +150,7 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
     historyExpanded: Boolean(state.historyExpanded),
     emptyMessage: summaryEntry ? undefined : hasEntries ? '暂无其他转存记录' : emptyMessage,
   })
+  historySummaryApp.use(pinia)
   historySummaryApp.mount(historySummaryBody)
 
   if (historySummary instanceof HTMLElement) {

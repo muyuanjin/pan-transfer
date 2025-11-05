@@ -1,6 +1,7 @@
 import { normalizeDir } from '../../../services/page-analyzer'
 import { dedupeSeasonDirMap, updateSeasonExampleDir } from '../../../services/season-manager'
-import type { PanelDomRefs, ContentState } from '../../../types'
+import type { PanelDomRefs } from '../../../types'
+import type { ContentStore } from '../../../state'
 import type { createPanelPreferencesController } from '../../../controllers/panel-preferences'
 import type { ToastHandler } from '../../../components/toast'
 
@@ -8,7 +9,7 @@ type PanelPreferencesController = ReturnType<typeof createPanelPreferencesContro
 
 interface BaseDirBinderDeps {
   panelDom: PanelDomRefs
-  state: ContentState
+  state: ContentStore
   preferences: PanelPreferencesController
   renderResourceList: () => void
   showToast: ToastHandler

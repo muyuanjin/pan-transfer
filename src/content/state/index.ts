@@ -1,103 +1,121 @@
+import { createPinia, defineStore, setActivePinia } from 'pinia'
 import { DEFAULT_PRESETS, HISTORY_BATCH_RATE_LIMIT_MS } from '../constants'
 import type { ContentState, PanelDomRefs, DetailDomRefs } from '../types'
 
-type StateKey = keyof ContentState
+const pinia = createPinia()
+setActivePinia(pinia)
 
-const initialState: ContentState = {
-  baseDir: '/',
-  baseDirLocked: false,
-  autoSuggestedDir: null,
-  classification: 'unknown',
-  classificationDetails: null,
-  useTitleSubdir: true,
-  useSeasonSubdir: false,
-  hasSeasonSubdirPreference: false,
-  presets: [...DEFAULT_PRESETS],
-  items: [],
-  itemIdSet: new Set<string | number>(),
-  isSeasonLoading: false,
-  seasonLoadProgress: { total: 0, loaded: 0 },
-  deferredSeasonInfos: [],
-  sortKey: 'page',
-  sortOrder: 'asc',
-  selectedIds: new Set<string | number>(),
-  pageTitle: '',
-  pageUrl: '',
-  poster: null,
-  origin: '',
-  jobId: null,
-  logs: [],
-  transferStatus: 'idle',
-  lastResult: null,
-  statusMessage: '准备就绪 ✨',
-  theme: 'dark',
-  completion: null,
-  seasonCompletion: {},
-  seasonEntries: [],
-  historyRecords: [],
-  historyGroups: [],
-  currentHistory: null,
-  transferredIds: new Set<string | number>(),
-  newItemIds: new Set<string | number>(),
-  historyExpanded: false,
-  historySeasonExpanded: new Set<string>(),
-  historyFilter: 'all',
-  historySearchTerm: '',
-  historySelectedKeys: new Set<string>(),
-  historyBatchRunning: false,
-  historyBatchProgressLabel: '',
-  historyRateLimitMs: HISTORY_BATCH_RATE_LIMIT_MS,
-  historyDetail: {
-    isOpen: false,
-    loading: false,
-    groupKey: '',
+function createInitialState(): ContentState {
+  return {
+    baseDir: '/',
+    baseDirLocked: false,
+    autoSuggestedDir: null,
+    classification: 'unknown',
+    classificationDetails: null,
+    useTitleSubdir: true,
+    useSeasonSubdir: false,
+    hasSeasonSubdirPreference: false,
+    presets: [...DEFAULT_PRESETS],
+    items: [],
+    itemIdSet: new Set<string | number>(),
+    isSeasonLoading: false,
+    seasonLoadProgress: { total: 0, loaded: 0 },
+    deferredSeasonInfos: [],
+    sortKey: 'page',
+    sortOrder: 'asc',
+    selectedIds: new Set<string | number>(),
+    pageTitle: '',
     pageUrl: '',
-    data: null,
-    error: '',
-    fallback: null,
-  },
-  historyDetailCache: new Map<string, unknown>(),
-  seasonDirMap: {},
-  seasonResolvedPaths: [],
-  activeSeasonId: null,
-  settingsPanel: {
-    isOpen: false,
-  },
+    poster: null,
+    origin: '',
+    jobId: null,
+    logs: [],
+    transferStatus: 'idle',
+    lastResult: null,
+    statusMessage: '准备就绪 ✨',
+    theme: 'dark',
+    completion: null,
+    seasonCompletion: {},
+    seasonEntries: [],
+    historyRecords: [],
+    historyGroups: [],
+    currentHistory: null,
+    transferredIds: new Set<string | number>(),
+    newItemIds: new Set<string | number>(),
+    historyExpanded: false,
+    historySeasonExpanded: new Set<string>(),
+    historyFilter: 'all',
+    historySearchTerm: '',
+    historySelectedKeys: new Set<string>(),
+    historyBatchRunning: false,
+    historyBatchProgressLabel: '',
+    historyRateLimitMs: HISTORY_BATCH_RATE_LIMIT_MS,
+    historyDetail: {
+      isOpen: false,
+      loading: false,
+      groupKey: '',
+      pageUrl: '',
+      data: null,
+      error: '',
+      fallback: null,
+    },
+    historyDetailCache: new Map<string, unknown>(),
+    seasonDirMap: {},
+    seasonResolvedPaths: [],
+    activeSeasonId: null,
+    settingsPanel: {
+      isOpen: false,
+    },
+  }
 }
 
-export const state: ContentState = initialState
+export const useContentStore = defineStore('content', {
+  state: createInitialState,
+})
+
+export type ContentStore = ReturnType<typeof useContentStore>
+
+export const contentStore = useContentStore(pinia)
+
+export const state: ContentStore = contentStore
 
 export const panelDom: PanelDomRefs = {} as PanelDomRefs
 export const detailDom: DetailDomRefs = {} as DetailDomRefs
 
 export function overwriteState(nextState: Partial<ContentState>): void {
-  ;(Object.keys(state) as StateKey[]).forEach((key) => {
-    if (!(key in nextState)) {
-      return
+  contentStore.$patch((draft) => {
+    for (const key of Object.keys(nextState) as Array<keyof ContentState>) {
+      if (!(key in draft)) {
+        continue
+      }
+      const value = nextState[key]
+      if (value instanceof Set) {
+        ;(draft as Record<keyof ContentState, unknown>)[key] = new Set(value)
+        continue
+      }
+      if (value instanceof Map) {
+        ;(draft as Record<keyof ContentState, unknown>)[key] = new Map(value)
+        continue
+      }
+      ;(draft as Record<keyof ContentState, unknown>)[key] = value as unknown
     }
-    const value = nextState[key]
-    if (value instanceof Set) {
-      ;(state as Record<StateKey, unknown>)[key] = new Set(value)
-      return
-    }
-    if (value instanceof Map) {
-      ;(state as Record<StateKey, unknown>)[key] = new Map(value)
-      return
-    }
-    ;(state as Record<StateKey, unknown>)[key] = value
   })
 }
 
 export function resetTransientState(): void {
-  state.itemIdSet = new Set<string | number>()
-  state.deferredSeasonInfos = []
-  state.seasonEntries = []
-  state.seasonCompletion = {}
-  state.historyDetailCache = new Map<string, unknown>()
-  state.selectedIds = new Set<string | number>()
-  state.newItemIds = new Set<string | number>()
-  state.transferredIds = new Set<string | number>()
-  state.logs = []
-  state.lastResult = null
-  state.jobId = null
+  contentStore.$patch((draft) => {
+    draft.itemIdSet = new Set<string | number>()
+    draft.deferredSeasonInfos = []
+    draft.seasonEntries = []
+    draft.seasonCompletion = {}
+    draft.historyDetailCache = new Map<string, unknown>()
+    draft.selectedIds = new Set<string | number>()
+    draft.newItemIds = new Set<string | number>()
+    draft.transferredIds = new Set<string | number>()
+    draft.logs = []
+    draft.lastResult = null
+    draft.jobId = null
+  })
 }
+
+export { pinia }

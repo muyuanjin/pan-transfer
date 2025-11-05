@@ -1,7 +1,8 @@
-import type { ContentState, DetailDomRefs, PanelDomRefs, PanelRuntimeState } from '../types'
+import type { ContentStore } from '../state'
+import type { DetailDomRefs, PanelDomRefs, PanelRuntimeState } from '../types'
 
 interface PanelEdgeControllerOptions {
-  state: ContentState
+  state: ContentStore
   panelState: PanelRuntimeState
   panelDom: PanelDomRefs
   detailDom: DetailDomRefs

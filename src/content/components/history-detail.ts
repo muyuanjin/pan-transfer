@@ -1,6 +1,8 @@
 import { createApp, reactive, type App } from 'vue'
 import HistoryDetailOverlay from './HistoryDetailOverlay.vue'
-import type { HistoryGroup, ContentState, ContentHistoryRecord } from '../types'
+import type { HistoryGroup, ContentHistoryRecord } from '../types'
+import type { ContentStore } from '../state'
+import { pinia } from '../state'
 
 export interface HistoryDetailPoster {
   src: string
@@ -69,7 +71,7 @@ export interface HistoryDetailOverlayOptions {
 }
 
 export interface RenderHistoryDetailParams {
-  state: ContentState
+  state: ContentStore
   detailDom: HistoryDetailDomRefs
   getHistoryGroupByKey: ((key: string) => HistoryGroup | null | undefined) | undefined
   onClose: (() => void) | undefined
@@ -343,6 +345,7 @@ export function ensureHistoryDetailOverlay(
     state: overlayState,
     onClose: handleClose,
   })
+  overlayApp.use(pinia)
   overlayApp.mount(host)
 
   assignDetailDomRefs(detailDom)
