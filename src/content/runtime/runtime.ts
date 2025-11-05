@@ -31,6 +31,7 @@ import {
   renderSeasonControls,
   renderSeasonTabs,
   getTargetPath,
+  ensureSeasonSubdirDefault,
 } from '../services/season-manager'
 import { createResourceListRenderer } from '../components/resource-list'
 import type { ResourceListPanelDom } from '../components/resource-list'
@@ -177,6 +178,7 @@ export class ContentRuntime {
         }
       },
       renderResourceList: () => this.renderResourceList(),
+      syncSeasonPreference: (value) => this.syncSeasonPreferenceFromStorage(value),
       setStatusProgress: (progress) => this.transferController.handleProgressEvent(progress),
       getFloatingPanel: () => this.floatingPanel,
       analyzePageForMessage: () => analyzePage(),
@@ -191,6 +193,51 @@ export class ContentRuntime {
 
   private renderResourceSummary(): void {
     this.resourceRenderer.renderResourceSummary()
+  }
+
+  private syncSeasonPreferenceFromStorage(nextValue: boolean | null): void {
+    const previousValue = state.useSeasonSubdir
+    const hadPreference = state.hasSeasonSubdirPreference
+
+    if (typeof nextValue === 'boolean') {
+      const valueChanged = nextValue !== previousValue || !hadPreference
+      state.useSeasonSubdir = nextValue
+      state.hasSeasonSubdirPreference = true
+      updateSeasonExampleDir()
+      if (!this.floatingPanel) {
+        return
+      }
+      if (panelDom.useSeasonCheckbox) {
+        panelDom.useSeasonCheckbox.checked = nextValue
+      }
+      if (panelDom.settingsUseSeason) {
+        panelDom.settingsUseSeason.checked = nextValue
+      }
+      if (valueChanged) {
+        renderSeasonHint()
+        this.preferences.renderPathPreview()
+        this.renderResourceList()
+      }
+      return
+    }
+
+    if (nextValue === null && hadPreference) {
+      state.hasSeasonSubdirPreference = false
+      ensureSeasonSubdirDefault()
+      updateSeasonExampleDir()
+      if (!this.floatingPanel) {
+        return
+      }
+      if (panelDom.useSeasonCheckbox) {
+        panelDom.useSeasonCheckbox.checked = state.useSeasonSubdir
+      }
+      if (panelDom.settingsUseSeason) {
+        panelDom.settingsUseSeason.checked = state.useSeasonSubdir
+      }
+      renderSeasonHint()
+      this.preferences.renderPathPreview()
+      this.renderResourceList()
+    }
   }
 
   private applyAutoBaseDir(

@@ -11,6 +11,7 @@ export function registerChromeEvents(deps: {
   applyTheme: () => void
   rerenderSettingsIfOpen: () => void
   renderResourceList: () => void
+  syncSeasonPreference: (value: boolean | null) => void
   setStatusProgress: (progress: unknown) => void
   getFloatingPanel: () => HTMLElement | null
   analyzePageForMessage: () => Promise<unknown>
@@ -20,6 +21,7 @@ export function registerChromeEvents(deps: {
     applyTheme,
     rerenderSettingsIfOpen,
     renderResourceList,
+    syncSeasonPreference,
     setStatusProgress,
     getFloatingPanel,
     analyzePageForMessage,
@@ -43,6 +45,13 @@ export function registerChromeEvents(deps: {
           state.historyRateLimitMs = nextRate
           rerenderSettingsIfOpen()
         }
+      }
+      const nextSeasonPref = settingsChange.newValue.useSeasonSubdir
+      const prevSeasonPref = settingsChange.oldValue?.useSeasonSubdir
+      if (typeof nextSeasonPref === 'boolean') {
+        syncSeasonPreference(nextSeasonPref)
+      } else if (typeof prevSeasonPref === 'boolean' && typeof nextSeasonPref !== 'boolean') {
+        syncSeasonPreference(null)
       }
     }
 
