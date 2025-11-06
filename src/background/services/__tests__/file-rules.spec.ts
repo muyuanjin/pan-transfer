@@ -195,4 +195,34 @@ describe('buildRenamePlan', () => {
       changed: false,
     })
   })
+
+  it('preserves compound and volume extensions while ignoring hidden-file leading dots', () => {
+    const entries = [
+      createEntry(30, 'dataset.pkg.tar.zst', 1),
+      createEntry(31, 'backup.cpio.xz', 1),
+      createEntry(32, 'archive.rar.part12', 1),
+      createEntry(33, 'movie.7z.002', 1),
+      createEntry(34, '.bashrc', 1),
+      createEntry(35, '.env.prod', 1),
+    ]
+    const renameRules: FileRenameRule[] = [
+      {
+        pattern: '^.+$',
+        replacement: 'normalized',
+        flags: '',
+        enabled: true,
+      },
+    ]
+
+    const plan = buildRenamePlan(entries, renameRules)
+
+    expect(plan.map((entry) => entry.finalName)).toEqual([
+      'normalized.pkg.tar.zst',
+      'normalized.cpio.xz',
+      'normalized.rar.part12',
+      'normalized.7z.002',
+      'normalized',
+      'normalized.prod',
+    ])
+  })
 })

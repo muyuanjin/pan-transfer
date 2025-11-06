@@ -41,6 +41,9 @@ export interface RenamePlanEntry {
   appliedRules: string[]
 }
 
+const COMPOUND_EXTENSION_REGEX =
+  /^(.+?)\.(?<ext>(?:pkg\.)?tar\.(?:gz|xz|bz2|zst)|cpio\.(?:gz|bz2|xz|zst)|(?:7z|rar|zip)(?:\.(?:part\d+|\d{2,4}|r\d{2}))|tgz|tbz2|txz|tzst|[^.]+)$/i
+
 const ARCHIVE_EXTS = new Set([
   'zip',
   'rar',
@@ -176,6 +179,14 @@ function splitName(name: string): { base: string; extension: string } {
     return { base: '', extension: '' }
   }
   const trimmed = name.trim()
+  if (!trimmed) {
+    return { base: '', extension: '' }
+  }
+  const compoundMatch = COMPOUND_EXTENSION_REGEX.exec(trimmed)
+  const compoundExt = compoundMatch?.groups?.['ext']
+  if (compoundMatch && compoundExt) {
+    return { base: compoundMatch[1] ?? '', extension: compoundExt }
+  }
   const lastDot = trimmed.lastIndexOf('.')
   if (lastDot <= 0 || lastDot === trimmed.length - 1) {
     return { base: trimmed, extension: '' }
