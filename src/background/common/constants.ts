@@ -29,6 +29,7 @@ export const LOGIN_REQUIRED_ERRNOS = new Set<number>([-4, -6, 9019, 20010])
 export const LOGIN_REDIRECT_COOLDOWN = 60 * 1000
 
 export const STORAGE_KEYS = {
+  settings: 'chaospace-transfer-settings',
   cache: 'chaospace-transfer-cache',
   history: 'chaospace-transfer-history',
 } as const

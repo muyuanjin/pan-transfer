@@ -6,6 +6,16 @@ import type { PanelDomRefs } from '../types'
 import type { ContentStore } from '../state'
 import { useDebounceFn } from '@vueuse/core'
 import type { ToastHandler } from '../components/toast'
+import {
+  normalizeFileFilterMode,
+  normalizeFileFilterRules,
+  normalizeFileRenameRules,
+  serializeFileFilterRules,
+  serializeFileRenameRules,
+  type FileFilterEvaluationMode,
+  type FileFilterRule,
+  type FileRenameRule,
+} from '@/shared/settings'
 
 interface PanelPreferencesDeps {
   state: ContentStore
@@ -26,6 +36,9 @@ interface StoredSettings {
   presets?: unknown
   theme?: string
   historyRateLimitMs?: number
+  fileFilterMode?: unknown
+  fileFilters?: unknown
+  fileRenameRules?: unknown
   [key: string]: unknown
 }
 
@@ -36,6 +49,9 @@ interface SettingsPayload {
   theme: 'light' | 'dark'
   historyRateLimitMs: number
   useSeasonSubdir?: boolean
+  fileFilterMode: FileFilterEvaluationMode
+  fileFilters: FileFilterRule[]
+  fileRenameRules: FileRenameRule[]
 }
 
 interface SetBaseDirOptions {
@@ -113,6 +129,11 @@ export function createPanelPreferencesController({
       } else {
         state.historyRateLimitMs = HISTORY_BATCH_RATE_LIMIT_MS
       }
+      state.fileFilterMode = normalizeFileFilterMode(settings.fileFilterMode)
+      const normalizedFilters = normalizeFileFilterRules(settings.fileFilters)
+      state.fileFilters = normalizedFilters.length ? normalizedFilters : []
+      const normalizedRenames = normalizeFileRenameRules(settings.fileRenameRules)
+      state.fileRenameRules = normalizedRenames.length ? normalizedRenames : []
     } catch (error) {
       console.error('[Chaospace Transfer] Failed to load settings', error)
     }
@@ -128,6 +149,9 @@ export function createPanelPreferencesController({
         theme: themeValue,
         historyRateLimitMs: clampHistoryRateLimit(state.historyRateLimitMs),
         useSeasonSubdir: state.seasonSubdirDefault,
+        fileFilterMode: state.fileFilterMode,
+        fileFilters: serializeFileFilterRules(state.fileFilters),
+        fileRenameRules: serializeFileRenameRules(state.fileRenameRules),
       }
       await safeStorageSet(
         {

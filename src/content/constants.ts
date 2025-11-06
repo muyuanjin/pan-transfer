@@ -22,7 +22,7 @@ export const INITIAL_PANEL_DELAY_MS = 60
 export const PANEL_CREATION_RETRY_DELAY_MS = 100
 export const PANEL_CREATION_MAX_ATTEMPTS = 6
 export const PAN_DISK_BASE_URL = 'https://pan.baidu.com/disk/main#/index?category=all&path='
-export const SETTINGS_EXPORT_VERSION = 1
+export const SETTINGS_EXPORT_VERSION = 2
 export const DATA_EXPORT_VERSION = 1
 export const MIN_HISTORY_RATE_LIMIT_MS = 500
 export const MAX_HISTORY_RATE_LIMIT_MS = 60000

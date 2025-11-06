@@ -22,6 +22,17 @@ import type { ToastHandler } from './toast'
 import settingsCssHref from '../styles/overlays/settings.css?url'
 import { loadCss } from '../styles.loader'
 import { onClickOutside, useEventListener } from '@vueuse/core'
+import {
+  DEFAULT_FILE_FILTER_MODE,
+  normalizeFileFilterMode,
+  normalizeFileFilterRules,
+  normalizeFileRenameRules,
+  serializeFileFilterRules,
+  serializeFileRenameRules,
+  type FileFilterEvaluationMode,
+  type FileFilterRule,
+  type FileRenameRule,
+} from '@/shared/settings'
 
 const settingsCssUrl = settingsCssHref
 let settingsCssPromise: Promise<void> | null = null
@@ -54,6 +65,9 @@ interface SettingsSnapshot {
   presets: string[]
   theme: 'light' | 'dark'
   historyRateLimitMs: number
+  fileFilterMode: FileFilterEvaluationMode
+  fileFilters: FileFilterRule[]
+  fileRenameRules: FileRenameRule[]
   [key: string]: unknown
 }
 
@@ -68,6 +82,9 @@ interface SettingsDomRefs {
   themeSegment: HTMLElement | null
   presetsTextarea: HTMLTextAreaElement | null
   historyRateInput: HTMLInputElement | null
+  filterModeSelect: HTMLSelectElement | null
+  filtersTextarea: HTMLTextAreaElement | null
+  renameTextarea: HTMLTextAreaElement | null
   exportSettingsBtn: HTMLButtonElement | null
   exportDataBtn: HTMLButtonElement | null
   importSettingsTrigger: HTMLButtonElement | null
@@ -125,6 +142,9 @@ function buildSettingsSnapshot(): SettingsSnapshot {
     presets: [...state.presets],
     theme: state.theme === 'light' ? 'light' : 'dark',
     historyRateLimitMs: clampHistoryRateLimit(state.historyRateLimitMs),
+    fileFilterMode: state.fileFilterMode || DEFAULT_FILE_FILTER_MODE,
+    fileFilters: serializeFileFilterRules(state.fileFilters),
+    fileRenameRules: serializeFileRenameRules(state.fileRenameRules),
   }
 }
 
@@ -239,6 +259,69 @@ function extractSettingsFormValues(
   }
 
   const rateMs = clampHistoryRateLimit(Math.round(seconds * 1000))
+
+  const modeValue = domRefs.filterModeSelect
+    ? domRefs.filterModeSelect.value
+    : state.fileFilterMode || DEFAULT_FILE_FILTER_MODE
+  const fileFilterMode = normalizeFileFilterMode(modeValue)
+
+  let fileFilters: FileFilterRule[] = []
+  let fileRenameRules: FileRenameRule[] = []
+
+  if (domRefs.filtersTextarea) {
+    const rawFilters = domRefs.filtersTextarea.value.trim()
+    if (!rawFilters) {
+      domRefs.filtersTextarea.classList.remove('is-invalid')
+      fileFilters = []
+    } else {
+      try {
+        const parsed = JSON.parse(rawFilters)
+        const normalized = normalizeFileFilterRules(parsed)
+        domRefs.filtersTextarea.classList.remove('is-invalid')
+        fileFilters = normalized
+      } catch (error) {
+        domRefs.filtersTextarea.classList.add('is-invalid')
+        const message =
+          error instanceof SyntaxError
+            ? '文件过滤规则 JSON 解析失败'
+            : (error as Error).message || '文件过滤规则无效'
+        if (strict) {
+          throw new Error(message)
+        }
+        fileFilters = state.fileFilters
+      }
+    }
+  } else {
+    fileFilters = state.fileFilters
+  }
+
+  if (domRefs.renameTextarea) {
+    const rawRenames = domRefs.renameTextarea.value.trim()
+    if (!rawRenames) {
+      domRefs.renameTextarea.classList.remove('is-invalid')
+      fileRenameRules = []
+    } else {
+      try {
+        const parsed = JSON.parse(rawRenames)
+        const normalized = normalizeFileRenameRules(parsed)
+        domRefs.renameTextarea.classList.remove('is-invalid')
+        fileRenameRules = normalized
+      } catch (error) {
+        domRefs.renameTextarea.classList.add('is-invalid')
+        const message =
+          error instanceof SyntaxError
+            ? '文件重命名规则 JSON 解析失败'
+            : (error as Error).message || '文件重命名规则无效'
+        if (strict) {
+          throw new Error(message)
+        }
+        fileRenameRules = state.fileRenameRules
+      }
+    }
+  } else {
+    fileRenameRules = state.fileRenameRules
+  }
+
   return {
     baseDir: sanitizedBase,
     useTitleSubdir: useTitle,
@@ -246,6 +329,9 @@ function extractSettingsFormValues(
     theme: themeValue,
     presets: presetList,
     historyRateLimitMs: rateMs,
+    fileFilterMode,
+    fileFilters,
+    fileRenameRules,
   }
 }
 
@@ -309,6 +395,9 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     themeSegment: panelDom.settingsThemeGroup as HTMLElement | null,
     presetsTextarea: panelDom.settingsPresets as HTMLTextAreaElement | null,
     historyRateInput: panelDom.settingsHistoryRate as HTMLInputElement | null,
+    filterModeSelect: panelDom.settingsFilterMode as HTMLSelectElement | null,
+    filtersTextarea: panelDom.settingsFilters as HTMLTextAreaElement | null,
+    renameTextarea: panelDom.settingsRenameRules as HTMLTextAreaElement | null,
     exportSettingsBtn: panelDom.settingsExportConfig as HTMLButtonElement | null,
     exportDataBtn: panelDom.settingsExportData as HTMLButtonElement | null,
     importSettingsTrigger: panelDom.settingsImportConfigTrigger as HTMLButtonElement | null,
@@ -408,6 +497,21 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
       domRefs.historyRateInput.value = (Math.round(seconds * 100) / 100).toFixed(2)
       domRefs.historyRateInput.classList.remove('is-invalid')
     }
+    if (domRefs.filterModeSelect) {
+      domRefs.filterModeSelect.value = state.fileFilterMode || DEFAULT_FILE_FILTER_MODE
+    }
+    if (domRefs.filtersTextarea) {
+      domRefs.filtersTextarea.value = state.fileFilters.length
+        ? JSON.stringify(serializeFileFilterRules(state.fileFilters), null, 2)
+        : ''
+      domRefs.filtersTextarea.classList.remove('is-invalid')
+    }
+    if (domRefs.renameTextarea) {
+      domRefs.renameTextarea.value = state.fileRenameRules.length
+        ? JSON.stringify(serializeFileRenameRules(state.fileRenameRules), null, 2)
+        : ''
+      domRefs.renameTextarea.classList.remove('is-invalid')
+    }
   }
 
   function applySettingsUpdate(
@@ -443,6 +547,17 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     state.presets = sanitizedPresets
     state.useTitleSubdir = useTitle
     state.historyRateLimitMs = rateMs
+    if (Object.prototype.hasOwnProperty.call(nextSettings, 'fileFilterMode')) {
+      state.fileFilterMode = normalizeFileFilterMode(nextSettings['fileFilterMode'])
+    }
+    if (Object.prototype.hasOwnProperty.call(nextSettings, 'fileFilters')) {
+      const normalizedFilters = normalizeFileFilterRules(nextSettings['fileFilters'])
+      state.fileFilters = normalizedFilters
+    }
+    if (Object.prototype.hasOwnProperty.call(nextSettings, 'fileRenameRules')) {
+      const normalizedRenames = normalizeFileRenameRules(nextSettings['fileRenameRules'])
+      state.fileRenameRules = normalizedRenames
+    }
     if (hasSeasonPref) {
       state.seasonSubdirDefault = seasonDefault
       if (state.seasonPreferenceScope === 'default') {

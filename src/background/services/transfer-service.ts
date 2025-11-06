@@ -5,6 +5,7 @@ import {
   fetchDirectoryFileNames,
   transferShare,
   fetchShareDirectoryEntries,
+  renameEntry,
 } from '../api/baidu-pan'
 import { fetchLinkDetail } from '../api/chaospace'
 import type { LinkDetailResult } from '../api/chaospace'
@@ -21,13 +22,21 @@ import { MAX_TRANSFER_ATTEMPTS, TRANSFER_RETRYABLE_ERRNOS } from '../common/cons
 import { normalizePath } from '../utils/path'
 import { sanitizeLink } from '@/shared/utils/sanitizers'
 import { buildSurl } from '../utils/share'
-import type { ShareMetadataSuccess, TransferShareMeta } from '../api/baidu-pan'
+import type { ShareMetadataSuccess, TransferShareMeta, ShareFileEntry } from '../api/baidu-pan'
 import type { TransferRuntimeOptions, ProgressLogger } from '../types'
 import type {
   TransferRequestPayload,
   TransferResponsePayload,
   TransferResultEntry,
+  RenameResultDetail,
 } from '@/shared/types/transfer'
+import {
+  applyFileFilters,
+  buildRenamePlan,
+  loadProcessingSettings,
+  type FilterSkipInfo,
+  type RenamePlanEntry,
+} from './file-rules'
 
 type ProgressPayload = Record<string, unknown>
 
@@ -40,6 +49,12 @@ interface FilteredTransferMeta {
   fsIds: number[]
   fileNames: string[]
   skippedFiles: string[]
+  existingNames: Set<string>
+}
+
+interface RenameExecutionResult {
+  finalNames: string[]
+  details: RenameResultDetail[]
 }
 
 let progressHandlers: ProgressHandlers = {
@@ -176,7 +191,7 @@ async function filterAlreadyTransferred(
 ): Promise<FilteredTransferMeta> {
   const { jobId, context = '' } = options
   if (!Array.isArray(meta.fsIds) || !meta.fsIds.length) {
-    return { fsIds: [], fileNames: [], skippedFiles: [] }
+    return { fsIds: [], fileNames: [], skippedFiles: [], existingNames: new Set<string>() }
   }
 
   try {
@@ -192,6 +207,7 @@ async function filterAlreadyTransferred(
         fsIds: meta.fsIds.slice(),
         fileNames: Array.isArray(meta.fileNames) ? meta.fileNames.slice() : [],
         skippedFiles: [],
+        existingNames,
       }
     }
 
@@ -220,7 +236,12 @@ async function filterAlreadyTransferred(
       logStage(jobId, 'list', '未发现已存在的文件')
     }
 
-    return { fsIds: filteredFsIds, fileNames: filteredFileNames, skippedFiles }
+    return {
+      fsIds: filteredFsIds,
+      fileNames: filteredFileNames,
+      skippedFiles,
+      existingNames,
+    }
   } catch (error) {
     const err = error as Error & { code?: string }
     if (err?.code === 'PAN_LOGIN_REQUIRED') {
@@ -243,6 +264,7 @@ async function filterAlreadyTransferred(
       fsIds: meta.fsIds.slice(),
       fileNames: Array.isArray(meta.fileNames) ? meta.fileNames.slice() : [],
       skippedFiles: [],
+      existingNames: new Set<string>(),
     }
   }
 }
@@ -360,6 +382,110 @@ async function transferWithRetry(
   return failureResult
 }
 
+async function executeRenamePlan(
+  plan: RenamePlanEntry[],
+  targetPath: string,
+  bdstoken: string,
+  options: TransferRuntimeOptions = {},
+): Promise<RenameExecutionResult> {
+  const { jobId, context = '' } = options
+  if (!Array.isArray(plan) || !plan.length) {
+    return { finalNames: [], details: [] }
+  }
+  const normalizedTarget = normalizePath(targetPath)
+  const details: RenameResultDetail[] = []
+  const finalNames: string[] = []
+  const changedCount = plan.filter((entry) => entry.changed).length
+
+  if (!changedCount) {
+    plan.forEach((entry) => {
+      finalNames.push(entry.originalName)
+      details.push({
+        from: entry.originalName,
+        to: entry.finalName,
+        status: 'unchanged',
+      })
+    })
+    return { finalNames, details }
+  }
+
+  const titleLabel = context ? `《${context}》` : '资源'
+  logStage(jobId, 'rename', `${titleLabel}准备重命名 ${changedCount} 项`, {
+    level: 'info',
+  })
+
+  let successCount = 0
+  let failureCount = 0
+
+  for (const entry of plan) {
+    const originalName = entry.originalName
+    if (!entry.changed) {
+      finalNames.push(originalName)
+      details.push({
+        from: originalName,
+        to: entry.finalName,
+        status: 'unchanged',
+      })
+      continue
+    }
+    const combinedPath = normalizePath(`${normalizedTarget}/${originalName}`)
+    try {
+      const result = await renameEntry(combinedPath, entry.finalName, bdstoken)
+      if (result.errno === 0) {
+        successCount += 1
+        finalNames.push(entry.finalName)
+        details.push({
+          from: originalName,
+          to: entry.finalName,
+          status: 'success',
+        })
+      } else {
+        failureCount += 1
+        const message = mapErrorMessage(result.errno, result.showMsg || '')
+        finalNames.push(originalName)
+        details.push({
+          from: originalName,
+          to: entry.finalName,
+          status: 'failed',
+          errno: result.errno,
+          message,
+        })
+        logStage(jobId, 'rename', `${titleLabel}重命名失败：${originalName}`, {
+          level: 'warning',
+          detail: message || `${combinedPath}`,
+        })
+      }
+    } catch (error) {
+      failureCount += 1
+      const err = error as Error
+      finalNames.push(originalName)
+      details.push({
+        from: originalName,
+        to: entry.finalName,
+        status: 'failed',
+        message: err.message || '重命名失败',
+      })
+      logStage(jobId, 'rename', `${titleLabel}重命名异常：${originalName}`, {
+        level: 'warning',
+        detail: err.message || `${combinedPath}`,
+      })
+    }
+    await delay(120)
+  }
+
+  if (successCount || failureCount) {
+    const summaryDetail =
+      failureCount > 0
+        ? `成功 ${successCount} 项，失败 ${failureCount} 项`
+        : `成功 ${successCount} 项`
+    logStage(jobId, 'rename', `${titleLabel}重命名完成：${summaryDetail}`, {
+      level: failureCount ? 'warning' : 'success',
+    })
+  }
+
+  return { finalNames, details }
+}
+
 export async function handleTransfer(
   payload: TransferRequestPayload,
 ): Promise<TransferResponsePayload> {
@@ -421,6 +547,8 @@ export async function handleTransfer(
 
     await ensureDirectoryExists(normalizedBaseDir, bdstoken, baseDirOptions)
 
+    const processingSettings = await loadProcessingSettings()
+
     const results: TransferResultEntry[] = []
     let index = 0
 
@@ -434,8 +562,13 @@ export async function handleTransfer(
         total,
       })
 
+      const itemLabel = item.title ? `《${item.title}》` : '资源'
+
       let detail: LinkDetailResult | null = null
       let usedCachedDetail = false
+      let filteredByRules: FilterSkipInfo[] = []
+      let renamePlan: RenamePlanEntry[] = []
+      let renameResults: RenameResultDetail[] = []
 
       if (item.linkUrl) {
         detail = {
@@ -559,6 +692,53 @@ export async function handleTransfer(
 
         await maybeStripShareRootDirectory(meta, detail, bdstoken, metaOptions)
 
+        if (processingSettings.filterRules.length) {
+          const filterResult = applyFileFilters(
+            Array.isArray(meta.entries) ? meta.entries : [],
+            processingSettings.filterRules,
+            processingSettings.mode,
+          )
+          filteredByRules = filterResult.skipped
+          if (filterResult.entries.length !== meta.entries.length && filteredByRules.length) {
+            logStage(jobId, 'filter', `${itemLabel}过滤命中：跳过 ${filteredByRules.length} 项`, {
+              level: 'info',
+            })
+          }
+          meta.entries = filterResult.entries
+          meta.fsIds = filterResult.entries.map((entry) => entry.fsId)
+          meta.fileNames = filterResult.entries.map((entry) => entry.serverFilename)
+        }
+
+        const filteredOutNames = filteredByRules.map((entry) => entry.name)
+        if (!meta.fsIds.length) {
+          const message =
+            filteredOutNames.length > 0
+              ? `已跳过：过滤规则命中（${filteredOutNames.length} 项）`
+              : '已跳过：过滤规则命中'
+          emitProgress(jobId, {
+            stage: 'item:skip',
+            message: `${itemLabel}${message}`,
+            current: index,
+            total,
+            level: 'warning',
+          })
+          const skippedEntry: TransferResultEntry = {
+            id: item.id,
+            title: item.title,
+            status: 'skipped',
+            message,
+            files: [],
+            skippedFiles: [],
+            linkUrl: detail.linkUrl,
+            passCode: detail.passCode,
+          }
+          if (filteredOutNames.length) {
+            skippedEntry.filteredFiles = filteredOutNames.slice()
+          }
+          results.push(skippedEntry)
+          continue
+        }
+
         const targetPath = normalizePath(item.targetPath || normalizedBaseDir)
         emitProgress(jobId, {
           stage: 'item:directory',
@@ -572,18 +752,33 @@ export async function handleTransfer(
         }
         await ensureDirectoryExists(targetPath, bdstoken, ensureOptions)
 
+        const entryByFsId = new Map<number, ShareFileEntry>()
+        meta.fsIds.forEach((fsId, idx) => {
+          const entry = meta.entries[idx]
+          if (entry && typeof entry.serverFilename === 'string') {
+            entryByFsId.set(fsId, entry)
+          }
+        })
+
         const filterOptions: TransferRuntimeOptions = { context: item.title }
         if (jobId) {
           filterOptions.jobId = jobId
         }
         const filtered = await filterAlreadyTransferred(meta, targetPath, bdstoken, filterOptions)
         if (!filtered.fsIds.length) {
-          const message = filtered.skippedFiles.length
-            ? `已跳过：文件已存在（${filtered.skippedFiles.length} 项）`
+          const skipReasons: string[] = []
+          if (filtered.skippedFiles.length) {
+            skipReasons.push(`文件已存在（${filtered.skippedFiles.length} 项）`)
+          }
+          if (filteredOutNames.length) {
+            skipReasons.push(`过滤规则排除 ${filteredOutNames.length} 项`)
+          }
+          const message = skipReasons.length
+            ? `已跳过：${skipReasons.join('；')}`
             : mapErrorMessage(666)
           emitProgress(jobId, {
             stage: 'item:skip',
-            message: `《${item.title}》${message}`,
+            message: `${itemLabel}${message}`,
             current: index,
             total,
             level: 'warning',
@@ -591,7 +786,7 @@ export async function handleTransfer(
           if (surl) {
             recordCompletedShare(surl)
           }
-          results.push({
+          const skippedEntry: TransferResultEntry = {
             id: item.id,
             title: item.title,
             status: 'skipped',
@@ -600,9 +795,20 @@ export async function handleTransfer(
             skippedFiles: filtered.skippedFiles,
             linkUrl: detail.linkUrl,
             passCode: detail.passCode,
-          })
+          }
+          if (filteredOutNames.length) {
+            skippedEntry.filteredFiles = filteredOutNames.slice()
+          }
+          results.push(skippedEntry)
           continue
         }
+
+        const finalEntries = filtered.fsIds
+          .map((fsId) => entryByFsId.get(fsId))
+          .filter((entry): entry is ShareFileEntry => Boolean(entry))
+        renamePlan = finalEntries.length
+          ? buildRenamePlan(finalEntries, processingSettings.renameRules, filtered.existingNames)
+          : []
 
         emitProgress(jobId, {
           stage: 'item:transfer',
@@ -639,6 +845,45 @@ export async function handleTransfer(
           if (surl) {
             recordCompletedShare(surl)
           }
+          let finalFileNames = filtered.fileNames.slice()
+          if (errno === 0 && renamePlan.length) {
+            const renameOptions: TransferRuntimeOptions = { context: item.title, logStage }
+            if (jobId) {
+              renameOptions.jobId = jobId
+            }
+            const renameExecution = await executeRenamePlan(
+              renamePlan,
+              targetPath,
+              bdstoken,
+              renameOptions,
+            )
+            renameResults = renameExecution.details
+            if (renameExecution.finalNames.length === renamePlan.length) {
+              finalFileNames = renameExecution.finalNames
+            }
+            if (renameResults.some((entry) => entry.status === 'success')) {
+              try {
+                await invalidateDirectoryCaches([targetPath])
+              } catch (cacheError) {
+                console.warn(
+                  '[Chaospace Transfer] Failed to refresh directory cache after rename',
+                  cacheError,
+                )
+              }
+            }
+          } else if (renamePlan.length) {
+            renameResults = renamePlan.map((entry) => ({
+              from: entry.originalName,
+              to: entry.finalName,
+              status: 'unchanged',
+            }))
+          } else {
+            renameResults = []
+          }
+          const hasRenameChange = renameResults.some(
+            (entry) => entry.status === 'success' || entry.status === 'failed',
+          )
+          const renameResultsForRecord = hasRenameChange ? renameResults : []
           emitProgress(jobId, {
             stage: 'item:success',
             message: `《${item.title}》转存完成（尝试 ${attempts} 次）`,
@@ -646,16 +891,23 @@ export async function handleTransfer(
             total,
             level: errno === 666 ? 'warning' : 'success',
           })
-          results.push({
+          const successEntry: TransferResultEntry = {
             id: item.id,
             title: item.title,
             status: errno === 666 ? 'skipped' : 'success',
             message: errno === 666 ? mapErrorMessage(666) : '转存成功',
-            files: filtered.fileNames,
+            files: finalFileNames,
             skippedFiles: filtered.skippedFiles,
             linkUrl: detail.linkUrl,
             passCode: detail.passCode,
-          })
+          }
+          if (filteredOutNames.length) {
+            successEntry.filteredFiles = filteredOutNames.slice()
+          }
+          if (renameResultsForRecord.length) {
+            successEntry.renameResults = renameResultsForRecord
+          }
+          results.push(successEntry)
         } else {
           const fallbackMessage = showMsg || `错误码：${errno}`
           const message = pathMissing && showMsg ? showMsg : mapErrorMessage(errno, fallbackMessage)
@@ -666,13 +918,18 @@ export async function handleTransfer(
             total,
             level: 'error',
           })
-          results.push({
+          const failedEntry: TransferResultEntry = {
             id: item.id,
             title: item.title,
             status: 'failed',
             message,
             errno,
-          })
+            skippedFiles: filtered.skippedFiles,
+          }
+          if (filteredOutNames.length) {
+            failedEntry.filteredFiles = filteredOutNames.slice()
+          }
+          results.push(failedEntry)
         }
       } catch (error) {
         const err = error as Error

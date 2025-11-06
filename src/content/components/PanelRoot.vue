@@ -265,6 +265,76 @@
                 </div>
               </section>
               <section class="chaospace-settings-section">
+                <h3>文件过滤</h3>
+                <div class="chaospace-settings-field">
+                  <label class="chaospace-settings-label" for="chaospace-settings-filter-mode"
+                    >命中优先级</label
+                  >
+                  <select id="chaospace-settings-filter-mode" data-role="settings-filter-mode">
+                    <option value="deny-first">否决优先（命中剔除规则即跳过）</option>
+                    <option value="allow-first">接受优先（命中保留规则即保留）</option>
+                    <option value="ordered">按顺序优先（首个命中规则生效）</option>
+                  </select>
+                  <p class="chaospace-settings-hint">枚举值 · 控制多个规则同时命中时的决策顺序。</p>
+                </div>
+                <div class="chaospace-settings-field">
+                  <label class="chaospace-settings-label" for="chaospace-settings-filters"
+                    >过滤规则（JSON）</label
+                  >
+                  <textarea
+                    id="chaospace-settings-filters"
+                    rows="6"
+                    data-role="settings-filters"
+                    placeholder='[
+  {
+    "name": "跳过空文件",
+    "action": "exclude",
+    "logic": "all",
+    "conditions": [
+      { "type": "size", "operator": "eq", "value": 0 },
+      { "type": "regex", "pattern": "(发布)" }
+    ]
+  }
+]'
+                  ></textarea>
+                  <p class="chaospace-settings-hint">
+                    JSON 数组 · 每条规则包含
+                    <code>action</code>（<code>exclude</code>/<code>include</code>）、
+                    <code>logic</code>（<code>all</code>/<code>any</code>）及
+                    <code>conditions</code>。支持 <code>size</code>、<code>name</code>、
+                    <code>regex</code>、<code>extension</code>、<code>category</code>、<code
+                      >isDir</code
+                    >
+                    条件，可组合多个条件实现“并且/或者”过滤。
+                  </p>
+                </div>
+              </section>
+              <section class="chaospace-settings-section">
+                <h3>文件重命名</h3>
+                <div class="chaospace-settings-field">
+                  <label class="chaospace-settings-label" for="chaospace-settings-rename-rules"
+                    >重命名规则（JSON）</label
+                  >
+                  <textarea
+                    id="chaospace-settings-rename-rules"
+                    rows="6"
+                    data-role="settings-rename-rules"
+                    placeholder='[
+  { "pattern": "[\\\\[【].*?(电影|高清|原盘|蓝光|发布).*?[】\\\\]]", "replacement": "" },
+  { "pattern": "(2160[pP])", "replacement": "4K" },
+  { "pattern": "(1080[pP])", "replacement": "FHD" },
+  { "pattern": "\\\\s*www\\..+?(com|net)\\\\s*", "replacement": "" },
+  { "pattern": "\\\\.", "replacement": " " }
+]'
+                  ></textarea>
+                  <p class="chaospace-settings-hint">
+                    JSON 数组 · 依次对文件名（不含后缀）执行正则替换，默认使用全局匹配，可通过
+                    <code>flags</code> 调整大小写等行为；<code>enabled</code> 设为
+                    <code>false</code> 可暂时禁用某条规则。
+                  </p>
+                </div>
+              </section>
+              <section class="chaospace-settings-section">
                 <h3>导入导出</h3>
                 <div class="chaospace-settings-row">
                   <div>

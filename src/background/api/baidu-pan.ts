@@ -87,6 +87,21 @@ export interface TransferShareMeta {
   seKey?: string
 }
 
+interface FileManagerRenameResponse {
+  errno?: number
+  show_msg?: string
+  info?: Array<{
+    errno?: number
+    path?: string
+    msg?: string
+  }>
+}
+
+export interface RenameEntryResult {
+  errno: number
+  showMsg?: string
+}
+
 interface ListResponse {
   errno: number
   list?: DirectoryEntry[]
@@ -835,6 +850,49 @@ export async function transferShare(
   const result: TransferShareResult = { errno }
   if (typeof data.show_msg === 'string' && data.show_msg) {
     result.showMsg = data.show_msg
+  }
+  return result
+}
+
+export async function renameEntry(
+  path: string,
+  newName: string,
+  bdstoken: string,
+  referer = 'https://pan.baidu.com/disk/home',
+): Promise<RenameEntryResult> {
+  const url = `https://pan.baidu.com/api/filemanager?opera=rename&async=0&bdstoken=${encodeURIComponent(bdstoken)}&channel=chunlei&web=1&app_id=250528&clienttype=0`
+  const payload = JSON.stringify([{ path, newname: newName }])
+  const body = new URLSearchParams({
+    filelist: payload,
+  })
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: withPanHeaders(
+      {
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+      },
+      referer,
+    ),
+    credentials: 'include',
+    body: body.toString(),
+  })
+  const data = (await response.json()) as FileManagerRenameResponse & { errno?: number }
+  const topErrno = typeof data.errno === 'number' ? data.errno : 0
+  maybeHandleLoginRequired(topErrno, 'rename-entry')
+  let errno = topErrno
+  let showMsg = typeof data.show_msg === 'string' ? data.show_msg : undefined
+  if (Array.isArray(data.info) && data.info.length) {
+    const [info] = data.info
+    if (info && typeof info.errno === 'number') {
+      errno = info.errno
+    }
+    if (info && typeof info.msg === 'string' && info.msg) {
+      showMsg = info.msg
+    }
+  }
+  const result: RenameEntryResult = { errno }
+  if (showMsg) {
+    result.showMsg = showMsg
   }
   return result
 }

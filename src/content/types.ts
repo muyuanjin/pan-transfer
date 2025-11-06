@@ -1,6 +1,7 @@
 import type { CompletionStatus, SeasonEntry } from '@/shared/utils/completion-status'
 import type { PosterInfo } from '@/shared/utils/sanitizers'
 import type { HistoryRecord as SharedHistoryRecord } from '@/shared/types/transfer'
+import type { FileFilterEvaluationMode, FileFilterRule, FileRenameRule } from '@/shared/settings'
 import type { HistoryFilter as HistoryFilterOption } from './constants'
 
 export type LogLevel = 'info' | 'success' | 'warning' | 'error' | (string & {})
@@ -214,6 +215,9 @@ export interface ContentState {
   seasonResolvedPaths: SeasonResolvedPath[]
   activeSeasonId: string | null
   settingsPanel: { isOpen: boolean }
+  fileFilterMode: FileFilterEvaluationMode
+  fileFilters: FileFilterRule[]
+  fileRenameRules: FileRenameRule[]
 }
 
 export interface PanelDomRefs {
@@ -243,6 +247,9 @@ export interface PanelDomRefs {
   settingsThemeGroup?: HTMLElement | null
   settingsPresets?: HTMLTextAreaElement | null
   settingsHistoryRate?: HTMLInputElement | null
+  settingsFilterMode?: HTMLSelectElement | null
+  settingsFilters?: HTMLTextAreaElement | null
+  settingsRenameRules?: HTMLTextAreaElement | null
   settingsExportConfig?: HTMLButtonElement | null
   settingsExportData?: HTMLButtonElement | null
   settingsImportConfigTrigger?: HTMLButtonElement | null

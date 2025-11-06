@@ -541,6 +541,15 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
   panelDom.settingsHistoryRate = panel.querySelector<HTMLInputElement>(
     '[data-role="settings-history-rate"]',
   )
+  panelDom.settingsFilterMode = panel.querySelector<HTMLSelectElement>(
+    '[data-role="settings-filter-mode"]',
+  )
+  panelDom.settingsFilters = panel.querySelector<HTMLTextAreaElement>(
+    '[data-role="settings-filters"]',
+  )
+  panelDom.settingsRenameRules = panel.querySelector<HTMLTextAreaElement>(
+    '[data-role="settings-rename-rules"]',
+  )
   panelDom.settingsExportConfig = panel.querySelector<HTMLButtonElement>(
     '[data-role="settings-export-config"]',
   )

@@ -48,8 +48,18 @@ export interface TransferResultEntry {
   errno?: number
   files?: string[]
   skippedFiles?: string[]
+  filteredFiles?: string[]
+  renameResults?: RenameResultDetail[]
   linkUrl?: string
   passCode?: string
+}
+
+export interface RenameResultDetail {
+  from: string
+  to: string
+  status: 'success' | 'failed' | 'unchanged'
+  errno?: number
+  message?: string
 }
 
 export interface TransferResponsePayload {

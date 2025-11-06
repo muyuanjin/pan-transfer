@@ -132,6 +132,66 @@ function sanitizeHistoryItems(items: unknown): Record<string, HistoryRecordItem>
     if (skipped.length) {
       item.skippedFiles = skipped
     }
+    const filteredFiles = Array.isArray(value.filteredFiles)
+      ? value.filteredFiles.filter((name): name is string => typeof name === 'string')
+      : []
+    if (filteredFiles.length) {
+      item.filteredFiles = filteredFiles
+    }
+    const renameResults = Array.isArray(value.renameResults)
+      ? value.renameResults
+          .map((entry) => {
+            if (!entry || typeof entry !== 'object') {
+              return null
+            }
+            const from =
+              typeof (entry as { from?: string }).from === 'string'
+                ? (entry as { from: string }).from
+                : ''
+            const to =
+              typeof (entry as { to?: string }).to === 'string' ? (entry as { to: string }).to : ''
+            const status =
+              (entry as { status?: string }).status === 'success' ||
+              (entry as { status?: string }).status === 'failed' ||
+              (entry as { status?: string }).status === 'unchanged'
+                ? ((entry as { status: 'success' | 'failed' | 'unchanged' }).status as
+                    | 'success'
+                    | 'failed'
+                    | 'unchanged')
+                : 'unchanged'
+            const errnoValue = Number((entry as { errno?: number }).errno)
+            const errno = Number.isFinite(errnoValue) ? errnoValue : undefined
+            const message =
+              typeof (entry as { message?: string }).message === 'string'
+                ? (entry as { message: string }).message
+                : undefined
+            if (!from && !to) {
+              return null
+            }
+            const record: {
+              from: string
+              to: string
+              status: 'success' | 'failed' | 'unchanged'
+              errno?: number
+              message?: string
+            } = {
+              from,
+              to,
+              status,
+            }
+            if (typeof errno === 'number') {
+              record.errno = errno
+            }
+            if (message) {
+              record.message = message
+            }
+            return record
+          })
+          .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+      : []
+    if (renameResults.length) {
+      item.renameResults = renameResults
+    }
     if (typeof value.linkUrl === 'string') {
       item.linkUrl = value.linkUrl
     }
