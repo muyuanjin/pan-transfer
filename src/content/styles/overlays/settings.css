@@ -155,10 +155,47 @@
 }
 
 .chaospace-settings-form input:focus,
-.chaospace-settings-form textarea:focus {
+.chaospace-settings-form textarea:focus,
+.chaospace-settings-form select:focus {
   outline: none;
   border-color: rgba(99, 102, 241, 0.6);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+.chaospace-settings-form select {
+  height: auto;
+  border-radius: 12px;
+  border: 1px solid var(--cp-border);
+  background: var(--cp-surface);
+  color: var(--cp-text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 10px 42px 10px 14px;
+  letter-spacing: 0.2px;
+  appearance: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--cp-text-secondary) 50%),
+    linear-gradient(-45deg, transparent 50%, var(--cp-text-secondary) 50%),
+    linear-gradient(var(--cp-border), var(--cp-border));
+  background-position:
+    calc(100% - 20px) center,
+    calc(100% - 12px) center,
+    calc(100% - 28px) center;
+  background-size:
+    8px 8px,
+    8px 8px,
+    1px 60%;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+.chaospace-settings-form select option {
+  background: rgba(15, 23, 42, 0.96);
+  color: #e2e8f0;
 }
 
 .chaospace-settings-form .chaospace-segmented--settings {
@@ -278,31 +315,41 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.28);
+  border: 1px solid rgba(148, 163, 184, 0.18);
 }
 
 .chaospace-rule-editor-actions {
   display: flex;
-  justify-content: flex-start;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(148, 163, 184, 0.25);
 }
 
 .chaospace-rule-primary {
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  background: rgba(99, 102, 241, 0.18);
-  color: var(--cp-text-primary);
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(120deg, rgba(99, 102, 241, 0.95), rgba(14, 165, 233, 0.75));
+  color: #fff;
   font-size: 13px;
-  padding: 8px 16px;
+  font-weight: 600;
+  padding: 10px 20px;
   cursor: pointer;
+  box-shadow: 0 12px 24px rgba(14, 116, 144, 0.07);
   transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    transform 0.2s ease;
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
 }
 
 .chaospace-rule-primary:hover {
-  background: rgba(99, 102, 241, 0.26);
-  border-color: rgba(99, 102, 241, 0.45);
   transform: translateY(-1px);
+  filter: brightness(1.05);
+  box-shadow: 0 16px 32px rgba(14, 165, 233, 0.07);
 }
 
 .chaospace-rule-editor-error {
@@ -327,19 +374,22 @@
   font-size: 12px;
   color: var(--cp-text-muted);
   text-align: center;
+  background: rgba(15, 23, 42, 0.22);
 }
 
 .chaospace-rule-card {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px 16px;
-  border-radius: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(15, 23, 42, 0.32);
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  background: radial-gradient(circle at top, rgba(79, 70, 229, 0.22), rgba(15, 23, 42, 0.4));
+  box-shadow: 0 18px 40px rgba(8, 13, 24, 0.11);
   transition:
     border-color 0.2s ease,
-    box-shadow 0.2s ease;
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
 }
 
 .chaospace-rule-card.is-invalid {
@@ -349,15 +399,18 @@
 
 .chaospace-rule-card-header {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
 
 .chaospace-rule-header-controls {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  justify-content: flex-end;
 }
 
 .chaospace-switch,
@@ -379,13 +432,22 @@
 .chaospace-rule-card-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .chaospace-rule-row {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.28);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.chaospace-rule-card-header input[type='text'] {
+  flex: 1 1 220px;
+  min-width: 220px;
 }
 
 .chaospace-rule-row label {
@@ -394,24 +456,57 @@
   color: var(--cp-text-secondary);
 }
 
+@media (min-width: 520px) {
+  .chaospace-rule-row {
+    display: grid;
+    grid-template-columns: 140px minmax(0, 1fr);
+    align-items: center;
+    gap: 6px 14px;
+  }
+
+  .chaospace-rule-row label {
+    margin: 0;
+  }
+
+  .chaospace-rule-row input,
+  .chaospace-rule-row select,
+  .chaospace-rule-row textarea {
+    grid-column: 2 / -1;
+  }
+
+  .chaospace-rule-row .chaospace-condition-hint {
+    grid-column: 1 / -1;
+  }
+}
+
 .chaospace-rule-btn {
-  border-radius: 10px;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  background: rgba(30, 41, 59, 0.35);
-  color: var(--cp-text-secondary);
+  border-radius: 999px;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  background: rgba(79, 70, 229, 0.22);
+  color: var(--cp-text-primary);
   font-size: 12px;
-  padding: 6px 10px;
+  font-weight: 600;
+  padding: 7px 14px;
   cursor: pointer;
   transition:
     background 0.2s ease,
     border-color 0.2s ease,
-    color 0.2s ease;
+    color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .chaospace-rule-btn:hover {
-  background: rgba(99, 102, 241, 0.2);
-  border-color: rgba(99, 102, 241, 0.35);
-  color: var(--cp-text-primary);
+  background: rgba(129, 140, 248, 0.35);
+  border-color: rgba(99, 102, 241, 0.55);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px rgba(15, 23, 42, 0.09);
+}
+
+.chaospace-rule-btn:focus-visible {
+  outline: 2px solid var(--cp-accent);
+  outline-offset: 3px;
 }
 
 .chaospace-rule-collapse {
@@ -439,11 +534,12 @@
 .chaospace-condition-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  background: rgba(15, 23, 42, 0.24);
+  gap: 10px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  background: rgba(15, 23, 42, 0.36);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.2);
 }
 
 .chaospace-condition-card.is-invalid {
@@ -465,21 +561,25 @@
 }
 
 .chaospace-condition-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  gap: 8px 12px;
 }
 
 .chaospace-condition-hint {
   margin: 0;
   font-size: 11px;
   color: var(--cp-text-muted);
+  white-space: pre-line;
 }
 
 .chaospace-category-options {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 6px 12px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px dashed rgba(148, 163, 184, 0.4);
+  background: rgba(15, 23, 42, 0.2);
 }
 
 .chaospace-float-panel.is-settings-open .chaospace-float-main,
@@ -506,16 +606,49 @@
   color: var(--cp-text-primary);
 }
 
+.chaospace-float-panel.theme-light .chaospace-settings-form select option {
+  background: #fff;
+  color: #0f172a;
+}
+
+.chaospace-float-panel.theme-light .chaospace-rule-editor-root {
+  background: rgba(248, 250, 252, 0.85);
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
 .chaospace-float-panel.theme-light .chaospace-rule-card {
-  background: rgba(248, 250, 252, 0.96);
-  border-color: rgba(148, 163, 184, 0.26);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(226, 232, 240, 0.92));
+  border-color: rgba(148, 163, 184, 0.35);
+  box-shadow: 0 18px 48px rgba(148, 163, 184, 0.07);
+}
+
+.chaospace-float-panel.theme-light .chaospace-rule-row {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(148, 163, 184, 0.3);
 }
 
 .chaospace-float-panel.theme-light .chaospace-condition-card {
-  background: rgba(241, 245, 249, 0.92);
-  border-color: rgba(148, 163, 184, 0.24);
+  background: rgba(241, 245, 249, 0.96);
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+.chaospace-float-panel.theme-light .chaospace-category-options {
+  background: rgba(226, 232, 240, 0.5);
+  border-color: rgba(148, 163, 184, 0.35);
 }
 
 .chaospace-float-panel.theme-light .chaospace-rule-primary {
-  background: rgba(99, 102, 241, 0.12);
+  background: linear-gradient(120deg, rgba(99, 102, 241, 0.95), rgba(14, 165, 233, 0.85));
+  box-shadow: 0 12px 28px rgba(99, 102, 241, 0.07);
+}
+
+.chaospace-float-panel.theme-light .chaospace-rule-btn {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: #312e81;
+}
+
+.chaospace-float-panel.theme-light .chaospace-rule-btn:hover {
+  background: rgba(99, 102, 241, 0.25);
+  color: #1e1b4b;
 }
