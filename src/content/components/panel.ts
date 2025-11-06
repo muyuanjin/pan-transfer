@@ -642,11 +642,17 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
   }
 
   const handleFocusOut = (event: FocusEvent) => {
-    if (!(event.relatedTarget instanceof HTMLElement) || !panel.contains(event.relatedTarget)) {
-      panel.classList.remove('is-hovering')
-      panel.classList.add('is-leaving')
-      scheduleEdgeHide()
+    const nextFocused = event.relatedTarget
+    const focusStayedInside = nextFocused instanceof HTMLElement && panel.contains(nextFocused)
+    if (focusStayedInside) {
+      return
     }
+    if (panelState.pointerInside || isPointerLikelyInsidePanel()) {
+      return
+    }
+    panel.classList.remove('is-hovering')
+    panel.classList.add('is-leaving')
+    scheduleEdgeHide()
   }
 
   const refreshHoverState = (): void => {
