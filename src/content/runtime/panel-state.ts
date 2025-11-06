@@ -30,10 +30,14 @@ export function createPanelRuntimeState(): PanelRuntimeState {
 export function resetPanelRuntimeState(target: PanelRuntimeState): void {
   const next = createPanelRuntimeState()
   const edgeChange = target.edgeStateChange
+  const previousPinned = target.isPinned
   const record = target as Record<string, unknown>
   for (const key of Object.keys(record)) {
     delete record[key]
   }
   Object.assign(target, next)
   target.edgeStateChange = edgeChange ?? null
+  if (typeof previousPinned === 'boolean') {
+    target.isPinned = previousPinned
+  }
 }

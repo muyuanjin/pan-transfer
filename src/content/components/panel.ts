@@ -153,6 +153,7 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
   panel.addEventListener('animationend', handlePanelIntroEnd)
 
   const shouldEdgeHideOnMount = true
+  const initiallyPinned = panelState.isPinned === true
   panelState.edgeState = {
     isHidden: shouldEdgeHideOnMount,
     side: 'right',
@@ -171,7 +172,7 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
   emitEdgeStateChange()
   panelState.pointerInside = false
   panelState.lastPointerPosition = { x: Number.NaN, y: Number.NaN }
-  panelState.isPinned = false
+  panelState.isPinned = initiallyPinned
   if (panelState.hideTimer) {
     window.clearTimeout(panelState.hideTimer)
     panelState.hideTimer = null
