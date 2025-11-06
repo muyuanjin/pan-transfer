@@ -11,16 +11,35 @@
         data-detail-trigger="group"
         :data-group-key="entry.group.key"
       >
-        <label class="chaospace-history-selector">
-          <input
-            type="checkbox"
-            data-role="history-select-item"
+        <div class="chaospace-history-selector">
+          <label class="chaospace-history-selector-input">
+            <input
+              type="checkbox"
+              data-role="history-select-item"
+              :data-group-key="entry.group.key"
+              :checked="entry.isSelected"
+              :disabled="historyBatchRunning"
+              @change="handleSelect(entry.group.key, $event)"
+            />
+          </label>
+          <button
+            v-if="entry.seasonRows.length"
+            type="button"
+            class="chaospace-history-season-toggle"
+            data-role="history-season-toggle"
             :data-group-key="entry.group.key"
-            :checked="entry.isSelected"
-            :disabled="historyBatchRunning"
-            @change="handleSelect(entry.group.key, $event)"
-          />
-        </label>
+            :aria-expanded="entry.seasonExpanded ? 'true' : 'false'"
+            :aria-label="entry.seasonExpanded ? '收起季' : '展开季'"
+            :title="entry.seasonExpanded ? '收起季' : '展开季'"
+            @click.prevent="handleToggleSeason(entry)"
+          >
+            <span class="chaospace-history-season-toggle-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" role="presentation" focusable="false">
+                <path d="M9 6l6 6-6 6" fill="none" />
+              </svg>
+            </span>
+          </button>
+        </div>
         <div class="chaospace-history-item-header">
           <button
             v-if="entry.poster?.src"
@@ -99,17 +118,6 @@
               {{ entry.checkLabel }}
             </button>
           </div>
-          <button
-            v-if="entry.seasonRows.length"
-            type="button"
-            class="chaospace-history-season-toggle"
-            data-role="history-season-toggle"
-            :data-group-key="entry.group.key"
-            :aria-expanded="entry.seasonExpanded ? 'true' : 'false'"
-            @click.prevent="handleToggleSeason(entry)"
-          >
-            {{ entry.seasonExpanded ? '收起季' : '展开季' }}
-          </button>
         </div>
         <div
           v-if="entry.seasonRows.length"

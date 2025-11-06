@@ -7,7 +7,7 @@
 
 .chaospace-history-item {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: 32px 1fr;
   column-gap: 14px;
   row-gap: 14px;
   align-items: flex-start;
@@ -47,10 +47,22 @@
   align-self: flex-start;
   padding-top: 6px;
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   cursor: auto;
+  width: 32px;
+  min-width: 32px;
+  flex-shrink: 0;
 }
 
-.chaospace-history-selector input {
+.chaospace-history-selector-input {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chaospace-history-selector-input input {
   width: 16px;
   height: 16px;
 }
@@ -267,28 +279,68 @@ button.chaospace-history-season-poster:hover {
 }
 
 .chaospace-history-season-toggle {
-  margin-left: auto;
-  height: 28px;
-  padding: 0 14px;
-  border-radius: 9px;
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  background: rgba(14, 165, 233, 0.12);
-  color: var(--cp-text-secondary);
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--cp-text-muted);
   cursor: pointer;
-  font-size: 11px;
-  letter-spacing: 0.25px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   transition:
-    background 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease,
-    transform 0.2s ease;
+    color 0.22s ease,
+    transform 0.22s ease;
+}
+
+.chaospace-history-season-toggle:focus-visible {
+  outline: 2px solid rgba(99, 102, 241, 0.5);
+  outline-offset: 2px;
 }
 
 .chaospace-history-season-toggle:hover {
-  background: rgba(14, 165, 233, 0.22);
-  border-color: rgba(14, 165, 233, 0.5);
-  color: var(--cp-text-primary);
+  color: var(--cp-text-secondary);
   transform: translateY(-1px);
+}
+
+.chaospace-history-season-toggle:active {
+  transform: translateY(0);
+}
+
+.chaospace-history-item.is-season-expanded .chaospace-history-season-toggle {
+  color: var(--cp-text-primary);
+}
+
+.chaospace-history-season-toggle-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chaospace-history-season-toggle-icon svg {
+  width: 100%;
+  height: 100%;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.26s cubic-bezier(0.45, 0.05, 0.1, 1);
+}
+
+.chaospace-history-item.is-season-expanded .chaospace-history-season-toggle-icon svg {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chaospace-history-season-toggle,
+  .chaospace-history-season-toggle-icon svg {
+    transition: none;
+  }
 }
 
 .chaospace-history-item.is-season-expanded .chaospace-history-season-list {
