@@ -780,9 +780,7 @@ export async function handleTransfer(
             const detailParts: string[] = []
             summaryEntries.slice(0, FILTER_RULE_SUMMARY_LIMIT).forEach(([ruleLabel, summary]) => {
               const actionLabel = summary.action === 'exclude' ? '剔除' : '保留'
-              const sampleDetail = summary.samples.length
-                ? `（${summary.samples.join('、')}）`
-                : ''
+              const sampleDetail = summary.samples.length ? `（${summary.samples.join('、')}）` : ''
               const entryDetail = `规则「${ruleLabel}」${actionLabel} ${summary.count} 项${sampleDetail}`
               detailParts.push(entryDetail)
             })

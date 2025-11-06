@@ -57,6 +57,8 @@ export function createRuntimeApp() {
   let cleanupChromeEvents: (() => void) | null = null
   let initialized = false
   let tabSeasonPreference: ReturnType<typeof createTabSeasonPreferenceController> | null = null
+  let stylesObserver: MutationObserver | null = null
+  let stylesObserverRaf: number | null = null
 
   const handleSeasonDefaultChange = (value: boolean): void => {
     const normalized = Boolean(value)
@@ -596,21 +598,108 @@ export function createRuntimeApp() {
     }
   }
 
-  const injectStyles = (): void => {
-    if (document.getElementById('chaospace-float-styles')) {
-      return
-    }
+  const getStylesHref = (): string => chrome.runtime.getURL('content/styles/index.css')
 
+  const resolveStyleMount = (): HTMLElement | null => {
+    if (document.head) {
+      return document.head
+    }
+    if (document.documentElement instanceof HTMLElement) {
+      return document.documentElement
+    }
+    if (document.body) {
+      return document.body
+    }
+    return null
+  }
+
+  const ensureStyleLink = (): HTMLLinkElement | null => {
+    const mountPoint = resolveStyleMount()
+    if (!mountPoint) {
+      return null
+    }
+    const href = getStylesHref()
+    const existing = document.getElementById('chaospace-float-styles') as HTMLLinkElement | null
+    if (existing) {
+      if (existing.href !== href) {
+        existing.href = href
+      }
+      if (!existing.isConnected) {
+        mountPoint.appendChild(existing)
+      }
+      return existing
+    }
     try {
       const link = document.createElement('link')
       link.id = 'chaospace-float-styles'
       link.rel = 'stylesheet'
-      link.href = chrome.runtime.getURL('content/styles/index.css')
-
-      document.head?.appendChild(link)
+      link.href = href
+      mountPoint.appendChild(link)
+      return link
     } catch (error) {
       console.error('[Chaospace] Failed to inject styles:', error)
+      return null
     }
+  }
+
+  const scheduleStyleGuard = (): void => {
+    if (stylesObserverRaf !== null) {
+      return
+    }
+    stylesObserverRaf = window.requestAnimationFrame(() => {
+      stylesObserverRaf = null
+      const link = document.getElementById('chaospace-float-styles') as HTMLLinkElement | null
+      if (!link || !link.isConnected) {
+        ensureStyleLink()
+        return
+      }
+      const href = getStylesHref()
+      if (link.href !== href) {
+        link.href = href
+      }
+      if (link.rel !== 'stylesheet') {
+        link.rel = 'stylesheet'
+      }
+    })
+  }
+
+  const ensureStyleObserver = (): void => {
+    if (stylesObserver) {
+      return
+    }
+    const observerTarget =
+      document.documentElement instanceof HTMLElement
+        ? document.documentElement
+        : resolveStyleMount()
+    if (!observerTarget) {
+      return
+    }
+    stylesObserver = new MutationObserver(() => {
+      scheduleStyleGuard()
+    })
+    stylesObserver.observe(observerTarget, {
+      childList: true,
+      subtree: true,
+    })
+  }
+
+  const teardownStyleObserver = (): void => {
+    if (!stylesObserver) {
+      return
+    }
+    stylesObserver.disconnect()
+    stylesObserver = null
+    if (stylesObserverRaf !== null) {
+      window.cancelAnimationFrame(stylesObserverRaf)
+      stylesObserverRaf = null
+    }
+  }
+
+  const injectStyles = (): void => {
+    if (!ensureStyleLink()) {
+      return
+    }
+    ensureStyleObserver()
   }
 
   const init = (): void => {
@@ -655,6 +744,7 @@ export function createRuntimeApp() {
     panelFactory.disposePanel()
     cleanupChromeEvents?.()
     cleanupChromeEvents = null
+    teardownStyleObserver()
     initialized = false
   }
 
