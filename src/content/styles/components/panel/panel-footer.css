@@ -30,12 +30,28 @@
 }
 
 .chaospace-float-btn {
+  --chaospace-transfer-rainbow: linear-gradient(
+    130deg,
+    rgba(255, 65, 164, 0.72),
+    rgba(255, 170, 61, 0.68),
+    rgba(255, 255, 90, 0.6),
+    rgba(59, 255, 214, 0.7),
+    rgba(80, 132, 255, 0.72),
+    rgba(226, 84, 255, 0.75)
+  );
+  --chaospace-glass-overlay: rgba(8, 13, 35, 0.3);
+  --chaospace-glass-blend: screen;
   width: 100%;
   height: 54px;
   border-radius: 16px;
-  border: 1px solid var(--cp-accent);
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.9) 0%, var(--cp-accent-strong) 100%);
-  color: var(--cp-text-primary);
+  border: none;
+  background-color: rgba(7, 11, 26, 0.18);
+  background-image: var(--chaospace-transfer-rainbow);
+  background-size: 320% 320%;
+  background-position: 0% 50%;
+  background-clip: padding-box;
+  animation: chaospace-rainbow-shift 4s ease infinite;
+  color: #fdfbff;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
@@ -44,39 +60,96 @@
   justify-content: center;
   gap: 10px;
   padding: 0 20px;
-  box-shadow: 0 18px 38px rgba(99, 102, 241, 0.35);
+  box-shadow:
+    0 20px 46px rgba(3, 8, 23, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22);
   transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease,
-    filter 0.2s ease;
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    filter 0.25s ease;
   white-space: nowrap;
   overflow: hidden;
+  position: relative;
+  isolation: isolate;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.chaospace-float-btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 140%;
+  height: 100%;
+  background: linear-gradient(110deg, transparent 5%, rgba(255, 255, 255, 0.75) 45%, transparent 85%);
+  opacity: 0.8;
+  transform: translateX(0);
+  transition: transform 0.6s ease;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  z-index: 1;
+}
+
+.chaospace-float-btn::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border-radius: 14px;
+  background: var(--chaospace-glass-overlay);
+  border: none;
+  mix-blend-mode: var(--chaospace-glass-blend, screen);
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity 0.3s ease;
 }
 
 .chaospace-float-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 22px 44px rgba(99, 102, 241, 0.45);
+  transform: translateY(-3px) scale(1.03);
+  box-shadow:
+    0 30px 70px rgba(3, 8, 23, 0.65),
+    0 0 70px rgba(255, 61, 204, 0.45);
   filter: brightness(1.05);
 }
 
+.chaospace-float-btn:hover::before {
+  transform: translateX(260%);
+}
+
+.chaospace-float-btn:hover::after {
+  opacity: 0.75;
+}
+
 .chaospace-float-btn:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
   box-shadow: none;
+  filter: saturate(0.4);
 }
 
 .chaospace-float-panel.theme-light .chaospace-float-btn {
-  border-color: rgba(148, 163, 184, 0.38);
-  background: linear-gradient(135deg, rgba(247, 250, 255, 0.98) 0%, rgba(224, 231, 255, 0.94) 100%);
-  color: #1f2a61;
-  box-shadow: 0 9px 22px rgba(148, 163, 184, 0.28);
-  filter: none;
+  --chaospace-glass-overlay: rgba(255, 255, 255, 0.65);
+  --chaospace-glass-blend: soft-light;
+  background-color: rgba(255, 255, 255, 0.52);
+  background-image: var(--chaospace-transfer-rainbow);
+  color: #17204d;
+  box-shadow:
+    0 12px 26px rgba(148, 163, 184, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 0 0 1px rgba(246, 248, 255, 0.65);
+  filter: saturate(1.05);
+}
+
+.chaospace-float-panel.theme-light .chaospace-float-btn::before {
+  background: linear-gradient(110deg, transparent 0%, rgba(255, 255, 255, 0.9) 38%, transparent 80%);
 }
 
 .chaospace-float-panel.theme-light .chaospace-float-btn:hover {
-  background: linear-gradient(135deg, rgba(240, 247, 255, 0.98) 0%, rgba(210, 220, 255, 0.96) 100%);
-  box-shadow: 0 11px 26px rgba(148, 163, 184, 0.32);
-  filter: none;
+  box-shadow:
+    0 16px 34px rgba(148, 163, 184, 0.32),
+    0 0 50px rgba(255, 186, 255, 0.35);
 }
 
 .chaospace-float-panel.theme-light .chaospace-float-btn:focus-visible {
@@ -84,6 +157,18 @@
   box-shadow:
     0 0 0 2px rgba(99, 102, 241, 0.22),
     0 8px 20px rgba(148, 163, 184, 0.3);
+}
+
+@keyframes chaospace-rainbow-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 .chaospace-btn-icon {
