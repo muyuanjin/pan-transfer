@@ -37,6 +37,7 @@ function createInitialState(): ContentState {
     lastResult: null,
     statusMessage: '准备就绪 ✨',
     theme: 'dark',
+    toolbarDisabled: false,
     completion: null,
     seasonCompletion: {},
     seasonEntries: [],
@@ -121,6 +122,7 @@ export function resetTransientState(): void {
     draft.logs = []
     draft.lastResult = null
     draft.jobId = null
+    draft.toolbarDisabled = false
   })
 }
 

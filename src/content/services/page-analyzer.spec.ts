@@ -1,17 +1,45 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  analyzePage,
+  suggestDirectoryFromClassification,
+  __resetPageAnalyzerForTests,
+} from './page-analyzer'
 
 const FIXTURE_DIR = resolve(__dirname, '__fixtures__')
 const ORIGINAL_FETCH = globalThis.fetch
 const EMPTY_DOCUMENT = '<!DOCTYPE html><html lang="zh-CN"><head></head><body></body></html>'
+const FETCH_FIXTURE_HTML = new Map<string, string>()
+const RAW_FIXTURE_CACHE = new Map<string, string>()
+const STRIPPED_FIXTURE_CACHE = new Map<string, string>()
+
+function clearFetchFixtures(): void {
+  FETCH_FIXTURE_HTML.clear()
+}
 
 function readFixture(name: string): string {
-  return readFileSync(resolve(FIXTURE_DIR, name), 'utf-8')
+  const cached = RAW_FIXTURE_CACHE.get(name)
+  if (cached) {
+    return cached
+  }
+  const content = readFileSync(resolve(FIXTURE_DIR, name), 'utf-8')
+  RAW_FIXTURE_CACHE.set(name, content)
+  return content
 }
 
 function stripScripts(html: string): string {
   return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+}
+
+function readStrippedFixture(name: string): string {
+  const cached = STRIPPED_FIXTURE_CACHE.get(name)
+  if (cached) {
+    return cached
+  }
+  const stripped = stripScripts(readFixture(name))
+  STRIPPED_FIXTURE_CACHE.set(name, stripped)
+  return stripped
 }
 
 function materializeDownloadAnchors(
@@ -69,7 +97,9 @@ function resetDocument(html = EMPTY_DOCUMENT, url = 'https://www.chaospace.cc/')
 }
 
 function loadFixtureIntoDocument(name: string, url: string): string {
-  const sanitized = patchHtmlDownloadLinks(stripScripts(readFixture(name)))
+  const stripped = readStrippedFixture(name)
+  FETCH_FIXTURE_HTML.set(url, stripped)
+  const sanitized = patchHtmlDownloadLinks(stripped)
   resetDocument(sanitized, url)
   return sanitized
 }
@@ -78,7 +108,7 @@ function stubFetch(resolvedHtml: Record<string, string> = {}): void {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url =
       typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
-    const html = resolvedHtml[url]
+    const html = resolvedHtml[url] ?? FETCH_FIXTURE_HTML.get(url)
     if (!html) {
       return {
         ok: false,
@@ -99,8 +129,8 @@ function stubFetch(resolvedHtml: Record<string, string> = {}): void {
 
 describe('page-analyzer 使用 chaospace 真实页面', () => {
   beforeEach(() => {
-    vi.resetModules()
     vi.restoreAllMocks()
+    clearFetchFixtures()
     if (ORIGINAL_FETCH) {
       globalThis.fetch = ORIGINAL_FETCH.bind(globalThis)
     } else {
@@ -108,10 +138,13 @@ describe('page-analyzer 使用 chaospace 真实页面', () => {
       delete globalThis.fetch
     }
     resetDocument()
+    stubFetch()
+    __resetPageAnalyzerForTests()
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
+    clearFetchFixtures()
     if (ORIGINAL_FETCH) {
       globalThis.fetch = ORIGINAL_FETCH.bind(globalThis)
     } else {
@@ -124,8 +157,6 @@ describe('page-analyzer 使用 chaospace 真实页面', () => {
   it('分析电影详情页时应提取全部网盘条目并归类为电影', async () => {
     const movieUrl = 'https://www.chaospace.cc/movies/432912.html'
     loadFixtureIntoDocument('chaospace-movie-432912.html', movieUrl)
-    const { analyzePage, suggestDirectoryFromClassification } = await import('./page-analyzer')
-
     const result = await analyzePage()
 
     expect(result.url).toBe(movieUrl)
@@ -148,10 +179,8 @@ describe('page-analyzer 使用 chaospace 真实页面', () => {
     const showUrl = 'https://www.chaospace.cc/tvshows/429052.html'
     loadFixtureIntoDocument('chaospace-tvshow-429052.html', showUrl)
     const seasonUrl = 'https://www.chaospace.cc/seasons/429054.html'
-    const seasonHtml = stripScripts(readFixture('chaospace-season-429054.html'))
+    const seasonHtml = readStrippedFixture('chaospace-season-429054.html')
     stubFetch({ [seasonUrl]: seasonHtml })
-
-    const { analyzePage, suggestDirectoryFromClassification } = await import('./page-analyzer')
 
     const result = await analyzePage({ deferTvSeasons: false })
 
@@ -172,8 +201,10 @@ describe('page-analyzer 使用 chaospace 真实页面', () => {
   it('季页面应继承父剧集上下文并生成季目录', async () => {
     const seasonUrl = 'https://www.chaospace.cc/seasons/428609.html'
     loadFixtureIntoDocument('chaospace-season-428609.html', seasonUrl)
-
-    const { analyzePage } = await import('./page-analyzer')
+    const parentUrl = 'https://www.chaospace.cc/tvshows/428607.html'
+    const parentHtml = readStrippedFixture('chaospace-tvshow-428607.html')
+    FETCH_FIXTURE_HTML.set(parentUrl, parentHtml)
+    stubFetch()
 
     const result = await analyzePage()
 

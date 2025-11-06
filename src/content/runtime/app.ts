@@ -41,8 +41,6 @@ import { createHistorySearchBinder } from './ui/binders/history-search-binder'
 import { createPosterPreviewBinder } from './ui/binders/poster-preview-binder'
 import { createItemSelectionBinder } from './ui/binders/item-selection-binder'
 import { createSeasonTabsBinder } from './ui/binders/season-tabs-binder'
-import { createToolbarBinder } from './ui/binders/toolbar-binder'
-import { createSortingBinder } from './ui/binders/sorting-binder'
 import { createTransferBinder } from './ui/binders/transfer-binder'
 import { createPinButtonBinder } from './ui/binders/pin-button-binder'
 import { mountPanelShell } from '../components/panel'
@@ -50,6 +48,7 @@ import { showToast } from '../components/toast'
 import { createTabSeasonPreferenceController } from '../services/tab-season-preference'
 import { loadStoredPinState, persistPinState } from '../utils/panel-pin'
 import { loadStoredEdgeState, persistEdgeState } from '../utils/panel-edge'
+import { toolbarContextKey, type ToolbarContext } from './ui/toolbar-context'
 
 export function createRuntimeApp() {
   const panelState = createPanelRuntimeState()
@@ -424,6 +423,12 @@ export function createRuntimeApp() {
     renderResourceList: () => resourceRenderer.renderResourceList(),
   })
 
+  const toolbarContext: ToolbarContext = {
+    selection: selectionController,
+    selectNewItems: () => history.selectNewItems(),
+    renderResourceList: () => resourceRenderer.renderResourceList(),
+  }
+
   const pageDataHydrator = createPageDataHydrator()
 
   const transferController = createTransferController({
@@ -489,18 +494,6 @@ export function createRuntimeApp() {
     renderResourceList: () => resourceRenderer.renderResourceList(),
   })
 
-  const toolbarBinder = createToolbarBinder({
-    getFloatingPanel,
-    selection: selectionController,
-    history,
-  })
-
-  const sortingBinder = createSortingBinder({
-    panelDom,
-    state,
-    renderResourceList: () => resourceRenderer.renderResourceList(),
-  })
-
   const transferBinder = createTransferBinder({
     panelDom,
     transfer: transferController,
@@ -541,9 +534,7 @@ export function createRuntimeApp() {
       presetsBinder,
       itemSelectionBinder,
       seasonTabsBinder,
-      toolbarBinder,
       historyListBinder,
-      sortingBinder,
       transferBinder,
     ],
     shellBinderFactories: [
@@ -573,6 +564,9 @@ export function createRuntimeApp() {
       } else {
         edgePersistEnabled = true
       }
+    },
+    setupPanelApp: (app) => {
+      app.provide(toolbarContextKey, toolbarContext)
     },
   })
 

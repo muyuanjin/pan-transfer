@@ -7,6 +7,7 @@ import {
   SIZE_KEY,
   TV_SHOW_INITIAL_SEASON_BATCH,
 } from '../../constants'
+import type { App } from 'vue'
 import type { ContentStore } from '../../state'
 import type { PanelDomRefs, PanelRuntimeState } from '../../types'
 import type { createLoggingController } from '../../controllers/logging-controller'
@@ -60,6 +61,7 @@ interface PanelFactoryDeps {
   hydratePinState: () => Promise<void>
   hydrateEdgeState: () => Promise<void>
   applyStoredEdgeState: () => void
+  setupPanelApp?: (app: App<Element>) => void
 }
 
 export interface PanelFactory {
@@ -96,6 +98,7 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
     hydratePinState,
     hydrateEdgeState,
     applyStoredEdgeState,
+    setupPanelApp,
   } = deps
 
   let panelCreationInProgress = false
@@ -130,6 +133,7 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
     state.lastResult = null
     state.transferStatus = 'idle'
     state.statusMessage = '准备就绪 ✨'
+    state.toolbarDisabled = false
   }
 
   const applyAutoBaseDir = (
@@ -287,6 +291,7 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
           POSITION_KEY,
           SIZE_KEY,
         },
+        ...(setupPanelApp ? { setupApp: setupPanelApp } : {}),
       })
       if (token !== lifecycleToken) {
         panelShell.destroy()

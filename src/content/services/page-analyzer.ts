@@ -697,6 +697,11 @@ class ChaospaceClassifier implements ClassificationCache {
 let pageClassificationPromise: Promise<DetailedClassificationResult> | null = null
 let pageClassificationUrl: string | null = null
 
+export function __resetPageAnalyzerForTests(): void {
+  pageClassificationPromise = null
+  pageClassificationUrl = null
+}
+
 export async function getPageClassification(options: {
   detailed: true
 }): Promise<DetailedClassificationResult>

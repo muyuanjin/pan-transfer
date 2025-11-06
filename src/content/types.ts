@@ -193,6 +193,7 @@ export interface ContentState {
   lastResult: unknown
   statusMessage: string
   theme: string
+  toolbarDisabled: boolean
   completion: CompletionStatus | null
   seasonCompletion: Record<string, CompletionStatus>
   seasonEntries: SeasonEntry[]
@@ -262,8 +263,6 @@ export interface PanelDomRefs {
   logList?: HTMLUListElement | null
   resultSummary?: HTMLElement | null
   itemsContainer?: HTMLElement | null
-  sortKeyGroup?: HTMLElement | null
-  sortOrderButton?: HTMLButtonElement | null
   historyOverlay?: HTMLElement | null
   historyList?: HTMLElement | null
   historyEmpty?: HTMLElement | null

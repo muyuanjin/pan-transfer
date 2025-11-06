@@ -1,4 +1,5 @@
 import { createApp, effectScope } from 'vue'
+import type { App } from 'vue'
 import PanelRoot from './PanelRoot.vue'
 import { disableElementDrag } from '../utils/dom'
 import { safeStorageGet, safeStorageSet } from '../utils/storage'
@@ -39,6 +40,7 @@ export interface MountPanelShellOptions {
   handleDocumentPointerDown: (event: PointerEvent) => void
   constants: PanelShellConstants
   storageKeys: PanelStorageKeys
+  setupApp?: (app: App<Element>) => void
 }
 
 export interface MountedPanelShell {
@@ -112,6 +114,7 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     handleDocumentPointerDown,
     constants,
     storageKeys,
+    setupApp,
   } = options
 
   const { EDGE_HIDE_DELAY, EDGE_HIDE_DEFAULT_PEEK, EDGE_HIDE_MIN_PEEK, EDGE_HIDE_MAX_PEEK } =
@@ -128,6 +131,9 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     theme,
   })
   vueApp.use(pinia)
+  if (typeof setupApp === 'function') {
+    setupApp(vueApp)
+  }
   vueApp.mount(host)
 
   const panel = host.querySelector<HTMLElement>('.chaospace-float-panel')
@@ -576,8 +582,6 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
   panelDom.logList = panel.querySelector<HTMLUListElement>('[data-role="log-list"]')
   panelDom.resultSummary = panel.querySelector<HTMLElement>('[data-role="result-summary"]')
   panelDom.itemsContainer = panel.querySelector<HTMLElement>('[data-role="items"]')
-  panelDom.sortKeyGroup = panel.querySelector<HTMLElement>('[data-role="sort-key"]')
-  panelDom.sortOrderButton = panel.querySelector<HTMLButtonElement>('[data-role="sort-order"]')
   panelDom.historyOverlay = panel.querySelector<HTMLElement>('[data-role="history-overlay"]')
   panelDom.historyList = panel.querySelector<HTMLElement>('[data-role="history-list"]')
   panelDom.historyEmpty = panel.querySelector<HTMLElement>('[data-role="history-empty"]')

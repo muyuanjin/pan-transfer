@@ -43,20 +43,8 @@ export function createTransferController(deps: {
     if (panelDom.baseDirInput) panelDom.baseDirInput.disabled = disabled
     if (panelDom.useTitleCheckbox) panelDom.useTitleCheckbox.disabled = disabled
     if (panelDom.useSeasonCheckbox) panelDom.useSeasonCheckbox.disabled = disabled
-    if (panelDom.sortKeyGroup) {
-      panelDom.sortKeyGroup.setAttribute('aria-disabled', disabled ? 'true' : 'false')
-      panelDom.sortKeyGroup.querySelectorAll('button').forEach((button) => {
-        button.disabled = disabled
-      })
-    }
-    if (panelDom.sortOrderButton) panelDom.sortOrderButton.disabled = disabled
     if (panelDom.addPresetButton) panelDom.addPresetButton.disabled = disabled
-    const selectGroup = getFloatingPanel()?.querySelector('.chaospace-select-group')
-    if (selectGroup) {
-      selectGroup.querySelectorAll('button').forEach((button) => {
-        button.disabled = disabled
-      })
-    }
+    state.toolbarDisabled = disabled
     if (panelDom.presetList) {
       panelDom.presetList.classList.toggle('is-disabled', disabled)
     }

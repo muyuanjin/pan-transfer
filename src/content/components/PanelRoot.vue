@@ -376,46 +376,7 @@
               <div class="chaospace-section-caption" data-role="resource-summary"></div>
             </div>
             <div class="chaospace-season-tabs" data-role="season-tabs" hidden></div>
-            <div class="chaospace-toolbar">
-              <div class="chaospace-sort-group">
-                <div class="chaospace-sort-label">
-                  <span>排序</span>
-                  <div
-                    class="chaospace-segmented chaospace-segmented--toolbar"
-                    data-role="sort-key"
-                    role="radiogroup"
-                    aria-label="资源排序"
-                  >
-                    <button
-                      type="button"
-                      class="chaospace-segmented-option"
-                      data-value="page"
-                      role="radio"
-                      aria-checked="false"
-                    >
-                      默认顺序
-                    </button>
-                    <button
-                      type="button"
-                      class="chaospace-segmented-option"
-                      data-value="title"
-                      role="radio"
-                      aria-checked="false"
-                    >
-                      标题
-                    </button>
-                  </div>
-                </div>
-                <button type="button" class="chaospace-order-btn" data-role="sort-order">
-                  正序
-                </button>
-              </div>
-              <div class="chaospace-select-group">
-                <button type="button" data-action="select-all">全选</button>
-                <button type="button" data-action="select-invert">反选</button>
-                <button type="button" data-action="select-new">仅选新增</button>
-              </div>
-            </div>
+            <PanelToolbar />
             <div class="chaospace-items-scroll" data-role="items"></div>
           </section>
           <section class="chaospace-column chaospace-column-right">
@@ -479,6 +440,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import PanelToolbar from './PanelToolbar.vue'
 
 type PanelTheme = 'light' | 'dark'
 
