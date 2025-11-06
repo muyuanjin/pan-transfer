@@ -16,19 +16,24 @@ export function createPanelRuntimeState(): PanelRuntimeState {
     hidePanelToEdge: null,
     showPanelFromEdge: null,
     beginEdgeAnimation: null,
+    applyPanelSize: null,
+    applyPanelPosition: null,
     lastKnownSize: null,
     detachWindowResize: null,
     documentPointerDownBound: false,
     getPanelBounds: null,
     lastKnownPosition: { left: 16, top: 16 },
+    edgeStateChange: null,
   }
 }
 
 export function resetPanelRuntimeState(target: PanelRuntimeState): void {
   const next = createPanelRuntimeState()
+  const edgeChange = target.edgeStateChange
   const record = target as Record<string, unknown>
   for (const key of Object.keys(record)) {
     delete record[key]
   }
   Object.assign(target, next)
+  target.edgeStateChange = edgeChange ?? null
 }

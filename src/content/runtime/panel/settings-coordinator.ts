@@ -5,7 +5,7 @@ import type { PanelRuntimeState } from '../../types'
 import type { createPanelPreferencesController } from '../../controllers/panel-preferences'
 import type { createHistoryController } from '../../history/controller'
 import type { PanelShellInstance, SettingsModalHandle } from '../types'
-import { POSITION_KEY, SIZE_KEY } from '../../constants'
+import { PIN_STATE_KEY, POSITION_KEY, SIZE_KEY } from '../../constants'
 import { renderSeasonHint } from '../../services/season-manager'
 import type { TabSeasonPreferenceController } from '../../services/tab-season-preference'
 
@@ -49,10 +49,12 @@ export function createSettingsCoordinator({
     panelState.scheduleEdgeHide = scheduleEdgeHide
     panelState.cancelEdgeHide = cancelEdgeHide
     panelState.applyEdgeHiddenPosition = applyEdgeHiddenPosition
+    panelState.applyPanelSize = applyPanelSize
+    panelState.applyPanelPosition = applyPanelPosition
 
     const handleResetLayout = async () => {
       try {
-        await safeStorageRemove([POSITION_KEY, SIZE_KEY], 'panel geometry reset')
+        await safeStorageRemove([POSITION_KEY, SIZE_KEY, PIN_STATE_KEY], 'panel geometry reset')
         const bounds = getPanelBounds()
         const defaultWidth = Math.min(640, bounds.maxWidth)
         const defaultHeight = Math.min(520, bounds.maxHeight)

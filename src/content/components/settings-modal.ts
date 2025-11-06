@@ -4,6 +4,8 @@ import {
   CACHE_KEY,
   POSITION_KEY,
   SIZE_KEY,
+  PIN_STATE_KEY,
+  EDGE_STATE_KEY,
   DEFAULT_PRESETS,
   SETTINGS_EXPORT_VERSION,
   DATA_EXPORT_VERSION,
@@ -13,7 +15,9 @@ import {
 } from '../constants'
 import { panelDom, state } from '../state'
 import { normalizeDir } from '../services/page-analyzer'
-import type { PanelRuntimeState } from '../types'
+import type { PanelRuntimeState, PanelPositionSnapshot, PanelSizeSnapshot } from '../types'
+import { normalizePinState } from '../utils/panel-pin'
+import { normalizeEdgeState } from '../utils/panel-edge'
 import type { ToastHandler } from './toast'
 import settingsCssHref from '../styles/overlays/settings.css?url'
 import { loadCss } from '../styles.loader'
@@ -51,16 +55,6 @@ interface SettingsSnapshot {
   theme: 'light' | 'dark'
   historyRateLimitMs: number
   [key: string]: unknown
-}
-
-interface PanelSizeSnapshot {
-  width: number
-  height: number
-}
-
-interface PanelPositionSnapshot {
-  left: number
-  top: number
 }
 
 interface SettingsDomRefs {
@@ -502,7 +496,15 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
 
   async function exportFullBackup(): Promise<void> {
     try {
-      const keys = [STORAGE_KEY, HISTORY_KEY, CACHE_KEY, POSITION_KEY, SIZE_KEY]
+      const keys = [
+        STORAGE_KEY,
+        HISTORY_KEY,
+        CACHE_KEY,
+        POSITION_KEY,
+        SIZE_KEY,
+        PIN_STATE_KEY,
+        EDGE_STATE_KEY,
+      ]
       const stored = await chrome.storage.local.get(keys)
       const payload = {
         type: 'chaospace-transfer-backup',
@@ -515,6 +517,8 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
           panel: {
             position: stored[POSITION_KEY] || null,
             size: stored[SIZE_KEY] || null,
+            pinned: typeof stored[PIN_STATE_KEY] === 'boolean' ? stored[PIN_STATE_KEY] : null,
+            edge: stored[EDGE_STATE_KEY] || null,
           },
         },
       }
@@ -613,6 +617,8 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
         : {}
     const normalizedPanelSize = normalizePanelSizeSnapshot(panelData['size'])
     const normalizedPanelPosition = normalizePanelPositionSnapshot(panelData['position'])
+    const normalizedPanelPinned = normalizePinState(panelData['pinned'])
+    const normalizedPanelEdge = normalizeEdgeState(panelData['edge'])
     if ('position' in panelData) {
       if (panelData['position'] && normalizedPanelPosition) {
         entries[POSITION_KEY] = normalizedPanelPosition
@@ -625,6 +631,24 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
         entries[SIZE_KEY] = normalizedPanelSize
       } else {
         removals.push(SIZE_KEY)
+      }
+    }
+    if ('pinned' in panelData) {
+      if (typeof normalizedPanelPinned === 'boolean') {
+        entries[PIN_STATE_KEY] = normalizedPanelPinned
+      } else {
+        removals.push(PIN_STATE_KEY)
+      }
+    }
+    if ('edge' in panelData) {
+      if (normalizedPanelEdge) {
+        entries[EDGE_STATE_KEY] = {
+          hidden: normalizedPanelEdge.isHidden,
+          side: normalizedPanelEdge.side,
+          peek: normalizedPanelEdge.peek,
+        }
+      } else {
+        removals.push(EDGE_STATE_KEY)
       }
     }
 

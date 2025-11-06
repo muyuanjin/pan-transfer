@@ -98,11 +98,27 @@ export interface PanelEdgeState {
   peek: number
 }
 
+export interface PanelEdgeSnapshot {
+  isHidden: boolean
+  side: PanelDockSide
+  peek?: number
+}
+
 export interface PanelBounds {
   minWidth: number
   minHeight: number
   maxWidth: number
   maxHeight: number
+}
+
+export interface PanelSizeSnapshot {
+  width: number
+  height: number
+}
+
+export interface PanelPositionSnapshot {
+  left: number
+  top: number
 }
 
 export interface PanelRuntimeState {
@@ -120,10 +136,13 @@ export interface PanelRuntimeState {
   hidePanelToEdge: (() => void) | null
   showPanelFromEdge: (() => void) | null
   beginEdgeAnimation: (() => void) | null
-  lastKnownSize: { width: number; height: number } | null
-  lastKnownPosition: { left: number; top: number } | null
+  applyPanelSize: ((width?: number, height?: number) => PanelSizeSnapshot | null) | null
+  applyPanelPosition: ((left?: number, top?: number) => PanelPositionSnapshot) | null
+  lastKnownSize: PanelSizeSnapshot | null
+  lastKnownPosition: PanelPositionSnapshot | null
   getPanelBounds: (() => PanelBounds) | null
   detachWindowResize: (() => void) | null
+  edgeStateChange: ((snapshot: PanelEdgeSnapshot) => void) | null
   [key: string]: unknown
 }
 

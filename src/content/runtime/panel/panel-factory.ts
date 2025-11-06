@@ -57,6 +57,9 @@ interface PanelFactoryDeps {
   setFloatingPanel: (panel: HTMLElement | null) => void
   showToast: ToastHandler
   seasonPreference: TabSeasonPreferenceController
+  hydratePinState: () => Promise<void>
+  hydrateEdgeState: () => Promise<void>
+  applyStoredEdgeState: () => void
 }
 
 export interface PanelFactory {
@@ -90,6 +93,9 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
     setFloatingPanel,
     showToast,
     seasonPreference,
+    hydratePinState,
+    hydrateEdgeState,
+    applyStoredEdgeState,
   } = deps
 
   let panelCreationInProgress = false
@@ -216,6 +222,14 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
       if (token !== lifecycleToken) {
         return false
       }
+      await hydrateEdgeState()
+      if (token !== lifecycleToken) {
+        return false
+      }
+      await hydratePinState()
+      if (token !== lifecycleToken) {
+        return false
+      }
       await seasonPreference.initialize()
       if (token !== lifecycleToken) {
         return false
@@ -294,6 +308,7 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
       history.renderHistoryDetail()
       bindPanelInteractions(panelShell)
       renderInitialState()
+      applyStoredEdgeState()
 
       if (state.deferredSeasonInfos.length) {
         void seasonLoader.ensureDeferredSeasonLoading().catch((error) => {

@@ -77,13 +77,18 @@
 }
 
 .chaospace-float-btn::before {
-  content: "";
+  content: '';
   position: absolute;
   top: 0;
   left: -150%;
   width: 140%;
   height: 100%;
-  background: linear-gradient(110deg, transparent 5%, rgba(255, 255, 255, 0.75) 45%, transparent 85%);
+  background: linear-gradient(
+    110deg,
+    transparent 5%,
+    rgba(255, 255, 255, 0.75) 45%,
+    transparent 85%
+  );
   opacity: 0.8;
   transform: translateX(0);
   transition: transform 0.6s ease;
@@ -93,7 +98,7 @@
 }
 
 .chaospace-float-btn::after {
-  content: "";
+  content: '';
   position: absolute;
   inset: 2px;
   border-radius: 14px;
@@ -143,7 +148,12 @@
 }
 
 .chaospace-float-panel.theme-light .chaospace-float-btn::before {
-  background: linear-gradient(110deg, transparent 0%, rgba(255, 255, 255, 0.9) 38%, transparent 80%);
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.9) 38%,
+    transparent 80%
+  );
 }
 
 .chaospace-float-panel.theme-light .chaospace-float-btn:hover {

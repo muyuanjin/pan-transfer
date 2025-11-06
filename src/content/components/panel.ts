@@ -3,7 +3,13 @@ import PanelRoot from './PanelRoot.vue'
 import { disableElementDrag } from '../utils/dom'
 import { safeStorageGet, safeStorageSet } from '../utils/storage'
 import { pinia } from '../state'
-import type { PanelRuntimeState, PanelDomRefs, PanelBounds } from '../types'
+import type {
+  PanelRuntimeState,
+  PanelDomRefs,
+  PanelBounds,
+  PanelSizeSnapshot,
+  PanelPositionSnapshot,
+} from '../types'
 import { useDraggable, useEventListener } from '@vueuse/core'
 
 const PANEL_MARGIN = 16
@@ -50,8 +56,8 @@ export interface MountedPanelShell {
   destroy: () => void
 }
 
-type PanelSizeSnapshot = { width?: number; height?: number }
-type PanelPositionSnapshot = { left?: number; top?: number }
+type StoredPanelSizeSnapshot = Partial<PanelSizeSnapshot>
+type StoredPanelPositionSnapshot = Partial<PanelPositionSnapshot>
 
 type NavigatorWithUAData = Navigator & {
   userAgentData?: {
@@ -146,6 +152,17 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     side: 'right',
     peek: EDGE_HIDE_DEFAULT_PEEK,
   }
+  const emitEdgeStateChange = () => {
+    if (typeof panelState.edgeStateChange !== 'function' || !panelState.edgeState) {
+      return
+    }
+    panelState.edgeStateChange({
+      isHidden: panelState.edgeState.isHidden,
+      side: panelState.edgeState.side,
+      peek: panelState.edgeState.peek,
+    })
+  }
+  emitEdgeStateChange()
   panelState.pointerInside = false
   panelState.lastPointerPosition = { x: Number.NaN, y: Number.NaN }
   panelState.isPinned = false
@@ -271,6 +288,7 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
       panel.style.top = `${lastKnownPosition.top}px`
       panel.style.right = 'auto'
       panel.style.removeProperty('--chaospace-edge-peek')
+      emitEdgeStateChange()
       return
     }
 
@@ -290,6 +308,7 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     panel.style.right = 'auto'
     panel.classList.remove('is-hovering')
     panel.classList.add('is-edge-hidden')
+    emitEdgeStateChange()
   }
 
   const beginEdgeAnimation = (): void => {
@@ -334,6 +353,7 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     panel.classList.remove('is-leaving')
     beginEdgeAnimation()
     applyEdgeHiddenPosition()
+    emitEdgeStateChange()
   }
 
   const hidePanelToEdge = (): void => {
@@ -346,6 +366,7 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     beginEdgeAnimation()
     applyEdgeHiddenPosition()
     panel.classList.remove('is-leaving')
+    emitEdgeStateChange()
   }
 
   const scheduleEdgeHide = (delay = EDGE_HIDE_DELAY): void => {
@@ -398,6 +419,7 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     syncPanelLayout()
     panelState.edgeState.side = determineDockSide()
     applyEdgeHiddenPosition()
+    emitEdgeStateChange()
     return panelState.lastKnownSize
   }
 
@@ -425,13 +447,14 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     panelState.edgeState.side = determineDockSide()
     applyEdgeHiddenPosition()
     syncDraggablePosition(lastKnownPosition)
+    emitEdgeStateChange()
     return lastKnownPosition
   }
 
   const savedState = await safeStorageGet<
-    Record<string, PanelSizeSnapshot | PanelPositionSnapshot>
+    Record<string, StoredPanelSizeSnapshot | StoredPanelPositionSnapshot>
   >([POSITION_KEY, SIZE_KEY], 'panel geometry')
-  const savedSize = savedState[SIZE_KEY] as PanelSizeSnapshot | undefined
+  const savedSize = savedState[SIZE_KEY] as StoredPanelSizeSnapshot | undefined
   if (savedSize && Number.isFinite(savedSize.width) && Number.isFinite(savedSize.height)) {
     applyPanelSize(savedSize.width, savedSize.height)
   } else {
@@ -441,7 +464,7 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     applyPanelSize(fallbackWidth, fallbackHeight)
   }
 
-  const savedPosition = savedState[POSITION_KEY] as PanelPositionSnapshot | undefined
+  const savedPosition = savedState[POSITION_KEY] as StoredPanelPositionSnapshot | undefined
   lastKnownPosition = applyPanelPosition(savedPosition?.left, savedPosition?.top)
   panelState.lastKnownPosition = lastKnownPosition
   panelState.getPanelBounds = getPanelBounds
@@ -463,6 +486,7 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     panel.classList.remove('is-hovering')
     panel.classList.remove('is-leaving')
     panel.classList.add('is-edge-hidden')
+    emitEdgeStateChange()
   }
 
   const finalizeInitialLayout = () => {
@@ -474,6 +498,7 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
       panelState.edgeState.isHidden = false
       applyEdgeHiddenPosition()
     }
+    emitEdgeStateChange()
   }
   window.requestAnimationFrame(finalizeInitialLayout)
 

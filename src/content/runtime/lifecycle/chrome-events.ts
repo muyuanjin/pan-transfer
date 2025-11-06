@@ -1,8 +1,22 @@
 import { state } from '../../state'
-import { HISTORY_KEY, STORAGE_KEY } from '../../constants'
+import {
+  EDGE_STATE_KEY,
+  HISTORY_KEY,
+  PIN_STATE_KEY,
+  POSITION_KEY,
+  SIZE_KEY,
+  STORAGE_KEY,
+} from '../../constants'
 import { prepareHistoryRecords } from '../../services/history-service'
-import { clampHistoryRateLimit } from '../../components/settings-modal'
+import {
+  clampHistoryRateLimit,
+  normalizePanelPositionSnapshot,
+  normalizePanelSizeSnapshot,
+} from '../../components/settings-modal'
 import type { createHistoryController } from '../../history/controller'
+import type { PanelEdgeSnapshot, PanelPositionSnapshot, PanelSizeSnapshot } from '../../types'
+import { normalizePinState } from '../../utils/panel-pin'
+import { normalizeEdgeState } from '../../utils/panel-edge'
 
 type HistoryController = ReturnType<typeof createHistoryController>
 
@@ -23,6 +37,10 @@ export function registerChromeEvents(deps: {
   rerenderSettingsIfOpen: () => void
   renderResourceList: () => void
   syncSeasonPreference: (value: boolean | null) => void
+  syncPanelSizeFromStorage: (snapshot: PanelSizeSnapshot | null) => void
+  syncPanelPositionFromStorage: (snapshot: PanelPositionSnapshot | null) => void
+  syncEdgeStateFromStorage: (snapshot: PanelEdgeSnapshot | null) => void
+  syncPinStateFromStorage: (pinned: boolean) => void
   setStatusProgress: (progress: unknown) => void
   getFloatingPanel: () => HTMLElement | null
   analyzePageForMessage: () => Promise<unknown>
@@ -33,6 +51,10 @@ export function registerChromeEvents(deps: {
     rerenderSettingsIfOpen,
     renderResourceList,
     syncSeasonPreference,
+    syncPanelSizeFromStorage,
+    syncPanelPositionFromStorage,
+    syncEdgeStateFromStorage,
+    syncPinStateFromStorage,
     setStatusProgress,
     getFloatingPanel,
     analyzePageForMessage,
@@ -75,6 +97,54 @@ export function registerChromeEvents(deps: {
       history.renderHistoryCard()
       if (getFloatingPanel()) {
         renderResourceList()
+      }
+    }
+
+    const sizeChange = changes[SIZE_KEY]
+    if (sizeChange) {
+      if (typeof sizeChange.newValue === 'undefined') {
+        syncPanelSizeFromStorage(null)
+      } else {
+        const nextSize = normalizePanelSizeSnapshot(sizeChange.newValue)
+        if (nextSize) {
+          syncPanelSizeFromStorage(nextSize)
+        }
+      }
+    }
+
+    const positionChange = changes[POSITION_KEY]
+    if (positionChange) {
+      if (typeof positionChange.newValue === 'undefined') {
+        syncPanelPositionFromStorage(null)
+      } else {
+        const nextPosition = normalizePanelPositionSnapshot(positionChange.newValue)
+        if (nextPosition) {
+          syncPanelPositionFromStorage(nextPosition)
+        }
+      }
+    }
+
+    const pinChange = changes[PIN_STATE_KEY]
+    if (pinChange) {
+      if (typeof pinChange.newValue === 'undefined') {
+        syncPinStateFromStorage(false)
+      } else {
+        const nextPinned = normalizePinState(pinChange.newValue)
+        if (typeof nextPinned === 'boolean') {
+          syncPinStateFromStorage(nextPinned)
+        }
+      }
+    }
+
+    const edgeChange = changes[EDGE_STATE_KEY]
+    if (edgeChange) {
+      if (typeof edgeChange.newValue === 'undefined') {
+        syncEdgeStateFromStorage(null)
+      } else {
+        const nextEdge = normalizeEdgeState(edgeChange.newValue)
+        if (nextEdge) {
+          syncEdgeStateFromStorage(nextEdge)
+        }
       }
     }
   }

@@ -57,7 +57,8 @@ function injectStyles(): void {
   const css = [
     '.zi-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.84); z-index: 2147483647; display: flex; align-items: center; justify-content: center; }',
     '.zi-stage { position: relative; width: 100%; height: 100%; touch-action: none; display: flex; align-items: center; justify-content: center; user-select: none; }',
-    '.zi-content { position: absolute; left: 50%; top: 50%; will-change: transform; transform-origin: center center; transform: translate3d(-50%, -50%, 0) scale(1); }',
+    '.zi-content { position: absolute; left: 50%; top: 50%; will-change: transform; transform-origin: center center; transform: translate3d(-50%, -50%, 0) scale(1); transition: opacity .16s ease-out; }',
+    '.zi-content.zi-loading { opacity: 0; }',
     '.zi-content img { display: block; max-width: none !important; max-height: none !important; user-select: none; pointer-events: none; -webkit-user-drag: none; }',
     '.zi-close { position: absolute; top: 16px; right: 16px; width: 36px; height: 36px; border: 0; border-radius: 18px; background: rgba(0,0,0,.4); color: #fff; font-size: 20px; cursor: pointer; }',
     '.zi-spinner { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff9; font-size: 14px; }',
@@ -93,7 +94,7 @@ export function openZoomPreview(opts: ZoomPreviewOptions = {}): { close: () => v
   stage.className = 'zi-stage'
 
   const content = document.createElement('div')
-  content.className = 'zi-content'
+  content.className = 'zi-content zi-loading'
 
   const img = document.createElement('img')
   img.alt = alt
@@ -377,6 +378,7 @@ export function openZoomPreview(opts: ZoomPreviewOptions = {}): { close: () => v
     state.iw = img.naturalWidth || img.width || 1
     state.ih = img.naturalHeight || img.height || 1
     fitAndInit()
+    content.classList.remove('zi-loading')
   }
 
   if (img.complete && (img.naturalWidth || img.width)) {

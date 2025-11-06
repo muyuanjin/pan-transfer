@@ -1,6 +1,8 @@
 export const STORAGE_KEY = 'chaospace-transfer-settings'
 export const POSITION_KEY = 'chaospace-panel-position'
 export const SIZE_KEY = 'chaospace-panel-size'
+export const PIN_STATE_KEY = 'chaospace-panel-pin'
+export const EDGE_STATE_KEY = 'chaospace-panel-edge'
 export const DEFAULT_PRESETS: string[] = ['/视频/番剧', '/视频/影视', '/视频/电影']
 export const MAX_LOG_ENTRIES = 80
 export const HISTORY_KEY = 'chaospace-transfer-history'
