@@ -34,9 +34,7 @@ import { createDomLifecycle } from './lifecycle/dom-observer'
 import { createPanelFactory } from './panel/panel-factory'
 import { createSettingsCoordinator } from './panel/settings-coordinator'
 import { createBaseDirBinder } from './ui/binders/base-dir-binder'
-import { createPresetsBinder } from './ui/binders/presets-binder'
 import { createHistoryListBinder } from './ui/binders/history-list-binder'
-import { createHistoryTabsBinder } from './ui/binders/history-tabs-binder'
 import { createHistorySearchBinder } from './ui/binders/history-search-binder'
 import { createPosterPreviewBinder } from './ui/binders/poster-preview-binder'
 import { createItemSelectionBinder } from './ui/binders/item-selection-binder'
@@ -49,6 +47,8 @@ import { createTabSeasonPreferenceController } from '../services/tab-season-pref
 import { loadStoredPinState, persistPinState } from '../utils/panel-pin'
 import { loadStoredEdgeState, persistEdgeState } from '../utils/panel-edge'
 import { toolbarContextKey, type ToolbarContext } from './ui/toolbar-context'
+import { historyContextKey } from './ui/history-context'
+import { panelPreferencesContextKey } from './ui/panel-preferences-context'
 
 export function createRuntimeApp() {
   const panelState = createPanelRuntimeState()
@@ -450,19 +450,7 @@ export function createRuntimeApp() {
     seasonPreference: tabSeasonPreference!,
   })
 
-  const presetsBinder = createPresetsBinder({
-    panelDom,
-    state,
-    preferences,
-  })
-
   const historyListBinder = createHistoryListBinder({
-    panelDom,
-    state,
-    history,
-  })
-
-  const historyTabsBinder = createHistoryTabsBinder({
     panelDom,
     state,
     history,
@@ -527,11 +515,9 @@ export function createRuntimeApp() {
     mountPanelShell,
     settingsCoordinator,
     staticBinders: [
-      historyTabsBinder,
       historySearchBinder,
       posterPreviewBinder,
       baseDirBinder,
-      presetsBinder,
       itemSelectionBinder,
       seasonTabsBinder,
       historyListBinder,
@@ -567,6 +553,8 @@ export function createRuntimeApp() {
     },
     setupPanelApp: (app) => {
       app.provide(toolbarContextKey, toolbarContext)
+      app.provide(historyContextKey, history)
+      app.provide(panelPreferencesContextKey, preferences)
     },
   })
 

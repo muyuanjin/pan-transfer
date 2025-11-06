@@ -38,6 +38,7 @@ function createInitialState(): ContentState {
     statusMessage: '准备就绪 ✨',
     theme: 'dark',
     toolbarDisabled: false,
+    presetsDisabled: false,
     completion: null,
     seasonCompletion: {},
     seasonEntries: [],

@@ -1,6 +1,6 @@
 # Chaospace MV3 Refactor Plan
 
-_Last updated: 2025-11-06 (UTC-8)_
+_Last updated: 2025-11-06 03:55 (UTC-8)_
 
 ## Mission & Guardrails
 
@@ -11,12 +11,13 @@ _Last updated: 2025-11-06 (UTC-8)_
 
 ## Recent Progress (since 2025-11-05)
 
-- `npm run check` succeeded on 2025-11-06 02:16 (UTC-8), covering Prettier, vue-tsc, ESLint, Vite production build, 10 Vitest suites, and 3 Playwright scenarios; fresh `dist/` artifacts were produced.
+- `npm run check` succeeded on 2025-11-06 03:45 (UTC-8), covering Prettier, vue-tsc, ESLint, Vite production build, 10 Vitest suites, and 3 Playwright scenarios; fresh `dist/` artifacts were produced.
 - Added Pinia-driven specs for `panel-preferences` (`src/content/controllers/panel-preferences.spec.ts`) and history orchestration (`src/content/history/controller.spec.ts`), reducing manual regressions in panel state hydration and batch deletes.
 - Page analyzer coverage now consumes real CHAOSPACE HTML fixtures under `src/content/services/__fixtures__/`, and the Playwright harness (`tests/e2e/panel.spec.ts`) proxies CHAOSPACE domains offline so we can stress multiple detail pages per run without external network.
 - The settings modal gained fully programmatic editors for file filters and rename rules (`src/content/components/settings/file-filter-editor.ts` and `file-rename-editor.ts`), backed by new sanitizers in `src/shared/settings.ts` and surfaced through the Pinia store (`src/content/state/index.ts`).
-- Migrated the resource toolbar (sorting + selection) from imperative binders to `PanelToolbar.vue` + `toolbar-context`, leveraging Pinia refs and VueUse keyboard listeners; verified via the full `npm run check` sweep on 2025-11-06 02:16 (UTC-8).
+- Migrated the resource toolbar (sorting + selection) from imperative binders to `PanelToolbar.vue` + `toolbar-context`, leveraging Pinia refs and VueUse keyboard listeners.
 - Trimmed `page-analyzer.spec.ts` runtime (~0.89s → ~0.81s) by caching fixture reads and resetting analyzer caches through a dedicated test hook, keeping fetch/document behaviour intact.
+- Replaced the history filter tabs and preset list binders with Vue components (`HistoryFilterTabs.vue`, `PresetList.vue`) wired through provide/inject contexts; removed the old binder modules and their `panelDom` hooks.
 
 ## Current Status Snapshot
 
@@ -38,7 +39,7 @@ _Last updated: 2025-11-06 (UTC-8)_
 - `ContentRuntime` (`src/content/runtime/runtime.ts`) instantiates `createRuntimeApp` (`src/content/runtime/app.ts`), which coordinates the Pinia store (`src/content/state/index.ts`), panel runtime state (`src/content/runtime/panel-state.ts`), and DOM binders under `src/content/runtime/ui/binders/`.
 - Controllers include logging, panel edge, and panel preferences (`src/content/controllers/*.ts`), season aggregation (`src/content/services/season-manager.ts` + `season-loader.ts`), chrome-event lifecycle hooks, and the transfer controller (`src/content/runtime/transfer/transfer-controller.ts`).
 - Vue components render the floating panel shell (`src/content/components/PanelRoot.vue`), resource list (`ResourceListView.vue`), history overlays (`src/content/components/history/*.vue`), toasts, zoom preview, and the settings modal plus editors.
-- `panelDom` / `detailDom` refs remain defined in `src/content/types.ts` and back the remaining imperative binders (history, presets, transfer), while the resource toolbar now renders via `PanelToolbar.vue` + the toolbar context composable.
+- `panelDom` / `detailDom` refs remain defined in `src/content/types.ts` and back the remaining imperative binders (history list/search interactions, transfer, selection), while the history filters, presets, and resource toolbar now render via Vue components driven by injected contexts.
 
 ### Shared Modules
 
@@ -74,7 +75,8 @@ _Last updated: 2025-11-06 (UTC-8)_
 | P1       | In Progress | Testing         | Extend controller specs to cover `panel-edge-controller` and `runtime/transfer/transfer-controller` (pinning, retries, status transitions).                             | `panel-preferences` tests landed; remaining controllers still only have manual QA.   |
 | P1       | Todo        | Messaging       | Introduce integration tests that simulate Chrome runtime messaging for transfer progress + history detail/delete flows.                                                 | Required before granting stricter host permissions and alarm-based retries.          |
 | P1       | Todo        | Settings        | Add DOM-level tests for the file filter & rename editors to verify parsing, validation, and serialization paths.                                                        | Shared sanitizers are covered, but the UI editors remain untested.                   |
-| P2       | In Progress | UI Migration    | Finish migrating history filters and presets list to Vue components/composables (toolbar now lives in `PanelToolbar.vue`).                                              | Reduces complexity inside `src/content/runtime/ui/binders/` and improves reactivity. |
+| P2       | Done        | UI Migration    | Migrated history filters and presets list to Vue components with injected controllers; toolbar already lives in `PanelToolbar.vue`.                                     | `HistoryFilterTabs.vue` + `PresetList.vue` replace the old binders (2025-11-06).     |
+| P2       | Planned     | UI Migration    | Port the history search input + toolbar counters off `history-search-binder.ts`, exposing debounced search + selection summary via Pinia/composables.                   | Completes the history overlay migration and enables removing more `panelDom` hooks.  |
 | P2       | Planned     | Parser Coverage | Expand CHAOSPACE HTML fixtures with malformed or partial markup (missing passcodes, nested season links) and assert graceful fallbacks.                                 | Focus in `src/background/services/parser/__tests__`.                                 |
 | P2       | Planned     | Documentation   | Publish developer notes covering ContentRuntime orchestration, edge/pin persistence, and how to run tests/e2e locally.                                                  | Can live alongside this document or under `/docs`.                                   |
 

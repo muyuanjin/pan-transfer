@@ -524,7 +524,6 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
   panelDom.seasonRow = panel.querySelector<HTMLElement>('[data-role="season-row"]')
   panelDom.seasonPathHint = panel.querySelector<HTMLElement>('[data-role="season-path-hint"]')
   panelDom.pathPreview = panel.querySelector<HTMLElement>('[data-role="path-preview"]')
-  panelDom.presetList = panel.querySelector<HTMLElement>('[data-role="preset-list"]')
   panelDom.addPresetButton = panel.querySelector<HTMLButtonElement>('[data-role="add-preset"]')
   panelDom.themeToggle = panel.querySelector<HTMLButtonElement>('[data-role="theme-toggle"]')
   panelDom.settingsToggle = panel.querySelector<HTMLButtonElement>('[data-role="settings-toggle"]')
@@ -591,7 +590,6 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     '[data-role="history-summary-body"]',
   )
   panelDom.historyControls = panel.querySelector<HTMLElement>('[data-role="history-controls"]')
-  panelDom.historyTabs = panel.querySelector<HTMLElement>('[data-role="history-tabs"]')
   panelDom.historySearch = panel.querySelector<HTMLInputElement>('[data-role="history-search"]')
   panelDom.historySearchClear = panel.querySelector<HTMLButtonElement>(
     '[data-role="history-search-clear"]',

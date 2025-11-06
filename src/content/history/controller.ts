@@ -681,12 +681,6 @@ export function createHistoryController(deps: HistoryControllerDeps) {
       return
     }
     state.historyFilter = normalized
-    if (panelDom.historyTabs) {
-      panelDom.historyTabs.querySelectorAll('[data-filter]').forEach((button) => {
-        const value = button.getAttribute('data-filter') || 'all'
-        button.classList.toggle('is-active', value === state.historyFilter)
-      })
-    }
     renderHistoryCard()
   }
 

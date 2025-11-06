@@ -45,9 +45,7 @@ export function createTransferController(deps: {
     if (panelDom.useSeasonCheckbox) panelDom.useSeasonCheckbox.disabled = disabled
     if (panelDom.addPresetButton) panelDom.addPresetButton.disabled = disabled
     state.toolbarDisabled = disabled
-    if (panelDom.presetList) {
-      panelDom.presetList.classList.toggle('is-disabled', disabled)
-    }
+    state.presetsDisabled = disabled
   }
 
   const handleProgressEvent = (progress: unknown): void => {

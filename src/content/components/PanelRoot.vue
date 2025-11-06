@@ -66,19 +66,7 @@
           </button>
         </div>
         <div class="chaospace-history-controls" data-role="history-controls">
-          <div class="chaospace-history-tabs" data-role="history-tabs">
-            <button type="button" class="chaospace-history-tab is-active" data-filter="all">
-              全部
-            </button>
-            <button type="button" class="chaospace-history-tab" data-filter="series">剧集</button>
-            <button type="button" class="chaospace-history-tab" data-filter="ongoing">
-              未完结
-            </button>
-            <button type="button" class="chaospace-history-tab" data-filter="completed">
-              已完结
-            </button>
-            <button type="button" class="chaospace-history-tab" data-filter="movie">电影</button>
-          </div>
+          <HistoryFilterTabs />
           <div class="chaospace-history-search">
             <span class="chaospace-history-search-icon" aria-hidden="true">🔍</span>
             <input
@@ -383,7 +371,7 @@
             <div class="chaospace-card chaospace-path-card">
               <div class="chaospace-card-title">📁 转存目录</div>
               <div class="chaospace-card-body">
-                <div class="chaospace-preset-list" data-role="preset-list"></div>
+                <PresetList />
                 <div class="chaospace-input-row">
                   <input type="text" placeholder="/视频/番剧" data-role="base-dir" />
                   <button type="button" data-role="add-preset">收藏路径</button>
@@ -441,6 +429,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import PanelToolbar from './PanelToolbar.vue'
+import HistoryFilterTabs from './history/HistoryFilterTabs.vue'
+import PresetList from './PresetList.vue'
 
 type PanelTheme = 'light' | 'dark'
 

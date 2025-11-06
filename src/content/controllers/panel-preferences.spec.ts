@@ -26,7 +26,6 @@ describe('panel preferences controller', () => {
     panelDom.settingsUseSeason.type = 'checkbox'
     panelDom.baseDirInput = document.createElement('input')
     panelDom.baseDirInput.value = '/'
-    panelDom.presetList = document.createElement('div')
     panelDom.addPresetButton = document.createElement('button')
   })
 

@@ -169,38 +169,7 @@ export function createPanelPreferencesController({
   }
 
   function renderPresets(): void {
-    const presetList = panelDom.presetList
-    if (!presetList) {
-      return
-    }
-    presetList.innerHTML = ''
-    const presets = Array.from(new Set(['/', ...state.presets]))
-    presets.forEach((preset) => {
-      const group = document.createElement('div')
-      group.className = 'chaospace-chip-group'
-
-      const selectBtn = document.createElement('button')
-      selectBtn.type = 'button'
-      selectBtn.className = `chaospace-chip-button${preset === state.baseDir ? ' is-active' : ''}`
-      selectBtn.dataset['action'] = 'select'
-      selectBtn.dataset['value'] = preset
-      selectBtn.textContent = preset
-      group.appendChild(selectBtn)
-
-      const isRemovable = preset !== '/' && !DEFAULT_PRESETS.includes(preset)
-      if (isRemovable) {
-        const removeBtn = document.createElement('button')
-        removeBtn.type = 'button'
-        removeBtn.className = 'chaospace-chip-remove'
-        removeBtn.dataset['action'] = 'remove'
-        removeBtn.dataset['value'] = preset
-        removeBtn.setAttribute('aria-label', `移除 ${preset}`)
-        removeBtn.textContent = '×'
-        group.appendChild(removeBtn)
-      }
-
-      presetList.appendChild(group)
-    })
+    // Presets list now renders via Vue component; retained for compatibility.
   }
 
   function renderPathPreview(): void {

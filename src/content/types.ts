@@ -194,6 +194,7 @@ export interface ContentState {
   statusMessage: string
   theme: string
   toolbarDisabled: boolean
+  presetsDisabled: boolean
   completion: CompletionStatus | null
   seasonCompletion: Record<string, CompletionStatus>
   seasonEntries: SeasonEntry[]
@@ -234,7 +235,6 @@ export interface PanelDomRefs {
   seasonRow?: HTMLElement | null
   seasonPathHint?: HTMLElement | null
   pathPreview?: HTMLElement | null
-  presetList?: HTMLElement | null
   addPresetButton?: HTMLButtonElement | null
   themeToggle?: HTMLButtonElement | null
   settingsToggle?: HTMLButtonElement | null
@@ -269,7 +269,6 @@ export interface PanelDomRefs {
   historySummary?: HTMLElement | null
   historySummaryBody?: HTMLElement | null
   historyControls?: HTMLElement | null
-  historyTabs?: HTMLElement | null
   historySearch?: HTMLInputElement | null
   historySearchClear?: HTMLButtonElement | null
   historySelectAll?: HTMLInputElement | null
