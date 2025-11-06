@@ -520,12 +520,10 @@ export async function checkDirectoryExists(
       path: normalized,
       errno: data.errno,
     })
-    logStage?.(
-      jobId,
-      'list',
-      `目录缺失：${normalized}${contextLabel}（errno ${data.errno}），准备创建`,
-      { level: 'warning' },
-    )
+    logStage?.(jobId, 'list', `目录未找到：${normalized}${contextLabel}，准备创建`, {
+      level: 'info',
+      detail: `errno ${data.errno}`,
+    })
     return false
   }
 

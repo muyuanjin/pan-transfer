@@ -28,6 +28,8 @@ const STAGE_LABEL_MAP: Record<string, string> = {
   fatal: '💥 故障',
   init: '🚦 初始化',
   error: '⛔ 错误',
+  filter: '🧹 过滤',
+  rename: '✏️ 重命名',
 }
 
 const STATUS_EMOJI_MAP: Record<TransferStatus, string> = {

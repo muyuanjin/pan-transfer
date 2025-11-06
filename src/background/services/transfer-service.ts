@@ -57,10 +57,8 @@ interface RenameExecutionResult {
   details: RenameResultDetail[]
 }
 
-const FILTER_LOG_PREVIEW_LIMIT = 8
 const FILTER_RULE_SUMMARY_LIMIT = 5
 const FILTER_RULE_SAMPLE_LIMIT = 4
-const RENAME_LOG_PREVIEW_LIMIT = 12
 const RENAME_RULE_SUMMARY_LIMIT = 6
 const RENAME_RULE_SAMPLE_LIMIT = 4
 
@@ -410,7 +408,6 @@ async function executeRenamePlan(
   const details: RenameResultDetail[] = []
   const finalNames: string[] = []
   const changedCount = plan.filter((entry) => entry.changed).length
-  let renameLogCount = 0
   const renameRuleSummaries = new Map<string, { count: number; samples: string[] }>()
 
   if (!changedCount) {
@@ -427,9 +424,6 @@ async function executeRenamePlan(
   }
 
   const titleLabel = context ? `《${context}》` : '资源'
-  logStage(jobId, 'rename', `${titleLabel}准备重命名 ${changedCount} 项`, {
-    level: 'info',
-  })
 
   let successCount = 0
   let failureCount = 0
@@ -468,16 +462,6 @@ async function executeRenamePlan(
             }
             renameRuleSummaries.set(label, summary)
           })
-        }
-        if (renameLogCount < RENAME_LOG_PREVIEW_LIMIT) {
-          const ruleDetail = entry.appliedRules.length
-            ? `规则：${entry.appliedRules.join('、')}`
-            : '重命名规则'
-          logStage(jobId, 'rename', `${titleLabel}重命名：${originalName} → ${entry.finalName}`, {
-            level: 'info',
-            detail: ruleDetail,
-          })
-          renameLogCount += 1
         }
       } else {
         failureCount += 1
@@ -519,34 +503,19 @@ async function executeRenamePlan(
     await delay(120)
   }
 
+  let renameRuleDetailText: string | undefined
   if (renameRuleSummaries.size) {
     const summaryEntries = Array.from(renameRuleSummaries.entries())
+    const detailParts: string[] = []
     summaryEntries.slice(0, RENAME_RULE_SUMMARY_LIMIT).forEach(([ruleLabel, summary]) => {
-      const sampleDetail = summary.samples.length ? `示例：${summary.samples.join('、')}` : ''
-      logStage(
-        jobId,
-        'rename',
-        `${titleLabel}重命名规则「${ruleLabel}」命中 ${summary.count} 项`,
-        buildInfoExtra(sampleDetail),
-      )
+      const sampleDetail = summary.samples.length ? `（${summary.samples.join('、')}）` : ''
+      detailParts.push(`规则「${ruleLabel}」命中 ${summary.count} 项${sampleDetail}`)
     })
     if (summaryEntries.length > RENAME_RULE_SUMMARY_LIMIT) {
       const remainingRules = summaryEntries.length - RENAME_RULE_SUMMARY_LIMIT
-      logStage(jobId, 'rename', `${titleLabel}重命名规则：另有 ${remainingRules} 条规则命中`, {
-        level: 'info',
-      })
+      detailParts.push(`另有 ${remainingRules} 条规则命中`)
     }
-  }
-
-  if (renameLogCount >= RENAME_LOG_PREVIEW_LIMIT && successCount > renameLogCount) {
-    logStage(
-      jobId,
-      'rename',
-      `${titleLabel}重命名：还有 ${successCount - renameLogCount} 项成功记录未逐一展示`,
-      {
-        level: 'info',
-      },
-    )
+    renameRuleDetailText = detailParts.join(' ｜ ')
   }
 
   if (successCount || failureCount) {
@@ -554,9 +523,22 @@ async function executeRenamePlan(
       failureCount > 0
         ? `成功 ${successCount} 项，失败 ${failureCount} 项`
         : `成功 ${successCount} 项`
-    logStage(jobId, 'rename', `${titleLabel}重命名完成：${summaryDetail}`, {
-      level: failureCount ? 'warning' : 'success',
-    })
+    const detailParts: string[] = []
+    if (renameRuleDetailText) {
+      detailParts.push(renameRuleDetailText)
+    }
+    const logDetail = detailParts.length ? detailParts.join(' ｜ ') : undefined
+    const logLevel = failureCount ? 'warning' : 'success'
+    if (logDetail) {
+      logStage(jobId, 'rename', `${titleLabel}重命名完成：${summaryDetail}`, {
+        level: logLevel,
+        detail: logDetail,
+      })
+    } else {
+      logStage(jobId, 'rename', `${titleLabel}重命名完成：${summaryDetail}`, {
+        level: logLevel,
+      })
+    }
   }
 
   return { finalNames, details }
@@ -795,40 +777,26 @@ export async function handleTransfer(
               ruleSummaryMap.set(label, summary)
             })
             const summaryEntries = Array.from(ruleSummaryMap.entries())
+            const detailParts: string[] = []
             summaryEntries.slice(0, FILTER_RULE_SUMMARY_LIMIT).forEach(([ruleLabel, summary]) => {
               const actionLabel = summary.action === 'exclude' ? '剔除' : '保留'
               const sampleDetail = summary.samples.length
-                ? `示例：${summary.samples.join('、')}`
+                ? `（${summary.samples.join('、')}）`
                 : ''
-              logStage(
-                jobId,
-                'filter',
-                `${itemLabel}过滤规则「${ruleLabel}」${actionLabel} ${summary.count} 项`,
-                buildInfoExtra(sampleDetail),
-              )
+              const entryDetail = `规则「${ruleLabel}」${actionLabel} ${summary.count} 项${sampleDetail}`
+              detailParts.push(entryDetail)
             })
             if (summaryEntries.length > FILTER_RULE_SUMMARY_LIMIT) {
               const remainingRules = summaryEntries.length - FILTER_RULE_SUMMARY_LIMIT
-              logStage(jobId, 'filter', `${itemLabel}过滤规则：另有 ${remainingRules} 条规则命中`, {
-                level: 'info',
-              })
+              detailParts.push(`另有 ${remainingRules} 条规则命中`)
             }
-            filteredByRules.slice(0, FILTER_LOG_PREVIEW_LIMIT).forEach((skip) => {
-              const ruleLabel = skip.ruleName ? `命中规则「${skip.ruleName}」` : '命中过滤规则'
-              logStage(jobId, 'filter', `${itemLabel}跳过文件：${skip.name}`, {
-                level: 'info',
-                detail: `${ruleLabel}，动作：${skip.action === 'exclude' ? '剔除' : '保留'}`,
-              })
-            })
-            if (filteredByRules.length > FILTER_LOG_PREVIEW_LIMIT) {
-              const remaining = filteredByRules.length - FILTER_LOG_PREVIEW_LIMIT
-              logStage(jobId, 'filter', `${itemLabel}过滤命中：另有 ${remaining} 项被跳过`, {
-                level: 'info',
-              })
-            }
-            logStage(jobId, 'filter', `${itemLabel}过滤命中：跳过 ${filteredByRules.length} 项`, {
-              level: 'info',
-            })
+            const detailText = detailParts.length ? detailParts.join(' ｜ ') : undefined
+            logStage(
+              jobId,
+              'filter',
+              `${itemLabel}过滤命中：跳过 ${filteredByRules.length} 项`,
+              buildInfoExtra(detailText),
+            )
           }
           meta.entries = filterResult.entries
           meta.fsIds = filterResult.entries.map((entry) => entry.fsId)

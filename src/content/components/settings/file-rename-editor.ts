@@ -135,7 +135,7 @@ function createRuleCard(doc: Document, rule?: FileRenameRule): HTMLElement {
   flagsInput.className = 'chaospace-rule-input'
   const flagsHint = doc.createElement('p')
   flagsHint.className = 'chaospace-condition-hint'
-  flagsHint.textContent = '示例：gi 表示全局 + 忽略大小写，若需多种行为直接连续输入字母（如 gms）。'
+  flagsHint.textContent = '示例：gi 表示全局 + 忽略大小写，若需多种行为直接连续输入字母（如 gms）。g: 全局匹配，i: 忽略大小写，m: 多行模式，s: 使 . 匹配换行符，u: Unicode 模式，y: 粘连匹配。'
   flagsGroup.append(flagsLabel, flagsInput, flagsHint)
 
   const replacementGroup = doc.createElement('div')
