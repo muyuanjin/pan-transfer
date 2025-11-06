@@ -16,6 +16,7 @@ interface PanelPreferencesDeps {
   updateSeasonExampleDir: () => void
   getTargetPath: (baseDir: string, useTitleSubdir: boolean, pageTitle: string) => string
   showToast: ToastHandler
+  onSeasonDefaultChange: (value: boolean) => void
 }
 
 interface StoredSettings {
@@ -69,6 +70,7 @@ export function createPanelPreferencesController({
   updateSeasonExampleDir,
   getTargetPath,
   showToast,
+  onSeasonDefaultChange,
 }: PanelPreferencesDeps): PanelPreferencesController {
   async function loadSettings(): Promise<void> {
     try {
@@ -88,10 +90,13 @@ export function createPanelPreferencesController({
       if (typeof settings.useTitleSubdir === 'boolean') {
         state.useTitleSubdir = settings.useTitleSubdir
       }
-      if (typeof settings.useSeasonSubdir === 'boolean') {
-        state.useSeasonSubdir = settings.useSeasonSubdir
-        state.hasSeasonSubdirPreference = true
+      const hasSeasonDefault = typeof settings.useSeasonSubdir === 'boolean'
+      const seasonDefault = hasSeasonDefault ? Boolean(settings.useSeasonSubdir) : false
+      state.seasonSubdirDefault = seasonDefault
+      if (state.seasonPreferenceScope === 'default') {
+        state.useSeasonSubdir = seasonDefault
       }
+      onSeasonDefaultChange(seasonDefault)
       if (Array.isArray(settings.presets)) {
         const merged = [...settings.presets, ...DEFAULT_PRESETS].map(sanitizePreset).filter(Boolean)
         const unique = Array.from(new Set(merged))
@@ -122,9 +127,7 @@ export function createPanelPreferencesController({
         presets: state.presets,
         theme: themeValue,
         historyRateLimitMs: clampHistoryRateLimit(state.historyRateLimitMs),
-      }
-      if (state.hasSeasonSubdirPreference) {
-        settings.useSeasonSubdir = state.useSeasonSubdir
+        useSeasonSubdir: state.seasonSubdirDefault,
       }
       await safeStorageSet(
         {

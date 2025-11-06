@@ -1,10 +1,10 @@
 import { normalizeDir } from '../../../services/page-analyzer'
-import { dedupeSeasonDirMap, updateSeasonExampleDir } from '../../../services/season-manager'
 import type { PanelDomRefs } from '../../../types'
 import type { ContentStore } from '../../../state'
 import type { createPanelPreferencesController } from '../../../controllers/panel-preferences'
 import type { ToastHandler } from '../../../components/toast'
 import type { Binder } from './types'
+import type { TabSeasonPreferenceController } from '../../../services/tab-season-preference'
 
 type PanelPreferencesController = ReturnType<typeof createPanelPreferencesController>
 
@@ -12,16 +12,16 @@ interface BaseDirBinderDeps {
   panelDom: PanelDomRefs
   state: ContentStore
   preferences: PanelPreferencesController
-  renderResourceList: () => void
   showToast: ToastHandler
+  seasonPreference: TabSeasonPreferenceController
 }
 
 export function createBaseDirBinder({
   panelDom,
   state,
   preferences,
-  renderResourceList,
   showToast,
+  seasonPreference,
 }: BaseDirBinderDeps): Binder {
   return {
     bind(): () => void {
@@ -81,13 +81,8 @@ export function createBaseDirBinder({
       if (panelDom.useSeasonCheckbox) {
         panelDom.useSeasonCheckbox.checked = state.useSeasonSubdir
         add(panelDom.useSeasonCheckbox, 'change', () => {
-          state.useSeasonSubdir = Boolean(panelDom.useSeasonCheckbox?.checked)
-          state.hasSeasonSubdirPreference = true
-          dedupeSeasonDirMap()
-          updateSeasonExampleDir()
-          preferences.renderPathPreview()
-          renderResourceList()
-          void preferences.saveSettings()
+          const nextValue = Boolean(panelDom.useSeasonCheckbox?.checked)
+          void seasonPreference.applyUserSelection(nextValue)
         })
       }
 

@@ -26,6 +26,7 @@ import type { ToastHandler } from '../../components/toast'
 import { suggestDirectoryFromClassification } from '../../services/page-analyzer'
 import { formatOriginLabel } from '../../utils/format'
 import { resetPanelRuntimeState } from '../panel-state'
+import type { TabSeasonPreferenceController } from '../../services/tab-season-preference'
 
 type LoggingController = ReturnType<typeof createLoggingController>
 type PanelPreferencesController = ReturnType<typeof createPanelPreferencesController>
@@ -55,6 +56,7 @@ interface PanelFactoryDeps {
   getFloatingPanel: () => HTMLElement | null
   setFloatingPanel: (panel: HTMLElement | null) => void
   showToast: ToastHandler
+  seasonPreference: TabSeasonPreferenceController
 }
 
 export interface PanelFactory {
@@ -87,6 +89,7 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
     getFloatingPanel,
     setFloatingPanel,
     showToast,
+    seasonPreference,
   } = deps
 
   let panelCreationInProgress = false
@@ -210,6 +213,10 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
 
     try {
       await preferences.loadSettings()
+      if (token !== lifecycleToken) {
+        return false
+      }
+      await seasonPreference.initialize()
       if (token !== lifecycleToken) {
         return false
       }

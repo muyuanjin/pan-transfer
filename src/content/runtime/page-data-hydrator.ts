@@ -5,11 +5,7 @@ import {
   sanitizeSeasonDirSegment,
   suggestDirectoryFromClassification,
 } from '../services/page-analyzer'
-import {
-  ensureSeasonSubdirDefault,
-  rebuildSeasonDirMap,
-  updateSeasonExampleDir,
-} from '../services/season-manager'
+import { rebuildSeasonDirMap, updateSeasonExampleDir } from '../services/season-manager'
 import {
   normalizeHistoryCompletion,
   normalizeSeasonCompletionMap,
@@ -117,7 +113,6 @@ export function createPageDataHydrator(): PageDataHydrator {
     state.selectedIds = new Set(state.items.map((item) => item.id))
 
     rebuildSeasonDirMap({ preserveExisting: false })
-    ensureSeasonSubdirDefault()
     updateSeasonExampleDir()
 
     state.deferredSeasonInfos = deferredSeasons

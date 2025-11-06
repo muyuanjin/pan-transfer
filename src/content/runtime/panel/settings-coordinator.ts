@@ -7,6 +7,7 @@ import type { createHistoryController } from '../../history/controller'
 import type { PanelShellInstance, SettingsModalHandle } from '../types'
 import { POSITION_KEY, SIZE_KEY } from '../../constants'
 import { renderSeasonHint } from '../../services/season-manager'
+import type { TabSeasonPreferenceController } from '../../services/tab-season-preference'
 
 type PanelPreferencesController = ReturnType<typeof createPanelPreferencesController>
 type HistoryController = ReturnType<typeof createHistoryController>
@@ -18,6 +19,7 @@ interface SettingsCoordinatorDeps {
   history: HistoryController
   renderResourceList: () => void
   showToast: ToastHandler
+  seasonPreference: TabSeasonPreferenceController
 }
 
 export interface SettingsCoordinator {
@@ -31,6 +33,7 @@ export function createSettingsCoordinator({
   history,
   renderResourceList,
   showToast,
+  seasonPreference,
 }: SettingsCoordinatorDeps): SettingsCoordinator {
   const attachToShell = (shell: PanelShellInstance): SettingsModalHandle => {
     const {
@@ -103,6 +106,7 @@ export function createSettingsCoordinator({
       loadHistory: () => history.loadHistory(),
       closeHistoryDetail: (options) => history.closeHistoryDetail(options),
       onResetLayout: handleResetLayout,
+      handleSeasonDefaultChange: (value) => seasonPreference.handleGlobalDefaultChange(value),
     })
   }
 

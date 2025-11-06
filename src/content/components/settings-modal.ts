@@ -108,6 +108,7 @@ export interface CreateSettingsModalOptions {
   loadHistory: (() => Promise<void> | void) | undefined
   closeHistoryDetail: ((options?: Record<string, unknown>) => void) | undefined
   onResetLayout: (() => void | Promise<void>) | undefined
+  handleSeasonDefaultChange: (value: boolean) => void
 }
 
 export interface SettingsModalHandles {
@@ -126,7 +127,7 @@ function buildSettingsSnapshot(): SettingsSnapshot {
   return {
     baseDir: state.baseDir,
     useTitleSubdir: state.useTitleSubdir,
-    useSeasonSubdir: state.useSeasonSubdir,
+    useSeasonSubdir: state.seasonSubdirDefault,
     presets: [...state.presets],
     theme: state.theme === 'light' ? 'light' : 'dark',
     historyRateLimitMs: clampHistoryRateLimit(state.historyRateLimitMs),
@@ -215,7 +216,7 @@ function extractSettingsFormValues(
     : state.useTitleSubdir
   const useSeason = domRefs.useSeasonCheckbox
     ? domRefs.useSeasonCheckbox.checked
-    : state.useSeasonSubdir
+    : state.seasonSubdirDefault
   const themeValue = (() => {
     if (!domRefs.themeSegment) {
       return state.theme === 'light' ? 'light' : 'dark'
@@ -300,6 +301,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     loadHistory,
     closeHistoryDetail,
     onResetLayout,
+    handleSeasonDefaultChange,
   } = options
 
   const domRefs: SettingsDomRefs = {
@@ -400,7 +402,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
       domRefs.useTitleCheckbox.checked = state.useTitleSubdir
     }
     if (domRefs.useSeasonCheckbox) {
-      domRefs.useSeasonCheckbox.checked = state.useSeasonSubdir
+      domRefs.useSeasonCheckbox.checked = state.seasonSubdirDefault
     }
     ensureThemeSegmentBinding()
     setThemeSegmentValue(state.theme === 'light' ? 'light' : 'dark')
@@ -427,7 +429,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     const useTitle = typeof useTitleValue === 'boolean' ? useTitleValue : state.useTitleSubdir
     const seasonPrefValue = nextSettings['useSeasonSubdir']
     const hasSeasonPref = typeof seasonPrefValue === 'boolean'
-    const useSeason = hasSeasonPref ? Boolean(seasonPrefValue) : state.useSeasonSubdir
+    const seasonDefault = hasSeasonPref ? Boolean(seasonPrefValue) : state.seasonSubdirDefault
     const themeValue = nextSettings['theme']
     const theme = themeValue === 'light' || themeValue === 'dark' ? themeValue : state.theme
     const rateValue = nextSettings['historyRateLimitMs']
@@ -448,8 +450,11 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     state.useTitleSubdir = useTitle
     state.historyRateLimitMs = rateMs
     if (hasSeasonPref) {
-      state.useSeasonSubdir = useSeason
-      state.hasSeasonSubdirPreference = true
+      state.seasonSubdirDefault = seasonDefault
+      if (state.seasonPreferenceScope === 'default') {
+        state.useSeasonSubdir = seasonDefault
+      }
+      handleSeasonDefaultChange(seasonDefault)
     }
     const previousTheme = state.theme
     state.theme = theme

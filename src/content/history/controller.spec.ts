@@ -3,6 +3,7 @@ import { createHistoryController } from './controller'
 import { createPanelRuntimeState } from '../runtime/panel-state'
 import { state, panelDom } from '../state'
 import type { ContentHistoryRecord } from '../types'
+import type { TabSeasonPreferenceController } from '../services/tab-season-preference'
 
 function buildHistoryRecord(overrides: Partial<ContentHistoryRecord> = {}): ContentHistoryRecord {
   const now = Date.now()
@@ -41,7 +42,22 @@ describe('history controller', () => {
     const renderResourceList = vi.fn()
     const renderPathPreview = vi.fn()
     const renderSeasonHint = vi.fn()
-    const saveSettings = vi.fn()
+
+    const seasonPreference: TabSeasonPreferenceController = {
+      initialize: vi.fn(),
+      applyUserSelection: vi.fn(),
+      applyHistorySelection: vi.fn().mockImplementation(async (value: boolean) => {
+        state.useSeasonSubdir = value
+        state.seasonPreferenceScope = value === state.seasonSubdirDefault ? 'default' : 'tab'
+        if (panelDom.useSeasonCheckbox) {
+          panelDom.useSeasonCheckbox.checked = value
+        }
+        renderSeasonHint()
+        renderPathPreview()
+      }),
+      handleGlobalDefaultChange: vi.fn(),
+      syncCheckboxes: vi.fn(),
+    }
 
     const history = createHistoryController({
       getFloatingPanel: () => document.createElement('div'),
@@ -49,24 +65,23 @@ describe('history controller', () => {
       renderResourceList,
       renderPathPreview,
       renderSeasonHint,
-      saveSettings,
+      seasonPreference,
     })
 
     const targetUrl = 'https://www.chaospace.cc/tvshows/123.html'
     state.pageUrl = targetUrl
     state.historyRecords = [buildHistoryRecord({ pageUrl: targetUrl, useSeasonSubdir: true })]
 
-    expect(state.hasSeasonSubdirPreference).toBe(false)
     expect(state.useSeasonSubdir).toBe(false)
+    expect(state.seasonPreferenceScope).toBe('default')
 
     history.applyHistoryToCurrentPage()
 
     expect(state.useSeasonSubdir).toBe(true)
-    expect(state.hasSeasonSubdirPreference).toBe(true)
     expect(panelDom.useSeasonCheckbox?.checked).toBe(true)
-    expect(panelDom.settingsUseSeason?.checked).toBe(true)
+    expect(panelDom.settingsUseSeason?.checked).toBe(false)
     expect(renderPathPreview).toHaveBeenCalled()
     expect(renderSeasonHint).toHaveBeenCalled()
-    expect(saveSettings).toHaveBeenCalled()
+    expect(seasonPreference.applyHistorySelection).toHaveBeenCalledWith(true)
   })
 })

@@ -1,10 +1,6 @@
 import { state } from '../state'
 import { sanitizeSeasonDirSegment } from './page-analyzer'
-import {
-  rebuildSeasonDirMap,
-  ensureSeasonSubdirDefault,
-  updateSeasonExampleDir,
-} from './season-manager'
+import { rebuildSeasonDirMap, updateSeasonExampleDir } from './season-manager'
 import { summarizeSeasonCompletion, type CompletionStatus } from '@/shared/utils/completion-status'
 import type { PosterInfo } from '@/shared/utils/sanitizers'
 import type { DeferredSeasonInfo, ResourceItem } from '../types'
@@ -147,7 +143,6 @@ export function createSeasonLoader({
     }
 
     rebuildSeasonDirMap()
-    ensureSeasonSubdirDefault()
     updateSeasonExampleDir()
 
     const completionEntries = Object.values(state.seasonCompletion || {}).filter(Boolean)

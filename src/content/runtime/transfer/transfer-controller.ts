@@ -3,13 +3,10 @@ import type { createHistoryController } from '../../history/controller'
 import type { createPanelPreferencesController } from '../../controllers/panel-preferences'
 import type { createLoggingController } from '../../controllers/logging-controller'
 import type { PanelDomRefs, ResourceItem } from '../../types'
-import {
-  computeItemTargetPath,
-  dedupeSeasonDirMap,
-  getTargetPath,
-} from '../../services/season-manager'
+import { computeItemTargetPath, getTargetPath } from '../../services/season-manager'
 import { normalizePageUrl } from '../../services/page-analyzer'
 import { showToast } from '../../components/toast'
+import type { TabSeasonPreferenceController } from '../../services/tab-season-preference'
 
 export interface TransferController {
   handleTransfer: () => Promise<void>
@@ -29,6 +26,7 @@ export function createTransferController(deps: {
   getFloatingPanel: () => HTMLElement | null
   updateTransferButton: () => void
   renderPathPreview: () => void
+  seasonPreference: TabSeasonPreferenceController
 }): TransferController {
   const {
     panelDom,
@@ -38,6 +36,7 @@ export function createTransferController(deps: {
     getFloatingPanel,
     updateTransferButton,
     renderPathPreview,
+    seasonPreference,
   } = deps
 
   const setControlsDisabled = (disabled: boolean): void => {
@@ -117,10 +116,10 @@ export function createTransferController(deps: {
       void preferences.saveSettings()
     }
     if (panelDom.useSeasonCheckbox) {
-      state.useSeasonSubdir = panelDom.useSeasonCheckbox.checked
-      state.hasSeasonSubdirPreference = true
-      dedupeSeasonDirMap()
-      void preferences.saveSettings()
+      const nextSeasonValue = Boolean(panelDom.useSeasonCheckbox.checked)
+      if (nextSeasonValue !== state.useSeasonSubdir) {
+        await seasonPreference.applyUserSelection(nextSeasonValue)
+      }
     }
 
     const targetDirectory = getTargetPath(state.baseDir, state.useTitleSubdir, state.pageTitle)

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { renderSeasonControls, ensureSeasonSubdirDefault } from './season-manager'
+import { renderSeasonControls } from './season-manager'
 import { state, panelDom } from '../state'
 
 function resetLocation(pathname = '/'): void {
@@ -32,7 +32,9 @@ describe('season-manager', () => {
     resetLocation('/')
     state.items = []
     state.useSeasonSubdir = false
-    state.hasSeasonSubdirPreference = false
+    state.seasonSubdirDefault = false
+    state.seasonPreferenceScope = 'default'
+    state.seasonPreferenceTabId = null
     state.baseDir = '/'
     state.pageTitle = 'Sample Show'
     state.useTitleSubdir = true
@@ -43,7 +45,7 @@ describe('season-manager', () => {
     panelDom.useSeasonCheckbox = null
   })
 
-  it('defaults to season subdirectories for single-season tv shows without preference', () => {
+  it('does not auto-enable season subdirectories without explicit preference', () => {
     resetLocation('/tvshows/428628.html')
     state.items = [
       {
@@ -54,27 +56,18 @@ describe('season-manager', () => {
         seasonIndex: 0,
       },
     ]
+    const seasonRow = document.createElement('label')
+    seasonRow.style.display = 'none'
+    const seasonCheckbox = document.createElement('input')
+    seasonCheckbox.type = 'checkbox'
+    seasonCheckbox.checked = true
+    panelDom.seasonRow = seasonRow
+    panelDom.useSeasonCheckbox = seasonCheckbox
 
-    ensureSeasonSubdirDefault()
+    renderSeasonControls()
 
-    expect(state.useSeasonSubdir).toBe(true)
-  })
-
-  it('also enables season subdirectories on standalone season pages', () => {
-    resetLocation('/seasons/428609.html')
-    state.items = [
-      {
-        id: 'r1',
-        title: 'Season 1 E01',
-        order: 0,
-        seasonId: '428609',
-        seasonIndex: 0,
-      },
-    ]
-
-    ensureSeasonSubdirDefault()
-
-    expect(state.useSeasonSubdir).toBe(true)
+    expect(seasonRow.style.display).toBe('flex')
+    expect(seasonCheckbox.checked).toBe(false)
   })
 
   it('shows season controls for single-season tv shows and keeps checkbox synced', () => {

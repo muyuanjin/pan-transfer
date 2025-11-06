@@ -6,6 +6,11 @@ import {
   ensureHistoryLoaded,
 } from './storage/history-store'
 import { ensureCacheLoaded } from './storage/cache-store'
+import {
+  clearTabSeasonPreference,
+  getTabSeasonPreference,
+  setTabSeasonPreference,
+} from './storage/season-preference-store'
 import type { TransferRequestPayload } from '../shared/types/transfer'
 
 interface JobContext {
@@ -47,12 +52,30 @@ interface TransferMessage {
   payload?: TransferRequestPayload
 }
 
+interface SeasonPreferenceInitMessage {
+  type: 'chaospace:season-pref:init'
+}
+
+interface SeasonPreferenceUpdateMessage {
+  type: 'chaospace:season-pref:update'
+  payload?: {
+    value?: unknown
+  }
+}
+
+interface SeasonPreferenceClearMessage {
+  type: 'chaospace:season-pref:clear'
+}
+
 type BackgroundMessage =
   | HistoryDeleteMessage
   | HistoryClearMessage
   | HistoryDetailMessage
   | CheckUpdatesMessage
   | TransferMessage
+  | SeasonPreferenceInitMessage
+  | SeasonPreferenceUpdateMessage
+  | SeasonPreferenceClearMessage
   | {
       type?: string
       payload?: unknown
@@ -73,6 +96,17 @@ const isCheckUpdatesMessage = (message: BackgroundMessage): message is CheckUpda
 const isTransferMessage = (message: BackgroundMessage): message is TransferMessage =>
   message?.type === 'chaospace:transfer'
 
+const isSeasonPreferenceInitMessage = (
+  message: BackgroundMessage,
+): message is SeasonPreferenceInitMessage => message?.type === 'chaospace:season-pref:init'
+
+const isSeasonPreferenceUpdateMessage = (
+  message: BackgroundMessage,
+): message is SeasonPreferenceUpdateMessage => message?.type === 'chaospace:season-pref:update'
+
+const isSeasonPreferenceClearMessage = (
+  message: BackgroundMessage,
+): message is SeasonPreferenceClearMessage => message?.type === 'chaospace:season-pref:clear'
 const jobContexts = new Map<string, JobContext>()
 
 function isIgnorableMessageError(error: unknown): boolean {
@@ -180,6 +214,72 @@ async function bootstrapStores(): Promise<void> {
 bootstrapStores()
 
 chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendResponse) => {
+  if (isSeasonPreferenceInitMessage(message)) {
+    const tabId = sender?.tab?.id
+    if (typeof tabId !== 'number') {
+      sendResponse({ ok: true, tabId: null, value: null })
+      return
+    }
+    getTabSeasonPreference(tabId)
+      .then((value) => sendResponse({ ok: true, tabId, value }))
+      .catch((error) => {
+        console.warn('[Chaospace Transfer] Failed to read tab season preference', {
+          tabId,
+          error,
+        })
+        sendResponse({
+          ok: false,
+          tabId,
+          value: null,
+          error: error instanceof Error ? error.message : '无法读取按季偏好',
+        })
+      })
+    return true
+  }
+
+  if (isSeasonPreferenceUpdateMessage(message)) {
+    const tabId = sender?.tab?.id
+    const rawValue = message.payload?.value
+    if (typeof tabId !== 'number' || typeof rawValue !== 'boolean') {
+      sendResponse({ ok: false, error: '无效的按季偏好更新请求' })
+      return
+    }
+    setTabSeasonPreference(tabId, rawValue)
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => {
+        console.warn('[Chaospace Transfer] Failed to persist tab season preference', {
+          tabId,
+          error,
+        })
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : '无法保存按季偏好',
+        })
+      })
+    return true
+  }
+
+  if (isSeasonPreferenceClearMessage(message)) {
+    const tabId = sender?.tab?.id
+    if (typeof tabId !== 'number') {
+      sendResponse({ ok: false, error: '无法清理按季偏好：缺少标签页' })
+      return
+    }
+    clearTabSeasonPreference(tabId)
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => {
+        console.warn('[Chaospace Transfer] Failed to clear tab season preference', {
+          tabId,
+          error,
+        })
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : '无法清理按季偏好',
+        })
+      })
+    return true
+  }
+
   if (isHistoryDeleteMessage(message)) {
     const urlsInput = message.payload?.urls
     const urls = Array.isArray(urlsInput)
@@ -247,6 +347,10 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
   }
 
   return false
+})
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  void clearTabSeasonPreference(tabId)
 })
 
 chrome.runtime.onInstalled.addListener(() => {

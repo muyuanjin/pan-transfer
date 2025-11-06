@@ -90,6 +90,8 @@ export interface DeferredSeasonInfo {
 
 export type PanelDockSide = 'left' | 'right'
 
+export type SeasonPreferenceScope = 'default' | 'tab'
+
 export interface PanelEdgeState {
   isHidden: boolean
   side: PanelDockSide
@@ -149,7 +151,9 @@ export interface ContentState {
   classificationDetails: unknown
   useTitleSubdir: boolean
   useSeasonSubdir: boolean
-  hasSeasonSubdirPreference: boolean
+  seasonSubdirDefault: boolean
+  seasonPreferenceScope: SeasonPreferenceScope
+  seasonPreferenceTabId: number | null
   presets: string[]
   items: ResourceItem[]
   itemIdSet: Set<string | number>

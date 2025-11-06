@@ -26,6 +26,7 @@ import type { PanelRuntimeState, HistoryGroup } from '../types'
 import { HISTORY_BATCH_RATE_LIMIT_MS, EDGE_HIDE_DELAY } from '../constants'
 import historyDetailCssHref from '../styles/overlays/history-detail.css?url'
 import { loadCss } from '../styles.loader'
+import type { TabSeasonPreferenceController } from '../services/tab-season-preference'
 
 const historyDetailCssUrl = historyDetailCssHref
 let historyDetailCssPromise: Promise<void> | null = null
@@ -50,7 +51,7 @@ interface HistoryControllerDeps {
   renderResourceList: () => void
   renderPathPreview: () => void
   renderSeasonHint: () => void
-  saveSettings: () => void | Promise<void>
+  seasonPreference: TabSeasonPreferenceController
 }
 
 interface LoadHistoryOptions {
@@ -88,7 +89,7 @@ export function createHistoryController(deps: HistoryControllerDeps) {
     renderResourceList,
     renderPathPreview,
     renderSeasonHint,
-    saveSettings,
+    seasonPreference,
   } = deps
 
   function getHistoryGroupByKey(key: string): HistoryGroup | null {
@@ -130,22 +131,12 @@ export function createHistoryController(deps: HistoryControllerDeps) {
         renderPathPreview()
       }
     }
-    if (!state.hasSeasonSubdirPreference && typeof matched.useSeasonSubdir === 'boolean') {
-      state.useSeasonSubdir = matched.useSeasonSubdir
-      state.hasSeasonSubdirPreference = true
-      if (panelDom.useSeasonCheckbox) {
-        panelDom.useSeasonCheckbox.checked = state.useSeasonSubdir
-      }
-      if (panelDom.settingsUseSeason) {
-        panelDom.settingsUseSeason.checked = state.useSeasonSubdir
-      }
-      renderSeasonHint()
-      renderPathPreview()
-      if (saveSettings) {
-        Promise.resolve(saveSettings()).catch((error) => {
-          console.error('[Chaospace Transfer] Failed to persist restored season preference', error)
-        })
-      }
+    if (typeof matched.useSeasonSubdir === 'boolean') {
+      Promise.resolve(seasonPreference.applyHistorySelection(matched.useSeasonSubdir)).catch(
+        (error) => {
+          console.warn('[Chaospace Transfer] Failed to apply history season preference', error)
+        },
+      )
     }
     state.transferredIds = new Set<string | number>(knownIds)
     state.items.forEach((item) => {

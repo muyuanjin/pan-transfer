@@ -13,7 +13,6 @@ import { createPanelPreferencesController } from '../controllers/panel-preferenc
 import { createPanelEdgeController } from '../controllers/panel-edge-controller'
 import {
   computeSeasonTabState,
-  ensureSeasonSubdirDefault,
   filterItemsForActiveSeason,
   getTargetPath,
   renderSeasonControls,
@@ -47,12 +46,27 @@ import { createTransferBinder } from './ui/binders/transfer-binder'
 import { createPinButtonBinder } from './ui/binders/pin-button-binder'
 import { mountPanelShell } from '../components/panel'
 import { showToast } from '../components/toast'
+import { createTabSeasonPreferenceController } from '../services/tab-season-preference'
 
 export function createRuntimeApp() {
   const panelState = createPanelRuntimeState()
   let floatingPanel: HTMLElement | null = null
   let cleanupChromeEvents: (() => void) | null = null
   let initialized = false
+  let tabSeasonPreference: ReturnType<typeof createTabSeasonPreferenceController> | null = null
+
+  const handleSeasonDefaultChange = (value: boolean): void => {
+    const normalized = Boolean(value)
+    if (tabSeasonPreference) {
+      tabSeasonPreference.handleGlobalDefaultChange(normalized)
+      return
+    }
+    const previousDefault = state.seasonSubdirDefault
+    state.seasonSubdirDefault = normalized
+    if (state.seasonPreferenceScope === 'default' || previousDefault !== normalized) {
+      state.useSeasonSubdir = normalized
+    }
+  }
 
   const getFloatingPanel = (): HTMLElement | null => floatingPanel
 
@@ -73,6 +87,7 @@ export function createRuntimeApp() {
     updateSeasonExampleDir,
     getTargetPath,
     showToast,
+    onSeasonDefaultChange: handleSeasonDefaultChange,
   })
 
   const edgeController = createPanelEdgeController({
@@ -94,6 +109,13 @@ export function createRuntimeApp() {
     updatePanelHeader: () => headerPresenter.updateHeader(),
   })
 
+  tabSeasonPreference = createTabSeasonPreferenceController({
+    getFloatingPanel,
+    renderResourceList: () => resourceRenderer.renderResourceList(),
+    renderPathPreview: () => preferences.renderPathPreview(),
+  })
+  tabSeasonPreference.handleGlobalDefaultChange(state.seasonSubdirDefault)
+
   const seasonLoader = createSeasonLoader({
     getFloatingPanel,
     fetchHtmlDocument,
@@ -112,7 +134,7 @@ export function createRuntimeApp() {
     renderResourceList: () => resourceRenderer.renderResourceList(),
     renderPathPreview: () => preferences.renderPathPreview(),
     renderSeasonHint,
-    saveSettings: () => preferences.saveSettings(),
+    seasonPreference: tabSeasonPreference!,
   })
 
   const selectionController = createSelectionController({
@@ -129,14 +151,15 @@ export function createRuntimeApp() {
     getFloatingPanel,
     updateTransferButton: () => headerPresenter.updateTransferButton(),
     renderPathPreview: () => preferences.renderPathPreview(),
+    seasonPreference: tabSeasonPreference!,
   })
 
   const baseDirBinder = createBaseDirBinder({
     panelDom,
     state,
     preferences,
-    renderResourceList: () => resourceRenderer.renderResourceList(),
     showToast,
+    seasonPreference: tabSeasonPreference!,
   })
 
   const presetsBinder = createPresetsBinder({
@@ -207,6 +230,7 @@ export function createRuntimeApp() {
     history,
     renderResourceList: () => resourceRenderer.renderResourceList(),
     showToast,
+    seasonPreference: tabSeasonPreference!,
   })
 
   const panelFactory = createPanelFactory({
@@ -254,6 +278,7 @@ export function createRuntimeApp() {
       floatingPanel = panel
     },
     showToast,
+    seasonPreference: tabSeasonPreference!,
   })
 
   const domLifecycle = createDomLifecycle({
@@ -264,47 +289,17 @@ export function createRuntimeApp() {
   })
 
   const syncSeasonPreferenceFromStorage = (nextValue: boolean | null): void => {
-    const previousValue = state.useSeasonSubdir
-    const hadPreference = state.hasSeasonSubdirPreference
-
-    if (typeof nextValue === 'boolean') {
-      const valueChanged = nextValue !== previousValue || !hadPreference
-      state.useSeasonSubdir = nextValue
-      state.hasSeasonSubdirPreference = true
-      updateSeasonExampleDir()
-      if (!getFloatingPanel()) {
-        return
-      }
-      if (panelDom.useSeasonCheckbox) {
-        panelDom.useSeasonCheckbox.checked = nextValue
-      }
-      if (panelDom.settingsUseSeason) {
-        panelDom.settingsUseSeason.checked = nextValue
-      }
-      if (valueChanged) {
-        renderSeasonHint()
-        preferences.renderPathPreview()
-        resourceRenderer.renderResourceList()
-      }
-      return
-    }
-
-    if (nextValue === null && hadPreference) {
-      state.hasSeasonSubdirPreference = false
-      ensureSeasonSubdirDefault()
-      updateSeasonExampleDir()
-      if (!getFloatingPanel()) {
-        return
-      }
+    const normalized = typeof nextValue === 'boolean' ? nextValue : false
+    handleSeasonDefaultChange(normalized)
+    if (tabSeasonPreference) {
+      tabSeasonPreference.syncCheckboxes()
+    } else {
       if (panelDom.useSeasonCheckbox) {
         panelDom.useSeasonCheckbox.checked = state.useSeasonSubdir
       }
       if (panelDom.settingsUseSeason) {
-        panelDom.settingsUseSeason.checked = state.useSeasonSubdir
+        panelDom.settingsUseSeason.checked = state.seasonSubdirDefault
       }
-      renderSeasonHint()
-      preferences.renderPathPreview()
-      resourceRenderer.renderResourceList()
     }
   }
 

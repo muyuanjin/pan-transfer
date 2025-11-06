@@ -312,14 +312,6 @@ function rebuildSeasonDirMap({
   updateSeasonExampleDir()
 }
 
-function ensureSeasonSubdirDefault(): void {
-  if (state.hasSeasonSubdirPreference) {
-    return
-  }
-  const seasonCount = getSeasonCount()
-  state.useSeasonSubdir = isTvShowPage() && seasonCount > 0
-}
-
 function renderSeasonHint(): void {
   const seasonPathHint = panelDom['seasonPathHint']
   if (!seasonPathHint) {
@@ -431,7 +423,6 @@ export {
   computeSeasonTabState,
   filterItemsForActiveSeason,
   rebuildSeasonDirMap,
-  ensureSeasonSubdirDefault,
   renderSeasonHint,
   renderSeasonControls,
   renderSeasonTabs,
