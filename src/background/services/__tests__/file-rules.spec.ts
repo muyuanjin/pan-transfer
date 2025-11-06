@@ -167,11 +167,15 @@ describe('buildRenamePlan', () => {
       originalName: '[Team] Movie.1080p.WEB-DL.mkv',
       finalName: 'Movie 1080p WEB-DL (1).mkv',
       changed: true,
+      preferredName: 'Movie 1080p WEB-DL.mkv',
+      conflictedWithExisting: true,
     })
     expect(plan[1]).toMatchObject({
       originalName: 'Episode.01.Sample.mkv',
       finalName: 'Episode 01.mkv',
       changed: true,
+      preferredName: 'Episode 01.mkv',
+      conflictedWithExisting: false,
     })
   })
 

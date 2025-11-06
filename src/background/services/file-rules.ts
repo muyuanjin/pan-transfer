@@ -39,6 +39,8 @@ export interface RenamePlanEntry {
   isDir: boolean
   changed: boolean
   appliedRules: string[]
+  preferredName: string
+  conflictedWithExisting: boolean
 }
 
 const COMPOUND_EXTENSION_REGEX =
@@ -490,14 +492,19 @@ export function buildRenamePlan(
       isDir: Boolean(entry.isDir),
       changed: false,
       appliedRules: [],
+      preferredName: entry.serverFilename,
+      conflictedWithExisting: false,
     }))
   }
 
   const usedNames = new Set<string>()
+  const existingLookup = new Set<string>()
   if (existingNames) {
     existingNames.forEach((value) => {
       if (typeof value === 'string' && value) {
-        usedNames.add(value.toLowerCase())
+        const normalized = value.toLowerCase()
+        usedNames.add(normalized)
+        existingLookup.add(normalized)
       }
     })
   }
@@ -540,8 +547,10 @@ export function buildRenamePlan(
     const lowerKey = sanitizedBase.toLowerCase()
     let counter = nameCounters.get(lowerKey) ?? 0
 
-    let finalName = `${sanitizedBase}${extSuffix}`
-    let finalLower = finalName.toLowerCase()
+    const preferredName = `${sanitizedBase}${extSuffix}`
+    const preferredLower = preferredName.toLowerCase()
+    let finalName = preferredName
+    let finalLower = preferredLower
     while (usedNames.has(finalLower)) {
       counter += 1
       const candidateBase = `${sanitizedBase} (${counter})`
@@ -558,6 +567,8 @@ export function buildRenamePlan(
       isDir: Boolean(entry.isDir),
       changed: finalName !== name,
       appliedRules: appliedRuleNames,
+      preferredName,
+      conflictedWithExisting: existingLookup.has(preferredLower),
     }
   })
 }

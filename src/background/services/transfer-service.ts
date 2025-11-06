@@ -627,6 +627,7 @@ export async function handleTransfer(
       let filteredByRules: FilterSkipInfo[] = []
       let renamePlan: RenamePlanEntry[] = []
       let renameResults: RenameResultDetail[] = []
+      let renameConflictSkips: { original: string; preferred: string }[] = []
 
       if (item.linkUrl) {
         detail = {
@@ -857,10 +858,78 @@ export async function handleTransfer(
           filterOptions.jobId = jobId
         }
         const filtered = await filterAlreadyTransferred(meta, targetPath, bdstoken, filterOptions)
+
+        let finalEntries = filtered.fsIds
+          .map((fsId) => entryByFsId.get(fsId))
+          .filter((entry): entry is ShareFileEntry => Boolean(entry))
+
+        renamePlan = finalEntries.length
+          ? buildRenamePlan(finalEntries, processingSettings.renameRules, filtered.existingNames)
+          : []
+
+        if (renamePlan.length) {
+          const conflictEntries = renamePlan.filter((entry) => entry.conflictedWithExisting)
+          if (conflictEntries.length) {
+            renameConflictSkips = conflictEntries.map((entry) => ({
+              original: entry.originalName,
+              preferred: entry.preferredName,
+            }))
+            const allowedFsIds = new Set<number>()
+            renamePlan = renamePlan.filter((entry) => {
+              if (entry.conflictedWithExisting) {
+                return false
+              }
+              allowedFsIds.add(entry.fsId)
+              return true
+            })
+            if (allowedFsIds.size !== filtered.fsIds.length) {
+              const originalFsIds = filtered.fsIds.slice()
+              const originalFileNames = filtered.fileNames.slice()
+              const nextFsIds: number[] = []
+              const nextFileNames: string[] = []
+              originalFsIds.forEach((fsId, idx) => {
+                if (allowedFsIds.has(fsId)) {
+                  nextFsIds.push(fsId)
+                  const name = originalFileNames[idx]
+                  if (typeof name === 'string') {
+                    nextFileNames.push(name)
+                  }
+                }
+              })
+              filtered.fsIds = nextFsIds
+              filtered.fileNames = nextFileNames
+            }
+            finalEntries = finalEntries.filter((entry) => allowedFsIds.has(entry.fsId))
+
+            const detailParts = renameConflictSkips
+              .slice(0, RENAME_RULE_SAMPLE_LIMIT)
+              .map(({ original, preferred }) => `${original} → ${preferred}`)
+            const logDetail = detailParts.length ? detailParts.join('、') : undefined
+            const logExtra: Parameters<typeof logStage>[3] = {
+              level: 'warning',
+            }
+            if (logDetail) {
+              logExtra.detail = logDetail
+            }
+            logStage(
+              jobId,
+              'rename',
+              `${itemLabel}跳过 ${renameConflictSkips.length} 项：重命名后文件已存在`,
+              logExtra,
+            )
+          }
+        }
+
         if (!filtered.fsIds.length) {
+          const combinedSkippedFiles = renameConflictSkips.length
+            ? filtered.skippedFiles.concat(renameConflictSkips.map((entry) => entry.preferred))
+            : filtered.skippedFiles
           const skipReasons: string[] = []
           if (filtered.skippedFiles.length) {
             skipReasons.push(`文件已存在（${filtered.skippedFiles.length} 项）`)
+          }
+          if (renameConflictSkips.length) {
+            skipReasons.push(`重命名后文件已存在（${renameConflictSkips.length} 项）`)
           }
           if (filteredOutNames.length) {
             skipReasons.push(`过滤规则排除 ${filteredOutNames.length} 项`)
@@ -884,7 +953,7 @@ export async function handleTransfer(
             status: 'skipped',
             message,
             files: [],
-            skippedFiles: filtered.skippedFiles,
+            skippedFiles: combinedSkippedFiles,
             linkUrl: detail.linkUrl,
             passCode: detail.passCode,
           }
@@ -894,13 +963,6 @@ export async function handleTransfer(
           results.push(skippedEntry)
           continue
         }
-
-        const finalEntries = filtered.fsIds
-          .map((fsId) => entryByFsId.get(fsId))
-          .filter((entry): entry is ShareFileEntry => Boolean(entry))
-        renamePlan = finalEntries.length
-          ? buildRenamePlan(finalEntries, processingSettings.renameRules, filtered.existingNames)
-          : []
 
         emitProgress(jobId, {
           stage: 'item:transfer',
@@ -984,13 +1046,16 @@ export async function handleTransfer(
             total,
             level: errno === 666 ? 'warning' : 'success',
           })
+          const combinedSkippedFiles = renameConflictSkips.length
+            ? filtered.skippedFiles.concat(renameConflictSkips.map((entry) => entry.preferred))
+            : filtered.skippedFiles
           const successEntry: TransferResultEntry = {
             id: item.id,
             title: item.title,
             status: errno === 666 ? 'skipped' : 'success',
             message: errno === 666 ? mapErrorMessage(666) : '转存成功',
             files: finalFileNames,
-            skippedFiles: filtered.skippedFiles,
+            skippedFiles: combinedSkippedFiles,
             linkUrl: detail.linkUrl,
             passCode: detail.passCode,
           }
@@ -1011,13 +1076,16 @@ export async function handleTransfer(
             total,
             level: 'error',
           })
+          const combinedSkippedFiles = renameConflictSkips.length
+            ? filtered.skippedFiles.concat(renameConflictSkips.map((entry) => entry.preferred))
+            : filtered.skippedFiles
           const failedEntry: TransferResultEntry = {
             id: item.id,
             title: item.title,
             status: 'failed',
             message,
             errno,
-            skippedFiles: filtered.skippedFiles,
+            skippedFiles: combinedSkippedFiles,
           }
           if (filteredOutNames.length) {
             failedEntry.filteredFiles = filteredOutNames.slice()
