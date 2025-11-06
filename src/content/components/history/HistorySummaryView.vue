@@ -5,6 +5,10 @@
     data-role="history-summary-entry"
     role="button"
     tabindex="0"
+    ref="root"
+    @click="handleSummaryActivate"
+    @keydown.enter.prevent="handleSummaryActivate"
+    @keydown.space.prevent="handleSummaryActivate"
   >
     <div class="chaospace-history-summary-topline">
       <span class="chaospace-history-summary-label">🔖 转存历史</span>
@@ -14,6 +18,7 @@
         data-role="history-toggle"
         :aria-expanded="historyExpanded ? 'true' : 'false'"
         :aria-label="historyExpanded ? '收起转存历史' : '展开转存历史'"
+        @click.stop.prevent="emitToggle"
       >
         {{ historyExpanded ? '收起' : '展开' }}
       </button>
@@ -31,7 +36,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { HISTORY_SUMMARY_TOGGLE_EVENT } from './history-events'
 
 const props = defineProps<{
   summary: {
@@ -43,4 +49,22 @@ const props = defineProps<{
 }>()
 
 const emptyMessage = computed<string>(() => props.emptyMessage || '暂无其他转存记录')
+
+const root = ref<HTMLElement | null>(null)
+
+function emitToggle(): void {
+  if (!root.value) {
+    return
+  }
+  root.value.dispatchEvent(
+    new CustomEvent<void>(HISTORY_SUMMARY_TOGGLE_EVENT, {
+      bubbles: true,
+      composed: true,
+    }),
+  )
+}
+
+function handleSummaryActivate(): void {
+  emitToggle()
+}
 </script>

@@ -212,11 +212,6 @@ describe('HistoryCard renderer toggles', () => {
 
     expect(historyEmpty.classList.contains('is-hidden')).toBe(true)
     expect(historyList.innerHTML).not.toBe('')
-    expect(panelDom.historyToggleButtons).toBeDefined()
-    expect(panelDom.historyToggleButtons?.length).toBeGreaterThan(0)
-    panelDom.historyToggleButtons?.forEach((button) => {
-      expect(button.disabled).toBe(false)
-    })
   })
 })
 

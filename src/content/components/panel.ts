@@ -589,10 +589,6 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
   panelDom.historySummaryBody = panel.querySelector<HTMLElement>(
     '[data-role="history-summary-body"]',
   )
-  panelDom.historyControls = panel.querySelector<HTMLElement>('[data-role="history-controls"]')
-  panelDom.historyToggleButtons = Array.from(
-    panel.querySelectorAll<HTMLButtonElement>('[data-role="history-toggle"]'),
-  )
   panelDom.resourceSummary = panel.querySelector<HTMLElement>('[data-role="resource-summary"]')
   panelDom.resourceTitle = panel.querySelector<HTMLElement>('[data-role="resource-title"]')
   panelDom.seasonTabs = panel.querySelector<HTMLElement>('[data-role="season-tabs"]')

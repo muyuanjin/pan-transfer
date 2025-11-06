@@ -184,13 +184,6 @@ export function createHistoryController(deps: HistoryControllerDeps) {
     if (panelDom.historyOverlay) {
       panelDom.historyOverlay.setAttribute('aria-hidden', expanded ? 'false' : 'true')
     }
-    if (Array.isArray(panelDom.historyToggleButtons)) {
-      panelDom.historyToggleButtons.forEach((button) => {
-        button.setAttribute('aria-expanded', expanded ? 'true' : 'false')
-        button.textContent = expanded ? '收起' : '展开'
-        button.setAttribute('aria-label', expanded ? '收起转存历史' : '展开转存历史')
-      })
-    }
   }
 
   function renderHistoryCard(): void {
@@ -634,6 +627,32 @@ export function createHistoryController(deps: HistoryControllerDeps) {
     setHistoryExpanded(!state.historyExpanded)
   }
 
+  function setHistorySeasonExpanded(groupKey: string, expanded: boolean): void {
+    if (!groupKey) {
+      return
+    }
+    const next = new Set(state.historySeasonExpanded || [])
+    const before = next.has(groupKey)
+    if (expanded) {
+      next.add(groupKey)
+    } else {
+      next.delete(groupKey)
+    }
+    if (before === expanded) {
+      return
+    }
+    state.historySeasonExpanded = next
+    renderHistoryCard()
+  }
+
+  function toggleHistorySeasonExpanded(groupKey: string): void {
+    if (!groupKey) {
+      return
+    }
+    const isExpanded = state.historySeasonExpanded.has(groupKey)
+    setHistorySeasonExpanded(groupKey, !isExpanded)
+  }
+
   function selectNewItems(): void {
     if (!state.newItemIds.size) {
       showToast('info', '暂无新增', '没有检测到新的剧集')
@@ -664,6 +683,8 @@ export function createHistoryController(deps: HistoryControllerDeps) {
     setHistorySearchTerm,
     setHistoryExpanded,
     toggleHistoryExpanded,
+    setHistorySeasonExpanded,
+    toggleHistorySeasonExpanded,
     openHistoryDetail,
     closeHistoryDetail,
     triggerHistoryUpdate,

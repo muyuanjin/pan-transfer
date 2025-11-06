@@ -2,6 +2,7 @@ import { createPinia, defineStore, setActivePinia } from 'pinia'
 import { DEFAULT_PRESETS, HISTORY_BATCH_RATE_LIMIT_MS } from '../constants'
 import { DEFAULT_FILE_FILTER_MODE } from '@/shared/settings'
 import type { ContentState, PanelDomRefs, DetailDomRefs } from '../types'
+import { createPanelDomRefs } from '../types'
 
 const pinia = createPinia()
 setActivePinia(pinia)
@@ -87,7 +88,7 @@ export const contentStore = useContentStore(pinia)
 
 export const state: ContentStore = contentStore
 
-export const panelDom: PanelDomRefs = {} as PanelDomRefs
+export const panelDom: PanelDomRefs = createPanelDomRefs()
 export const detailDom: DetailDomRefs = {} as DetailDomRefs
 
 export function overwriteState(nextState: Partial<ContentState>): void {

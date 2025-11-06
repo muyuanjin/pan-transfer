@@ -14,7 +14,6 @@ export interface HistoryCardPanelDom {
   historySummaryBody?: HTMLElement | null
   historySummary?: HTMLElement | null
   historyOverlay?: HTMLElement | null
-  historyToggleButtons?: HTMLButtonElement[] | null
   [key: string]: unknown
 }
 
@@ -40,7 +39,7 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
   const {
     state,
     panelDom,
-    floatingPanel,
+    floatingPanel: _floatingPanel,
     pruneHistorySelection,
     getHistoryGroupByKey,
     closeHistoryDetail,
@@ -153,32 +152,9 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
     historySummary.classList.toggle('is-empty', !summaryData)
   }
 
-  refreshToggleCache(panelDom, floatingPanel)
-  if (Array.isArray(panelDom.historyToggleButtons)) {
-    panelDom.historyToggleButtons.forEach((button: HTMLButtonElement) => {
-      button.disabled = false
-    })
-  }
-
   if (typeof updateHistoryExpansion === 'function') {
     updateHistoryExpansion()
   }
-}
-
-function refreshToggleCache(
-  panelDom: HistoryCardPanelDom,
-  floatingPanel: HTMLElement | null | undefined,
-): void {
-  const scope = floatingPanel || (panelDom?.historyOverlay ?? null)
-  if (!scope) {
-    panelDom.historyToggleButtons = Array.from(
-      document.querySelectorAll<HTMLButtonElement>('[data-role="history-toggle"]'),
-    )
-    return
-  }
-  panelDom.historyToggleButtons = Array.from(
-    scope.querySelectorAll<HTMLButtonElement>('[data-role="history-toggle"]'),
-  )
 }
 
 function buildSummaryData(group: HistoryGroup): { title: string; metaParts: string[] } {

@@ -1,156 +1,63 @@
 <template>
-  <template v-for="entry in derivedEntries" :key="entry.group.key">
-    <div
-      class="chaospace-history-item"
-      :class="{
-        'is-selected': entry.isSelected,
-        'is-current': entry.isCurrent,
-        'is-season-expanded': entry.seasonExpanded,
-      }"
-      data-detail-trigger="group"
-      :data-group-key="entry.group.key"
-    >
-      <label class="chaospace-history-selector">
-        <input
-          type="checkbox"
-          data-role="history-select-item"
-          :data-group-key="entry.group.key"
-          :checked="entry.isSelected"
-          :disabled="historyBatchRunning"
-        />
-      </label>
-      <div class="chaospace-history-item-header">
-        <component
-          :is="entry.poster ? 'button' : 'div'"
-          class="chaospace-history-poster"
-          :class="{ 'is-placeholder': !entry.poster }"
-          v-bind="entry.posterAttrs"
-        >
-          <img
-            v-if="entry.poster"
-            :src="entry.poster.src"
-            :alt="entry.poster.alt"
-            draggable="false"
-          />
-        </component>
-        <div
-          class="chaospace-history-main"
-          role="button"
-          tabindex="0"
-          data-action="history-detail"
-          :data-group-key="entry.group.key"
-          :data-page-url="entry.mainRecord.pageUrl || ''"
-          :aria-label="`查看 ${entry.title} 的转存详情`"
-        >
-          <div class="chaospace-history-title">
-            {{ entry.title }}
-            <span
-              v-if="entry.statusBadge"
-              class="chaospace-history-status chaospace-history-status-inline"
-              :class="entry.statusBadgeClass"
-            >
-              {{ statusEmoji(entry.statusBadge.state) }} {{ entry.statusBadge.label }}
-            </span>
-          </div>
-          <div class="chaospace-history-meta">
-            {{ entry.metaParts.join(' · ') }}
-          </div>
-        </div>
-        <div class="chaospace-history-actions">
-          <button
-            type="button"
-            class="chaospace-history-action chaospace-history-action-open"
-            data-action="open"
-            :data-url="entry.mainRecord.pageUrl || ''"
-            :disabled="!entry.mainRecord.pageUrl"
-            :class="{ 'is-disabled': !entry.mainRecord.pageUrl }"
-          >
-            进入资源
-          </button>
-          <button
-            type="button"
-            class="chaospace-history-action chaospace-history-action-pan"
-            data-action="open-pan"
-            :data-url="entry.panInfo.url"
-            :data-path="entry.panInfo.path"
-            :title="
-              entry.panInfo.path === '/' ? '打开网盘首页' : `打开网盘目录 ${entry.panInfo.path}`
-            "
-          >
-            进入网盘
-          </button>
-          <button
-            v-if="entry.showCheck"
-            type="button"
-            class="chaospace-history-action chaospace-history-action-check"
-            data-action="check"
-            :data-url="entry.mainRecord.pageUrl || ''"
-            :disabled="entry.checkDisabled"
-            :class="{ 'is-disabled': entry.checkDisabled }"
-            :data-reason="entry.checkDisabledReason"
-          >
-            {{ entry.checkLabel }}
-          </button>
-        </div>
-        <button
-          v-if="entry.seasonRows.length"
-          type="button"
-          class="chaospace-history-season-toggle"
-          data-role="history-season-toggle"
-          :data-group-key="entry.group.key"
-          :aria-expanded="entry.seasonExpanded ? 'true' : 'false'"
-        >
-          {{ entry.seasonExpanded ? '收起季' : '展开季' }}
-        </button>
-      </div>
+  <div class="chaospace-history-list-root" ref="root" style="display: contents">
+    <template v-for="entry in derivedEntries" :key="entry.group.key">
       <div
-        v-if="entry.seasonRows.length"
-        class="chaospace-history-season-list"
-        data-role="history-season-list"
+        class="chaospace-history-item"
+        :class="{
+          'is-selected': entry.isSelected,
+          'is-current': entry.isCurrent,
+          'is-season-expanded': entry.seasonExpanded,
+        }"
+        data-detail-trigger="group"
         :data-group-key="entry.group.key"
-        :hidden="!entry.seasonExpanded"
       >
-        <div
-          v-for="season in entry.seasonRows"
-          :key="season.row.key"
-          class="chaospace-history-season-item"
-          data-detail-trigger="season"
-          :data-group-key="entry.group.key"
-          :data-key="season.row.key"
-          :data-page-url="season.row.url || ''"
-          :data-title="season.row.label || ''"
-          :data-poster-src="season.row.poster?.src || ''"
-          :data-poster-alt="season.row.poster?.alt || ''"
-          role="button"
-          tabindex="0"
-          :aria-label="`查看 ${season.row.label || '季详情'} 的转存详情`"
-        >
-          <component
-            :is="season.row.poster?.src ? 'button' : 'div'"
-            class="chaospace-history-season-poster"
-            :class="{ 'is-placeholder': !season.row.poster?.src }"
-            v-bind="season.posterAttrs"
+        <label class="chaospace-history-selector">
+          <input
+            type="checkbox"
+            data-role="history-select-item"
+            :data-group-key="entry.group.key"
+            :checked="entry.isSelected"
+            :disabled="historyBatchRunning"
+            @change="handleSelect(entry.group.key, $event)"
+          />
+        </label>
+        <div class="chaospace-history-item-header">
+          <button
+            v-if="entry.poster?.src"
+            type="button"
+            class="chaospace-history-poster"
+            data-action="preview-poster"
+            :data-src="entry.poster.src"
+            :data-alt="entry.poster.alt || entry.title"
+            @click.stop.prevent="handlePosterPreview(entry.poster, entry.title)"
           >
-            <img
-              v-if="season.row.poster?.src"
-              :src="season.row.poster.src"
-              :alt="season.row.poster.alt || season.row.label || ''"
-              draggable="false"
-            />
-          </component>
-          <div class="chaospace-history-season-body">
-            <div class="chaospace-history-season-title">
-              {{ season.row.label || '未知季' }}
+            <img :src="entry.poster.src" :alt="entry.poster.alt || entry.title" draggable="false" />
+          </button>
+          <div v-else class="chaospace-history-poster is-placeholder"></div>
+          <div
+            class="chaospace-history-main"
+            role="button"
+            tabindex="0"
+            data-action="history-detail"
+            :data-group-key="entry.group.key"
+            :data-page-url="entry.mainRecord.pageUrl || ''"
+            :aria-label="`查看 ${entry.title} 的转存详情`"
+            @click="handleGroupDetail(entry, $event)"
+            @keydown.enter.prevent="handleGroupDetail(entry, $event)"
+            @keydown.space.prevent="handleGroupDetail(entry, $event)"
+          >
+            <div class="chaospace-history-title">
+              {{ entry.title }}
               <span
-                v-if="season.statusBadge"
+                v-if="entry.statusBadge"
                 class="chaospace-history-status chaospace-history-status-inline"
-                :class="season.statusBadgeClass"
+                :class="entry.statusBadgeClass"
               >
-                {{ statusEmoji(season.statusBadge.state) }} {{ season.statusBadge.label }}
+                {{ statusEmoji(entry.statusBadge.state) }} {{ entry.statusBadge.label }}
               </span>
             </div>
-            <div class="chaospace-history-season-meta">
-              {{ season.timestampLabel }}
+            <div class="chaospace-history-meta">
+              {{ entry.metaParts.join(' · ') }}
             </div>
           </div>
           <div class="chaospace-history-actions">
@@ -158,9 +65,10 @@
               type="button"
               class="chaospace-history-action chaospace-history-action-open"
               data-action="open"
-              :data-url="season.row.url || ''"
-              :disabled="!season.row.url"
-              :class="{ 'is-disabled': !season.row.url }"
+              :data-url="entry.mainRecord.pageUrl || ''"
+              :disabled="!entry.mainRecord.pageUrl"
+              :class="{ 'is-disabled': !entry.mainRecord.pageUrl }"
+              @click.stop.prevent="handleOpenUrl(entry.mainRecord.pageUrl)"
             >
               进入资源
             </button>
@@ -168,34 +76,151 @@
               type="button"
               class="chaospace-history-action chaospace-history-action-pan"
               data-action="open-pan"
-              :data-url="season.panInfo.url"
-              :data-path="season.panInfo.path"
+              :data-url="entry.panInfo.url"
+              :data-path="entry.panInfo.path"
               :title="
-                season.panInfo.path === '/' ? '打开网盘首页' : `打开网盘目录 ${season.panInfo.path}`
+                entry.panInfo.path === '/' ? '打开网盘首页' : `打开网盘目录 ${entry.panInfo.path}`
               "
+              @click.stop.prevent="handleOpenPan(entry.panInfo)"
             >
               进入网盘
             </button>
             <button
+              v-if="entry.showCheck"
               type="button"
               class="chaospace-history-action chaospace-history-action-check"
               data-action="check"
-              :data-url="season.row.url || ''"
-              :disabled="season.checkDisabled"
-              :class="{ 'is-disabled': season.checkDisabled }"
-              :data-reason="season.checkDisabledReason"
+              :data-url="entry.mainRecord.pageUrl || ''"
+              :disabled="entry.checkDisabled"
+              :class="{ 'is-disabled': entry.checkDisabled }"
+              :data-reason="entry.checkDisabledReason"
+              @click.stop.prevent="handleTriggerUpdate(entry, $event)"
             >
-              {{ season.checkLabel }}
+              {{ entry.checkLabel }}
             </button>
+          </div>
+          <button
+            v-if="entry.seasonRows.length"
+            type="button"
+            class="chaospace-history-season-toggle"
+            data-role="history-season-toggle"
+            :data-group-key="entry.group.key"
+            :aria-expanded="entry.seasonExpanded ? 'true' : 'false'"
+            @click.prevent="handleToggleSeason(entry)"
+          >
+            {{ entry.seasonExpanded ? '收起季' : '展开季' }}
+          </button>
+        </div>
+        <div
+          v-if="entry.seasonRows.length"
+          class="chaospace-history-season-list"
+          data-role="history-season-list"
+          :data-group-key="entry.group.key"
+          :hidden="!entry.seasonExpanded"
+        >
+          <div
+            v-for="season in entry.seasonRows"
+            :key="season.row.key"
+            class="chaospace-history-season-item"
+            data-detail-trigger="season"
+            :data-group-key="entry.group.key"
+            :data-key="season.row.key"
+            :data-page-url="season.row.url || ''"
+            :data-title="season.row.label || ''"
+            :data-poster-src="season.row.poster?.src || ''"
+            :data-poster-alt="season.row.poster?.alt || ''"
+            role="button"
+            tabindex="0"
+            :aria-label="`查看 ${season.row.label || '季详情'} 的转存详情`"
+            @click="handleSeasonRowDetail(entry, season, $event)"
+            @keydown.enter.prevent="handleSeasonRowDetail(entry, season, $event)"
+            @keydown.space.prevent="handleSeasonRowDetail(entry, season, $event)"
+          >
+            <button
+              v-if="season.row.poster?.src"
+              type="button"
+              class="chaospace-history-season-poster"
+              :class="{ 'is-placeholder': !season.row.poster?.src }"
+              data-action="preview-poster"
+              :data-src="season.row.poster?.src || ''"
+              :data-alt="season.row.poster?.alt || season.row.label || ''"
+              @click.stop.prevent="handleSeasonPosterPreview(season)"
+            >
+              <img
+                :src="season.row.poster?.src"
+                :alt="season.row.poster?.alt || season.row.label || ''"
+                draggable="false"
+              />
+            </button>
+            <div
+              v-else
+              class="chaospace-history-season-poster"
+              :class="{ 'is-placeholder': !season.row.poster?.src }"
+            ></div>
+            <div class="chaospace-history-season-body">
+              <div class="chaospace-history-season-title">
+                {{ season.row.label || '未知季' }}
+                <span
+                  v-if="season.statusBadge"
+                  class="chaospace-history-status chaospace-history-status-inline"
+                  :class="season.statusBadgeClass"
+                >
+                  {{ statusEmoji(season.statusBadge.state) }} {{ season.statusBadge.label }}
+                </span>
+              </div>
+              <div class="chaospace-history-season-meta">
+                {{ season.timestampLabel }}
+              </div>
+            </div>
+            <div class="chaospace-history-actions">
+              <button
+                type="button"
+                class="chaospace-history-action chaospace-history-action-open"
+                data-action="open"
+                :data-url="season.row.url || ''"
+                :disabled="!season.row.url"
+                :class="{ 'is-disabled': !season.row.url }"
+                @click.stop.prevent="handleOpenUrl(season.row.url)"
+              >
+                进入资源
+              </button>
+              <button
+                type="button"
+                class="chaospace-history-action chaospace-history-action-pan"
+                data-action="open-pan"
+                :data-url="season.panInfo.url"
+                :data-path="season.panInfo.path"
+                :title="
+                  season.panInfo.path === '/'
+                    ? '打开网盘首页'
+                    : `打开网盘目录 ${season.panInfo.path}`
+                "
+                @click.stop.prevent="handleOpenPan(season.panInfo)"
+              >
+                进入网盘
+              </button>
+              <button
+                type="button"
+                class="chaospace-history-action chaospace-history-action-check"
+                data-action="check"
+                :data-url="season.row.url || ''"
+                :disabled="season.checkDisabled"
+                :class="{ 'is-disabled': season.checkDisabled }"
+                :data-reason="season.checkDisabledReason"
+                @click.stop.prevent="handleSeasonTriggerUpdate(season, $event)"
+              >
+                {{ season.checkLabel }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  </template>
+    </template>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { buildHistoryGroupSeasonRows } from '../../services/history-service'
 import type { HistoryGroup, HistoryGroupSeasonRow } from '../../types'
 import {
@@ -204,6 +229,7 @@ import {
   resolveHistoryPanInfo,
   type HistoryStatusBadge,
 } from './history-card.helpers'
+import { HISTORY_LIST_ACTION_EVENT, type HistoryListAction } from './history-events'
 
 const props = defineProps<{
   entries: HistoryGroup[]
@@ -213,6 +239,8 @@ const props = defineProps<{
   historyBatchRunning: boolean
   isHistoryGroupCompleted?: ((group: HistoryGroup) => boolean) | undefined
 }>()
+
+const root = ref<HTMLElement | null>(null)
 
 const selectedSet = computed(() => new Set(props.selectedKeys))
 const expandedSet = computed(() => new Set(props.seasonExpandedKeys))
@@ -225,8 +253,8 @@ interface DerivedSeasonView {
   statusBadgeClass: Record<string, boolean>
   checkLabel: string
   checkDisabled: boolean
-  checkDisabledReason: string | undefined
-  posterAttrs: Record<string, unknown>
+  checkDisabledReason: string | null
+  poster: HistoryGroupSeasonRow['poster'] | null
 }
 
 interface DerivedEntryView {
@@ -244,9 +272,8 @@ interface DerivedEntryView {
   showCheck: boolean
   checkLabel: string
   checkDisabled: boolean
-  checkDisabledReason: string | undefined
+  checkDisabledReason: string | null
   poster: HistoryGroup['poster'] | null
-  posterAttrs: Record<string, unknown>
 }
 
 const derivedEntries = computed<DerivedEntryView[]>(() => {
@@ -264,7 +291,7 @@ const derivedEntries = computed<DerivedEntryView[]>(() => {
       const canCheckSeason = row.canCheck && Boolean(row.url)
       let checkLabel = '检测新篇'
       let checkDisabled = !canCheckSeason
-      let checkDisabledReason: string | undefined
+      let checkDisabledReason: string | null = null
       if (!row.url) {
         checkLabel = '无链接'
         checkDisabled = true
@@ -286,21 +313,14 @@ const derivedEntries = computed<DerivedEntryView[]>(() => {
         checkLabel,
         checkDisabled,
         checkDisabledReason,
-        posterAttrs: derived.row.poster?.src
-          ? {
-              type: 'button',
-              'data-action': 'preview-poster',
-              'data-src': derived.row.poster.src,
-              'data-alt': derived.row.poster.alt || derived.row.label || '',
-            }
-          : {},
+        poster: row.poster || null,
       }
     })
     const seasonExpanded = expandedSet.value.has(group.key)
 
     let checkLabel = '检测新篇'
     let checkDisabled = false
-    let checkDisabledReason: string | undefined
+    let checkDisabledReason: string | null = null
     const pageType = typeof mainRecord.pageType === 'string' ? mainRecord.pageType : undefined
     const showCheck = pageType === 'series'
     if (showCheck) {
@@ -316,14 +336,6 @@ const derivedEntries = computed<DerivedEntryView[]>(() => {
         checkLabel = '无链接'
       }
     }
-    const posterAttrs = group.poster?.src
-      ? {
-          type: 'button',
-          'data-action': 'preview-poster',
-          'data-src': group.poster.src,
-          'data-alt': group.poster.alt || group.title || '',
-        }
-      : {}
 
     return {
       group,
@@ -345,10 +357,143 @@ const derivedEntries = computed<DerivedEntryView[]>(() => {
       checkDisabled,
       checkDisabledReason,
       poster: group.poster || null,
-      posterAttrs,
     }
   })
 })
+
+function dispatchAction(action: HistoryListAction): void {
+  const el = root.value
+  if (!el) {
+    return
+  }
+  el.dispatchEvent(
+    new CustomEvent<HistoryListAction>(HISTORY_LIST_ACTION_EVENT, {
+      detail: action,
+      bubbles: true,
+      composed: true,
+    }),
+  )
+}
+
+function handleSelect(groupKey: string, event: Event): void {
+  const checkbox = event.target as HTMLInputElement | null
+  if (!checkbox) {
+    return
+  }
+  dispatchAction({
+    type: 'select',
+    groupKey,
+    selected: checkbox.checked,
+  })
+}
+
+function handleToggleSeason(entry: DerivedEntryView): void {
+  dispatchAction({
+    type: 'toggle-season',
+    groupKey: entry.group.key,
+    expanded: !entry.seasonExpanded,
+  })
+}
+
+function handleGroupDetail(entry: DerivedEntryView, event?: Event): void {
+  event?.preventDefault()
+  dispatchAction({
+    type: 'open-detail',
+    groupKey: entry.group.key,
+    scope: 'group',
+    pageUrl: entry.mainRecord.pageUrl || '',
+    title: entry.title,
+    poster: entry.poster ? { src: entry.poster.src, alt: entry.poster.alt || entry.title } : null,
+  })
+}
+
+function handleSeasonRowDetail(
+  entry: DerivedEntryView,
+  season: DerivedSeasonView,
+  event?: Event,
+): void {
+  event?.preventDefault()
+  dispatchAction({
+    type: 'open-detail',
+    groupKey: entry.group.key,
+    scope: 'season',
+    pageUrl: season.row.url || '',
+    title: season.row.label || '',
+    poster: season.row.poster
+      ? { src: season.row.poster.src, alt: season.row.poster.alt || season.row.label || '' }
+      : null,
+  })
+}
+
+function handleOpenUrl(url: unknown): void {
+  const normalized = typeof url === 'string' ? url.trim() : ''
+  if (!normalized) {
+    return
+  }
+  dispatchAction({
+    type: 'open-url',
+    url: normalized,
+  })
+}
+
+function handleOpenPan(panInfo: { url: string; path: string }): void {
+  dispatchAction({
+    type: 'open-pan',
+    url: panInfo.url,
+    path: panInfo.path,
+  })
+}
+
+function handleTriggerUpdate(entry: DerivedEntryView, event: Event): void {
+  const button = event.currentTarget as HTMLButtonElement | null
+  const pageUrl =
+    typeof entry.mainRecord.pageUrl === 'string' ? entry.mainRecord.pageUrl.trim() : ''
+  if (!pageUrl) {
+    return
+  }
+  dispatchAction({
+    type: 'trigger-update',
+    pageUrl,
+    button,
+    scope: 'group',
+  })
+}
+
+function handleSeasonTriggerUpdate(season: DerivedSeasonView, event: Event): void {
+  const button = event.currentTarget as HTMLButtonElement | null
+  const pageUrl = typeof season.row.url === 'string' ? season.row.url.trim() : ''
+  if (!pageUrl) {
+    return
+  }
+  dispatchAction({
+    type: 'trigger-update',
+    pageUrl,
+    button,
+    scope: 'season',
+  })
+}
+
+function handlePosterPreview(
+  poster: { src: string; alt?: string | null },
+  fallbackTitle: string,
+): void {
+  dispatchAction({
+    type: 'preview-poster',
+    src: poster.src,
+    alt: poster.alt || fallbackTitle || '',
+  })
+}
+
+function handleSeasonPosterPreview(season: DerivedSeasonView): void {
+  if (!season.row.poster?.src) {
+    return
+  }
+  dispatchAction({
+    type: 'preview-poster',
+    src: season.row.poster.src,
+    alt: season.row.poster.alt || season.row.label || '',
+  })
+}
 
 function statusEmoji(state: string | undefined): string {
   const map = {

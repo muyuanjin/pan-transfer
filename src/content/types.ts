@@ -222,64 +222,197 @@ export interface ContentState {
   fileRenameRules: FileRenameRule[]
 }
 
-export interface PanelDomRefs {
-  container?: HTMLElement | null
-  header?: HTMLElement | null
-  headerArt?: HTMLElement | null
-  headerPoster?: HTMLImageElement | null
-  showTitle?: HTMLElement | null
-  showSubtitle?: HTMLElement | null
-  baseDirInput?: HTMLInputElement | null
-  useTitleCheckbox?: HTMLInputElement | null
-  useSeasonCheckbox?: HTMLInputElement | null
-  seasonRow?: HTMLElement | null
-  seasonPathHint?: HTMLElement | null
-  pathPreview?: HTMLElement | null
-  addPresetButton?: HTMLButtonElement | null
-  themeToggle?: HTMLButtonElement | null
-  settingsToggle?: HTMLButtonElement | null
-  settingsOverlay?: HTMLElement | null
-  settingsForm?: HTMLFormElement | null
-  settingsClose?: HTMLButtonElement | null
-  settingsCancel?: HTMLButtonElement | null
-  settingsBaseDir?: HTMLInputElement | null
-  settingsUseTitle?: HTMLInputElement | null
-  settingsUseSeason?: HTMLInputElement | null
-  settingsThemeGroup?: HTMLElement | null
-  settingsPresets?: HTMLTextAreaElement | null
-  settingsHistoryRate?: HTMLInputElement | null
-  settingsFilterMode?: HTMLSelectElement | null
-  settingsFilterEditor?: HTMLElement | null
-  settingsRenameEditor?: HTMLElement | null
-  settingsExportConfig?: HTMLButtonElement | null
-  settingsExportData?: HTMLButtonElement | null
-  settingsImportConfigTrigger?: HTMLButtonElement | null
-  settingsImportDataTrigger?: HTMLButtonElement | null
-  settingsImportConfigInput?: HTMLInputElement | null
-  settingsImportDataInput?: HTMLInputElement | null
-  settingsResetLayout?: HTMLButtonElement | null
-  pinBtn?: HTMLButtonElement | null
-  logContainer?: HTMLElement | null
-  logList?: HTMLUListElement | null
-  resultSummary?: HTMLElement | null
-  itemsContainer?: HTMLElement | null
-  historyOverlay?: HTMLElement | null
-  historyList?: HTMLElement | null
-  historyEmpty?: HTMLElement | null
-  historySummary?: HTMLElement | null
-  historySummaryBody?: HTMLElement | null
-  historyControls?: HTMLElement | null
-  historyToggleButtons?: HTMLButtonElement[]
-  resourceSummary?: HTMLElement | null
-  resourceTitle?: HTMLElement | null
-  seasonTabs?: HTMLElement | null
-  transferBtn?: HTMLButtonElement | null
-  transferLabel?: HTMLElement | null
-  transferSpinner?: HTMLElement | null
-  resizeHandle?: HTMLElement | null
-  statusText?: HTMLElement | null
-  openSettingsPanel?: () => void
-  closeSettingsPanel?: (options?: { restoreFocus?: boolean }) => void
-  [key: string]: unknown
+const PANEL_DOM_KEYS = [
+  'container',
+  'header',
+  'headerArt',
+  'headerPoster',
+  'showTitle',
+  'showSubtitle',
+  'baseDirInput',
+  'useTitleCheckbox',
+  'useSeasonCheckbox',
+  'seasonRow',
+  'seasonPathHint',
+  'pathPreview',
+  'addPresetButton',
+  'themeToggle',
+  'settingsToggle',
+  'settingsOverlay',
+  'settingsForm',
+  'settingsClose',
+  'settingsCancel',
+  'settingsBaseDir',
+  'settingsUseTitle',
+  'settingsUseSeason',
+  'settingsThemeGroup',
+  'settingsPresets',
+  'settingsHistoryRate',
+  'settingsFilterMode',
+  'settingsFilterEditor',
+  'settingsRenameEditor',
+  'settingsExportConfig',
+  'settingsExportData',
+  'settingsImportConfigTrigger',
+  'settingsImportDataTrigger',
+  'settingsImportConfigInput',
+  'settingsImportDataInput',
+  'settingsResetLayout',
+  'pinBtn',
+  'logContainer',
+  'logList',
+  'resultSummary',
+  'itemsContainer',
+  'historyOverlay',
+  'historyList',
+  'historyEmpty',
+  'historySummary',
+  'historySummaryBody',
+  'resourceSummary',
+  'resourceTitle',
+  'seasonTabs',
+  'transferBtn',
+  'transferLabel',
+  'transferSpinner',
+  'resizeHandle',
+  'statusText',
+  'openSettingsPanel',
+  'closeSettingsPanel',
+] as const
+
+export type PanelDomKey = (typeof PANEL_DOM_KEYS)[number]
+
+export interface PanelDomDefinition {
+  container: HTMLElement
+  header: HTMLElement
+  headerArt: HTMLElement
+  headerPoster: HTMLImageElement
+  showTitle: HTMLElement
+  showSubtitle: HTMLElement
+  baseDirInput: HTMLInputElement
+  useTitleCheckbox: HTMLInputElement
+  useSeasonCheckbox: HTMLInputElement
+  seasonRow: HTMLElement
+  seasonPathHint: HTMLElement
+  pathPreview: HTMLElement
+  addPresetButton: HTMLButtonElement
+  themeToggle: HTMLButtonElement
+  settingsToggle: HTMLButtonElement
+  settingsOverlay: HTMLElement
+  settingsForm: HTMLFormElement
+  settingsClose: HTMLButtonElement
+  settingsCancel: HTMLButtonElement
+  settingsBaseDir: HTMLInputElement
+  settingsUseTitle: HTMLInputElement
+  settingsUseSeason: HTMLInputElement
+  settingsThemeGroup: HTMLElement
+  settingsPresets: HTMLTextAreaElement
+  settingsHistoryRate: HTMLInputElement
+  settingsFilterMode: HTMLSelectElement
+  settingsFilterEditor: HTMLElement
+  settingsRenameEditor: HTMLElement
+  settingsExportConfig: HTMLButtonElement
+  settingsExportData: HTMLButtonElement
+  settingsImportConfigTrigger: HTMLButtonElement
+  settingsImportDataTrigger: HTMLButtonElement
+  settingsImportConfigInput: HTMLInputElement
+  settingsImportDataInput: HTMLInputElement
+  settingsResetLayout: HTMLButtonElement
+  pinBtn: HTMLButtonElement
+  logContainer: HTMLElement
+  logList: HTMLUListElement
+  resultSummary: HTMLElement
+  itemsContainer: HTMLElement
+  historyOverlay: HTMLElement
+  historyList: HTMLElement
+  historyEmpty: HTMLElement
+  historySummary: HTMLElement
+  historySummaryBody: HTMLElement
+  resourceSummary: HTMLElement
+  resourceTitle: HTMLElement
+  seasonTabs: HTMLElement
+  transferBtn: HTMLButtonElement
+  transferLabel: HTMLElement
+  transferSpinner: HTMLElement
+  resizeHandle: HTMLElement
+  statusText: HTMLElement
+  openSettingsPanel: () => void
+  closeSettingsPanel: (options?: { restoreFocus?: boolean }) => void
 }
+
+type PanelDomStore = {
+  [K in PanelDomKey]: PanelDomDefinition[K] | null
+}
+
+type PanelDomAccessors = {
+  get<K extends PanelDomKey>(key: K): PanelDomDefinition[K] | null
+  set<K extends PanelDomKey>(key: K, value: PanelDomDefinition[K] | null): void
+  ensure<K extends PanelDomKey>(key: K, message?: string): PanelDomDefinition[K]
+  assignAll(values: Partial<PanelDomStore>): void
+  clear(): void
+}
+
+export type PanelDomRefs = PanelDomAccessors & PanelDomStore
+
+export function createPanelDomRefs(): PanelDomRefs {
+  const store = new Map<PanelDomKey, PanelDomDefinition[PanelDomKey] | null>()
+
+  for (const key of PANEL_DOM_KEYS) {
+    store.set(key, null)
+  }
+
+  const keyLookup = new Set<string>(PANEL_DOM_KEYS as readonly string[])
+
+  const accessors: PanelDomAccessors = {
+    get<K extends PanelDomKey>(key: K) {
+      return (store.get(key) ?? null) as PanelDomDefinition[K] | null
+    },
+    set<K extends PanelDomKey>(key: K, value: PanelDomDefinition[K] | null) {
+      store.set(key, value ?? null)
+    },
+    ensure<K extends PanelDomKey>(key: K, message?: string) {
+      const value = store.get(key)
+      if (!value) {
+        throw new Error(message ?? `Missing panel DOM ref "${key}"`)
+      }
+      return value as PanelDomDefinition[K]
+    },
+    assignAll(values: Partial<PanelDomStore>) {
+      for (const key of PANEL_DOM_KEYS) {
+        if (Object.prototype.hasOwnProperty.call(values, key)) {
+          const next = values[key]
+          store.set(key, (next ?? null) as PanelDomDefinition[typeof key] | null)
+        }
+      }
+    },
+    clear(): void {
+      for (const key of PANEL_DOM_KEYS) {
+        store.set(key, null)
+      }
+    },
+  }
+
+  return new Proxy(accessors as PanelDomRefs, {
+    get(target, prop, receiver) {
+      if (typeof prop === 'string' && keyLookup.has(prop)) {
+        return accessors.get(prop as PanelDomKey)
+      }
+      return Reflect.get(target, prop, receiver)
+    },
+    set(_target, prop, value, receiver) {
+      if (typeof prop === 'string' && keyLookup.has(prop)) {
+        accessors.set(prop as PanelDomKey, value as PanelDomDefinition[PanelDomKey] | null)
+        return true
+      }
+      return Reflect.set(_target, prop, value, receiver)
+    },
+    has(_target, prop) {
+      if (typeof prop === 'string' && keyLookup.has(prop)) {
+        return true
+      }
+      return prop in accessors
+    },
+  })
+}
+
 export type DetailDomRefs = Record<string, HTMLElement | null>
