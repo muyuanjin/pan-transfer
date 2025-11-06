@@ -168,12 +168,18 @@ function sanitizeHistoryItems(items: unknown): Record<string, HistoryRecordItem>
             if (!from && !to) {
               return null
             }
+            const rulesList: string[] = Array.isArray((entry as { rules?: unknown[] }).rules)
+              ? ((entry as { rules?: unknown[] }).rules || []).filter(
+                  (rule): rule is string => typeof rule === 'string' && rule.trim().length > 0,
+                )
+              : []
             const record: {
               from: string
               to: string
               status: 'success' | 'failed' | 'unchanged'
               errno?: number
               message?: string
+              rules?: string[]
             } = {
               from,
               to,
@@ -184,6 +190,9 @@ function sanitizeHistoryItems(items: unknown): Record<string, HistoryRecordItem>
             }
             if (message) {
               record.message = message
+            }
+            if (rulesList.length) {
+              record.rules = rulesList
             }
             return record
           })

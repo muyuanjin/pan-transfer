@@ -60,6 +60,7 @@ export interface RenameResultDetail {
   status: 'success' | 'failed' | 'unchanged'
   errno?: number
   message?: string
+  rules?: string[]
 }
 
 export interface TransferResponsePayload {

@@ -57,6 +57,13 @@ interface RenameExecutionResult {
   details: RenameResultDetail[]
 }
 
+const FILTER_LOG_PREVIEW_LIMIT = 8
+const FILTER_RULE_SUMMARY_LIMIT = 5
+const FILTER_RULE_SAMPLE_LIMIT = 4
+const RENAME_LOG_PREVIEW_LIMIT = 12
+const RENAME_RULE_SUMMARY_LIMIT = 6
+const RENAME_RULE_SAMPLE_LIMIT = 4
+
 let progressHandlers: ProgressHandlers = {
   emitProgress: () => {
     /* noop */
@@ -84,6 +91,13 @@ function logStage(
   extra?: Parameters<ProgressLogger>[3],
 ): void {
   progressHandlers.logStage(jobId, stage, message, extra)
+}
+
+function buildInfoExtra(detail?: string): Parameters<ProgressLogger>[3] {
+  if (typeof detail === 'string' && detail.length) {
+    return { level: 'info', detail }
+  }
+  return { level: 'info' }
 }
 
 const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
@@ -396,6 +410,8 @@ async function executeRenamePlan(
   const details: RenameResultDetail[] = []
   const finalNames: string[] = []
   const changedCount = plan.filter((entry) => entry.changed).length
+  let renameLogCount = 0
+  const renameRuleSummaries = new Map<string, { count: number; samples: string[] }>()
 
   if (!changedCount) {
     plan.forEach((entry) => {
@@ -404,6 +420,7 @@ async function executeRenamePlan(
         from: entry.originalName,
         to: entry.finalName,
         status: 'unchanged',
+        rules: entry.appliedRules.slice(),
       })
     })
     return { finalNames, details }
@@ -425,6 +442,7 @@ async function executeRenamePlan(
         from: originalName,
         to: entry.finalName,
         status: 'unchanged',
+        rules: entry.appliedRules.slice(),
       })
       continue
     }
@@ -438,7 +456,29 @@ async function executeRenamePlan(
           from: originalName,
           to: entry.finalName,
           status: 'success',
+          rules: entry.appliedRules.slice(),
         })
+        if (entry.appliedRules.length) {
+          entry.appliedRules.forEach((ruleLabel) => {
+            const label = ruleLabel?.trim() || '重命名规则'
+            const summary = renameRuleSummaries.get(label) ?? { count: 0, samples: [] }
+            summary.count += 1
+            if (summary.samples.length < RENAME_RULE_SAMPLE_LIMIT) {
+              summary.samples.push(`${originalName} → ${entry.finalName}`)
+            }
+            renameRuleSummaries.set(label, summary)
+          })
+        }
+        if (renameLogCount < RENAME_LOG_PREVIEW_LIMIT) {
+          const ruleDetail = entry.appliedRules.length
+            ? `规则：${entry.appliedRules.join('、')}`
+            : '重命名规则'
+          logStage(jobId, 'rename', `${titleLabel}重命名：${originalName} → ${entry.finalName}`, {
+            level: 'info',
+            detail: ruleDetail,
+          })
+          renameLogCount += 1
+        }
       } else {
         failureCount += 1
         const message = mapErrorMessage(result.errno, result.showMsg || '')
@@ -449,10 +489,13 @@ async function executeRenamePlan(
           status: 'failed',
           errno: result.errno,
           message,
+          rules: entry.appliedRules.slice(),
         })
         logStage(jobId, 'rename', `${titleLabel}重命名失败：${originalName}`, {
           level: 'warning',
-          detail: message || `${combinedPath}`,
+          detail: entry.appliedRules.length
+            ? `规则：${entry.appliedRules.join('、')}｜${message || combinedPath}`
+            : message || `${combinedPath}`,
         })
       }
     } catch (error) {
@@ -464,13 +507,46 @@ async function executeRenamePlan(
         to: entry.finalName,
         status: 'failed',
         message: err.message || '重命名失败',
+        rules: entry.appliedRules.slice(),
       })
       logStage(jobId, 'rename', `${titleLabel}重命名异常：${originalName}`, {
         level: 'warning',
-        detail: err.message || `${combinedPath}`,
+        detail: entry.appliedRules.length
+          ? `规则：${entry.appliedRules.join('、')}｜${err.message || combinedPath}`
+          : err.message || `${combinedPath}`,
       })
     }
     await delay(120)
+  }
+
+  if (renameRuleSummaries.size) {
+    const summaryEntries = Array.from(renameRuleSummaries.entries())
+    summaryEntries.slice(0, RENAME_RULE_SUMMARY_LIMIT).forEach(([ruleLabel, summary]) => {
+      const sampleDetail = summary.samples.length ? `示例：${summary.samples.join('、')}` : ''
+      logStage(
+        jobId,
+        'rename',
+        `${titleLabel}重命名规则「${ruleLabel}」命中 ${summary.count} 项`,
+        buildInfoExtra(sampleDetail),
+      )
+    })
+    if (summaryEntries.length > RENAME_RULE_SUMMARY_LIMIT) {
+      const remainingRules = summaryEntries.length - RENAME_RULE_SUMMARY_LIMIT
+      logStage(jobId, 'rename', `${titleLabel}重命名规则：另有 ${remainingRules} 条规则命中`, {
+        level: 'info',
+      })
+    }
+  }
+
+  if (renameLogCount >= RENAME_LOG_PREVIEW_LIMIT && successCount > renameLogCount) {
+    logStage(
+      jobId,
+      'rename',
+      `${titleLabel}重命名：还有 ${successCount - renameLogCount} 项成功记录未逐一展示`,
+      {
+        level: 'info',
+      },
+    )
   }
 
   if (successCount || failureCount) {
@@ -700,6 +776,56 @@ export async function handleTransfer(
           )
           filteredByRules = filterResult.skipped
           if (filterResult.entries.length !== meta.entries.length && filteredByRules.length) {
+            const ruleSummaryMap = new Map<
+              string,
+              { count: number; samples: string[]; action: FilterSkipInfo['action'] }
+            >()
+            filteredByRules.forEach((skip) => {
+              const label = skip.ruleName?.trim() || '未命名规则'
+              const summary = ruleSummaryMap.get(label) ?? {
+                count: 0,
+                samples: [],
+                action: skip.action,
+              }
+              summary.count += 1
+              if (summary.samples.length < FILTER_RULE_SAMPLE_LIMIT) {
+                summary.samples.push(skip.name)
+              }
+              summary.action = skip.action
+              ruleSummaryMap.set(label, summary)
+            })
+            const summaryEntries = Array.from(ruleSummaryMap.entries())
+            summaryEntries.slice(0, FILTER_RULE_SUMMARY_LIMIT).forEach(([ruleLabel, summary]) => {
+              const actionLabel = summary.action === 'exclude' ? '剔除' : '保留'
+              const sampleDetail = summary.samples.length
+                ? `示例：${summary.samples.join('、')}`
+                : ''
+              logStage(
+                jobId,
+                'filter',
+                `${itemLabel}过滤规则「${ruleLabel}」${actionLabel} ${summary.count} 项`,
+                buildInfoExtra(sampleDetail),
+              )
+            })
+            if (summaryEntries.length > FILTER_RULE_SUMMARY_LIMIT) {
+              const remainingRules = summaryEntries.length - FILTER_RULE_SUMMARY_LIMIT
+              logStage(jobId, 'filter', `${itemLabel}过滤规则：另有 ${remainingRules} 条规则命中`, {
+                level: 'info',
+              })
+            }
+            filteredByRules.slice(0, FILTER_LOG_PREVIEW_LIMIT).forEach((skip) => {
+              const ruleLabel = skip.ruleName ? `命中规则「${skip.ruleName}」` : '命中过滤规则'
+              logStage(jobId, 'filter', `${itemLabel}跳过文件：${skip.name}`, {
+                level: 'info',
+                detail: `${ruleLabel}，动作：${skip.action === 'exclude' ? '剔除' : '保留'}`,
+              })
+            })
+            if (filteredByRules.length > FILTER_LOG_PREVIEW_LIMIT) {
+              const remaining = filteredByRules.length - FILTER_LOG_PREVIEW_LIMIT
+              logStage(jobId, 'filter', `${itemLabel}过滤命中：另有 ${remaining} 项被跳过`, {
+                level: 'info',
+              })
+            }
             logStage(jobId, 'filter', `${itemLabel}过滤命中：跳过 ${filteredByRules.length} 项`, {
               level: 'info',
             })
@@ -876,6 +1002,7 @@ export async function handleTransfer(
               from: entry.originalName,
               to: entry.finalName,
               status: 'unchanged',
+              rules: entry.appliedRules.slice(),
             }))
           } else {
             renameResults = []

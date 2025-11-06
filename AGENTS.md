@@ -4,10 +4,12 @@ _Last updated: 2025-11-05 (UTC-8)_
 
 ## Core Principles
 
-- **Mission**: Deliver a Manifest V3 Chrome extension using Vite 7 + TypeScript 5.9 + Vue 3 that mirrors the legacy behaviour while adding modern safety/tooling.
+- **Mission**: Deliver a Manifest V3 Chrome extension using Vite 7 + TypeScript 5.9 + Vue 3 that mirrors the legacy behaviour while adding modern safety/tooling.
 - **Source of truth**: All active code lives in `src/`. Treat `chaospace-extension/` as read-only reference for parity checks.
 - **Quality gate**: Keep `npm run check` green (format → typecheck → lint → build → vitest → playwright) before handing work back.
 - **Logging**: Prefix runtime logs with `[Chaospace Transfer]` across background, content, and UI contexts.
+
+## !!IMPORTANT!! Keep `npm run check` green before handing work back!!!
 
 ## Architecture Snapshot
 

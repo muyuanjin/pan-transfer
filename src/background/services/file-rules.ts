@@ -38,6 +38,7 @@ export interface RenamePlanEntry {
   finalName: string
   isDir: boolean
   changed: boolean
+  appliedRules: string[]
 }
 
 const ARCHIVE_EXTS = new Set([
@@ -128,6 +129,34 @@ interface FileContext {
 
 const conditionRegexCache = new Map<string, RegExp>()
 const renameRegexCache = new Map<string, RegExp>()
+
+function splitNameKeywords(value: string): string[] {
+  return value
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+}
+
+function resolveFilterRuleLabel(
+  rule: FileFilterRule | undefined,
+  index?: number,
+): string | undefined {
+  if (!rule) {
+    return undefined
+  }
+  const trimmedName = typeof rule.name === 'string' ? rule.name.trim() : ''
+  if (trimmedName) {
+    return trimmedName
+  }
+  const trimmedDesc = typeof rule.description === 'string' ? rule.description.trim() : ''
+  if (trimmedDesc) {
+    return trimmedDesc
+  }
+  if (typeof index === 'number') {
+    return `规则 #${index + 1}`
+  }
+  return undefined
+}
 
 function parseSize(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
@@ -240,14 +269,24 @@ function evaluateCondition(context: FileContext, condition: FileFilterCondition)
     }
     case 'name': {
       const source = condition.caseSensitive ? context.name : context.name.toLowerCase()
-      const value = condition.caseSensitive ? condition.value : condition.value.toLowerCase()
+      const normalizedValue = condition.caseSensitive
+        ? condition.value
+        : condition.value.toLowerCase()
+      const keywords = splitNameKeywords(normalizedValue)
+      const targets = keywords.length
+        ? keywords
+        : normalizedValue.trim()
+          ? [normalizedValue.trim()]
+          : []
       let match = false
-      if (condition.mode === 'includes') {
-        match = value.length === 0 ? false : source.includes(value)
+      if (!targets.length) {
+        match = false
+      } else if (condition.mode === 'includes') {
+        match = targets.some((value) => source.includes(value))
       } else if (condition.mode === 'startsWith') {
-        match = value.length === 0 ? false : source.startsWith(value)
+        match = targets.some((value) => source.startsWith(value))
       } else if (condition.mode === 'endsWith') {
-        match = value.length === 0 ? false : source.endsWith(value)
+        match = targets.some((value) => source.endsWith(value))
       }
       return condition.negate ? !match : match
     }
@@ -296,27 +335,29 @@ function decideAction(
   context: FileContext,
   rules: FileFilterRule[],
   mode: FileFilterEvaluationMode,
-): { action: FileFilterAction | null; rule?: FileFilterRule } {
+): { action: FileFilterAction | null; rule?: FileFilterRule; ruleIndex?: number } {
   if (!rules.length) {
     return { action: null }
   }
 
   if (mode === 'ordered') {
-    for (const rule of rules) {
+    for (let index = 0; index < rules.length; index += 1) {
+      const rule = rules[index]
       if (!rule || !rule.enabled) {
         continue
       }
       if (!ruleMatches(context, rule)) {
         continue
       }
-      return { action: rule.action, rule }
+      return { action: rule.action, rule, ruleIndex: index }
     }
     return { action: null }
   }
 
   if (mode === 'deny-first') {
-    let includeRule: FileFilterRule | undefined
-    for (const rule of rules) {
+    let includeRule: { rule: FileFilterRule; index: number } | undefined
+    for (let index = 0; index < rules.length; index += 1) {
+      const rule = rules[index]
       if (!rule || !rule.enabled) {
         continue
       }
@@ -324,20 +365,21 @@ function decideAction(
         continue
       }
       if (rule.action === 'exclude') {
-        return { action: 'exclude', rule }
+        return { action: 'exclude', rule, ruleIndex: index }
       }
       if (!includeRule) {
-        includeRule = rule
+        includeRule = { rule, index }
       }
     }
     if (includeRule) {
-      return { action: 'include', rule: includeRule }
+      return { action: 'include', rule: includeRule.rule, ruleIndex: includeRule.index }
     }
     return { action: null }
   }
 
-  let excludeRule: FileFilterRule | undefined
-  for (const rule of rules) {
+  let excludeRule: { rule: FileFilterRule; index: number } | undefined
+  for (let index = 0; index < rules.length; index += 1) {
+    const rule = rules[index]
     if (!rule || !rule.enabled) {
       continue
     }
@@ -345,14 +387,14 @@ function decideAction(
       continue
     }
     if (rule.action === 'include') {
-      return { action: 'include', rule }
+      return { action: 'include', rule, ruleIndex: index }
     }
     if (!excludeRule) {
-      excludeRule = rule
+      excludeRule = { rule, index }
     }
   }
   if (excludeRule) {
-    return { action: 'exclude', rule: excludeRule }
+    return { action: 'exclude', rule: excludeRule.rule, ruleIndex: excludeRule.index }
   }
   return { action: null }
 }
@@ -405,8 +447,9 @@ export function applyFileFilters(
         name: context.name,
         action: 'exclude',
       }
-      if (decision.rule?.name) {
-        record.ruleName = decision.rule.name
+      const label = resolveFilterRuleLabel(decision.rule, decision.ruleIndex)
+      if (label) {
+        record.ruleName = label
       }
       skipped.push(record)
       return
@@ -435,6 +478,7 @@ export function buildRenamePlan(
       finalName: entry.serverFilename,
       isDir: Boolean(entry.isDir),
       changed: false,
+      appliedRules: [],
     }))
   }
 
@@ -452,7 +496,8 @@ export function buildRenamePlan(
     const name = entry.serverFilename
     const { base, extension } = splitName(name)
     let nextBase = base
-    renameRules.forEach((rule) => {
+    const appliedRuleNames: string[] = []
+    renameRules.forEach((rule, ruleIndex) => {
       if (!rule || !rule.enabled) {
         return
       }
@@ -465,7 +510,15 @@ export function buildRenamePlan(
         return
       }
       const replacement = typeof rule.replacement === 'string' ? rule.replacement : ''
-      nextBase = nextBase.replace(regex, replacement)
+      const replaced = nextBase.replace(regex, replacement)
+      if (replaced !== nextBase) {
+        nextBase = replaced
+        const displayName =
+          (rule.name && rule.name.trim()) ||
+          (rule.description && rule.description.trim()) ||
+          `规则 #${ruleIndex + 1}`
+        appliedRuleNames.push(displayName)
+      }
       regex.lastIndex = 0
     })
     let sanitizedBase = nextBase.trim()
@@ -493,6 +546,7 @@ export function buildRenamePlan(
       finalName,
       isDir: Boolean(entry.isDir),
       changed: finalName !== name,
+      appliedRules: appliedRuleNames,
     }
   })
 }

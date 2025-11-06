@@ -68,6 +68,63 @@ describe('applyFileFilters', () => {
     expect(result.skipped).toHaveLength(1)
     expect(result.skipped[0]?.name).toBe('bonus.txt')
   })
+
+  it('populates readable rule labels when filters skip files', () => {
+    const entries = [createEntry(5, 'empty.bin', 0), createEntry(6, 'note.txt', 10)]
+    const rules: FileFilterRule[] = [
+      {
+        action: 'exclude',
+        logic: 'all',
+        enabled: true,
+        description: '空文件',
+        conditions: [{ type: 'size', operator: 'eq', value: 0 }],
+      },
+      {
+        action: 'exclude',
+        logic: 'all',
+        enabled: true,
+        conditions: [{ type: 'extension', operator: 'in', values: ['txt'] }],
+      },
+    ]
+
+    const result = applyFileFilters(entries, rules, 'ordered')
+
+    expect(result.skipped).toHaveLength(2)
+    expect(result.skipped[0]).toMatchObject({ name: 'empty.bin', ruleName: '空文件' })
+    expect(result.skipped[1]).toMatchObject({ name: 'note.txt', ruleName: '规则 #2' })
+  })
+
+  it('treats whitespace separated name keywords as OR matches', () => {
+    const entries = [
+      createEntry(7, '欢迎关注微信公众号chaospace2018', 0),
+      createEntry(8, 'Somnium.2025.1080p.WEBRip.CHS&ENG-HAN.CHAOSPACE.mp4', 2_000_000_000),
+    ]
+    const rules: FileFilterRule[] = [
+      {
+        action: 'exclude',
+        logic: 'all',
+        enabled: true,
+        name: '剔除无意义的空文件',
+        conditions: [
+          { type: 'size', operator: 'lte', value: 10 },
+          {
+            type: 'name',
+            mode: 'includes',
+            value: '关注 微信 微博 发布 地址 推荐',
+            caseSensitive: false,
+          },
+        ],
+      },
+    ]
+
+    const result = applyFileFilters(entries, rules, 'deny-first')
+
+    expect(result.entries.map((entry) => entry.serverFilename)).toEqual([
+      'Somnium.2025.1080p.WEBRip.CHS&ENG-HAN.CHAOSPACE.mp4',
+    ])
+    expect(result.skipped).toHaveLength(1)
+    expect(result.skipped[0]).toMatchObject({ name: '欢迎关注微信公众号chaospace2018' })
+  })
 })
 
 describe('buildRenamePlan', () => {

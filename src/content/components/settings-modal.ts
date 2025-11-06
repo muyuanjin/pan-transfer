@@ -33,6 +33,8 @@ import {
   type FileFilterRule,
   type FileRenameRule,
 } from '@/shared/settings'
+import { createFileFilterEditor, type FileFilterEditor } from './settings/file-filter-editor'
+import { createFileRenameEditor, type FileRenameEditor } from './settings/file-rename-editor'
 
 const settingsCssUrl = settingsCssHref
 let settingsCssPromise: Promise<void> | null = null
@@ -83,8 +85,10 @@ interface SettingsDomRefs {
   presetsTextarea: HTMLTextAreaElement | null
   historyRateInput: HTMLInputElement | null
   filterModeSelect: HTMLSelectElement | null
-  filtersTextarea: HTMLTextAreaElement | null
-  renameTextarea: HTMLTextAreaElement | null
+  filterEditorRoot: HTMLElement | null
+  renameEditorRoot: HTMLElement | null
+  filterEditor?: FileFilterEditor | null
+  renameEditor?: FileRenameEditor | null
   exportSettingsBtn: HTMLButtonElement | null
   exportDataBtn: HTMLButtonElement | null
   importSettingsTrigger: HTMLButtonElement | null
@@ -268,55 +272,35 @@ function extractSettingsFormValues(
   let fileFilters: FileFilterRule[] = []
   let fileRenameRules: FileRenameRule[] = []
 
-  if (domRefs.filtersTextarea) {
-    const rawFilters = domRefs.filtersTextarea.value.trim()
-    if (!rawFilters) {
-      domRefs.filtersTextarea.classList.remove('is-invalid')
-      fileFilters = []
-    } else {
-      try {
-        const parsed = JSON.parse(rawFilters)
-        const normalized = normalizeFileFilterRules(parsed)
-        domRefs.filtersTextarea.classList.remove('is-invalid')
-        fileFilters = normalized
-      } catch (error) {
-        domRefs.filtersTextarea.classList.add('is-invalid')
-        const message =
-          error instanceof SyntaxError
-            ? '文件过滤规则 JSON 解析失败'
-            : (error as Error).message || '文件过滤规则无效'
-        if (strict) {
-          throw new Error(message)
-        }
-        fileFilters = state.fileFilters
+  const filterEditorInstance = domRefs.filterEditor ?? null
+
+  if (filterEditorInstance) {
+    const { rules, errors } = filterEditorInstance.collect({ strict })
+    if (errors.length) {
+      filterEditorInstance.focusFirstInvalid()
+      if (strict) {
+        throw new Error(errors[0] || '文件过滤规则无效')
       }
+      fileFilters = state.fileFilters
+    } else {
+      fileFilters = rules ?? []
     }
   } else {
     fileFilters = state.fileFilters
   }
 
-  if (domRefs.renameTextarea) {
-    const rawRenames = domRefs.renameTextarea.value.trim()
-    if (!rawRenames) {
-      domRefs.renameTextarea.classList.remove('is-invalid')
-      fileRenameRules = []
-    } else {
-      try {
-        const parsed = JSON.parse(rawRenames)
-        const normalized = normalizeFileRenameRules(parsed)
-        domRefs.renameTextarea.classList.remove('is-invalid')
-        fileRenameRules = normalized
-      } catch (error) {
-        domRefs.renameTextarea.classList.add('is-invalid')
-        const message =
-          error instanceof SyntaxError
-            ? '文件重命名规则 JSON 解析失败'
-            : (error as Error).message || '文件重命名规则无效'
-        if (strict) {
-          throw new Error(message)
-        }
-        fileRenameRules = state.fileRenameRules
+  const renameEditorInstance = domRefs.renameEditor ?? null
+
+  if (renameEditorInstance) {
+    const { rules, errors } = renameEditorInstance.collect({ strict })
+    if (errors.length) {
+      renameEditorInstance.focusFirstInvalid()
+      if (strict) {
+        throw new Error(errors[0] || '文件重命名规则无效')
       }
+      fileRenameRules = state.fileRenameRules
+    } else {
+      fileRenameRules = rules ?? []
     }
   } else {
     fileRenameRules = state.fileRenameRules
@@ -396,8 +380,8 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     presetsTextarea: panelDom.settingsPresets as HTMLTextAreaElement | null,
     historyRateInput: panelDom.settingsHistoryRate as HTMLInputElement | null,
     filterModeSelect: panelDom.settingsFilterMode as HTMLSelectElement | null,
-    filtersTextarea: panelDom.settingsFilters as HTMLTextAreaElement | null,
-    renameTextarea: panelDom.settingsRenameRules as HTMLTextAreaElement | null,
+    filterEditorRoot: panelDom.settingsFilterEditor as HTMLElement | null,
+    renameEditorRoot: panelDom.settingsRenameEditor as HTMLElement | null,
     exportSettingsBtn: panelDom.settingsExportConfig as HTMLButtonElement | null,
     exportDataBtn: panelDom.settingsExportData as HTMLButtonElement | null,
     importSettingsTrigger: panelDom.settingsImportConfigTrigger as HTMLButtonElement | null,
@@ -407,6 +391,18 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     resetLayoutBtn: panelDom.settingsResetLayout as HTMLButtonElement | null,
     toggleBtn: panelDom.settingsToggle as HTMLButtonElement | null,
   }
+
+  let filterEditor: FileFilterEditor | null = null
+  let renameEditor: FileRenameEditor | null = null
+
+  if (domRefs.filterEditorRoot instanceof HTMLElement) {
+    filterEditor = createFileFilterEditor(domRefs.filterEditorRoot, { document })
+  }
+  if (domRefs.renameEditorRoot instanceof HTMLElement) {
+    renameEditor = createFileRenameEditor(domRefs.renameEditorRoot, { document })
+  }
+  domRefs.filterEditor = filterEditor
+  domRefs.renameEditor = renameEditor
 
   function getThemeButtons(): HTMLButtonElement[] {
     return domRefs.themeSegment
@@ -500,18 +496,8 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     if (domRefs.filterModeSelect) {
       domRefs.filterModeSelect.value = state.fileFilterMode || DEFAULT_FILE_FILTER_MODE
     }
-    if (domRefs.filtersTextarea) {
-      domRefs.filtersTextarea.value = state.fileFilters.length
-        ? JSON.stringify(serializeFileFilterRules(state.fileFilters), null, 2)
-        : ''
-      domRefs.filtersTextarea.classList.remove('is-invalid')
-    }
-    if (domRefs.renameTextarea) {
-      domRefs.renameTextarea.value = state.fileRenameRules.length
-        ? JSON.stringify(serializeFileRenameRules(state.fileRenameRules), null, 2)
-        : ''
-      domRefs.renameTextarea.classList.remove('is-invalid')
-    }
+    filterEditor?.render(serializeFileFilterRules(state.fileFilters))
+    renameEditor?.render(serializeFileRenameRules(state.fileRenameRules))
   }
 
   function applySettingsUpdate(

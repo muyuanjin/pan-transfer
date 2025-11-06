@@ -544,11 +544,11 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
   panelDom.settingsFilterMode = panel.querySelector<HTMLSelectElement>(
     '[data-role="settings-filter-mode"]',
   )
-  panelDom.settingsFilters = panel.querySelector<HTMLTextAreaElement>(
-    '[data-role="settings-filters"]',
+  panelDom.settingsFilterEditor = panel.querySelector<HTMLElement>(
+    '[data-role="settings-filter-editor"]',
   )
-  panelDom.settingsRenameRules = panel.querySelector<HTMLTextAreaElement>(
-    '[data-role="settings-rename-rules"]',
+  panelDom.settingsRenameEditor = panel.querySelector<HTMLElement>(
+    '[data-role="settings-rename-editor"]',
   )
   panelDom.settingsExportConfig = panel.querySelector<HTMLButtonElement>(
     '[data-role="settings-export-config"]',

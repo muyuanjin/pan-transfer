@@ -248,8 +248,8 @@ export interface PanelDomRefs {
   settingsPresets?: HTMLTextAreaElement | null
   settingsHistoryRate?: HTMLInputElement | null
   settingsFilterMode?: HTMLSelectElement | null
-  settingsFilters?: HTMLTextAreaElement | null
-  settingsRenameRules?: HTMLTextAreaElement | null
+  settingsFilterEditor?: HTMLElement | null
+  settingsRenameEditor?: HTMLElement | null
   settingsExportConfig?: HTMLButtonElement | null
   settingsExportData?: HTMLButtonElement | null
   settingsImportConfigTrigger?: HTMLButtonElement | null

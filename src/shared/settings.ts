@@ -72,6 +72,7 @@ export interface FileFilterRule {
 }
 
 export interface FileRenameRule {
+  name?: string
   description?: string
   pattern: string
   flags: string
@@ -462,6 +463,11 @@ export function normalizeFileRenameRules(input: unknown): FileRenameRule[] {
       replacement,
       enabled,
     }
+    if (typeof record['name'] === 'string' && record['name'].trim()) {
+      rule.name = record['name'].trim()
+    } else if (typeof record['label'] === 'string' && record['label'].trim()) {
+      rule.name = record['label'].trim()
+    }
     if (typeof record['description'] === 'string' && record['description'].trim()) {
       rule.description = record['description'].trim()
     }
@@ -490,6 +496,7 @@ export function normalizeFileFilterMode(value: unknown): FileFilterEvaluationMod
 export function serializeFileFilterRules(rules: FileFilterRule[]): FileFilterRule[] {
   return rules.map((rule) => ({
     ...rule,
+    conditions: rule.conditions.map((condition) => ({ ...condition })),
   })) as FileFilterRule[]
 }
 
