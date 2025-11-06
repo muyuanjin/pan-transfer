@@ -62,12 +62,15 @@ export function createLoggingController({ state, panelDom, document }: LoggingCo
 
     panelDom.logContainer?.classList.remove('is-empty')
 
-    state.logs.forEach((entry) => {
+    const entries = [...state.logs].reverse()
+    entries.forEach((entry, index) => {
       const li = document.createElement('li')
       li.className = `chaospace-log-item chaospace-log-${entry.level}`
       li.dataset['logId'] = entry.id
       li.dataset['stage'] = entry.stage || ''
       const stageLabel = formatStageLabel(entry.stage)
+      const animationDelay = `${Math.min(index * 40, 200)}ms`
+      li.style.setProperty('--chaospace-log-delay', animationDelay)
       li.innerHTML = `
         <span class="chaospace-log-stage">${stageLabel}</span>
         <div class="chaospace-log-content">
@@ -85,7 +88,7 @@ export function createLoggingController({ state, panelDom, document }: LoggingCo
     if (logWrapper) {
       requestAnimationFrame(() => {
         logWrapper.scrollTo({
-          top: logWrapper.scrollHeight,
+          top: 0,
           behavior: 'smooth',
         })
       })

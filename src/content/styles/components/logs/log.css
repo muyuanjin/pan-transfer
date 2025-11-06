@@ -78,9 +78,10 @@
   font-size: 11px;
   color: var(--cp-text-secondary);
   opacity: 0;
-  transform: translateY(6px);
+  transform: translateY(-8px);
   padding: 12px 0;
   border-top: 1px solid rgba(148, 163, 184, 0.16);
+  will-change: transform, opacity;
 }
 
 .chaospace-log-item:first-child {
@@ -93,11 +94,35 @@
 }
 
 .chaospace-log-item.is-visible {
-  opacity: 1;
-  transform: translateY(0);
-  transition:
-    opacity 0.25s ease,
-    transform 0.25s ease;
+  animation: chaospace-log-enter 0.42s cubic-bezier(0.4, 0, 1, 1) forwards;
+  animation-delay: var(--chaospace-log-delay, 0ms);
+}
+
+@keyframes chaospace-log-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+  60% {
+    opacity: 0.85;
+    transform: translateY(3px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chaospace-log-item {
+    opacity: 1;
+    transform: none;
+    will-change: auto;
+  }
+
+  .chaospace-log-item.is-visible {
+    animation: none;
+  }
 }
 
 .chaospace-log-stage {
