@@ -590,24 +590,6 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     '[data-role="history-summary-body"]',
   )
   panelDom.historyControls = panel.querySelector<HTMLElement>('[data-role="history-controls"]')
-  panelDom.historySearch = panel.querySelector<HTMLInputElement>('[data-role="history-search"]')
-  panelDom.historySearchClear = panel.querySelector<HTMLButtonElement>(
-    '[data-role="history-search-clear"]',
-  )
-  panelDom.historySelectAll = panel.querySelector<HTMLInputElement>(
-    '[data-role="history-select-all"]',
-  )
-  panelDom.historySelectionCount = panel.querySelector<HTMLElement>(
-    '[data-role="history-selection-count"]',
-  )
-  panelDom.historyBatchCheck = panel.querySelector<HTMLButtonElement>(
-    '[data-role="history-batch-check"]',
-  )
-  panelDom.historyDeleteSelected = panel.querySelector<HTMLButtonElement>(
-    '[data-role="history-delete-selected"]',
-  )
-  panelDom.historyClear = panel.querySelector<HTMLButtonElement>('[data-role="history-clear"]')
-  panelDom.historyToolbar = panel.querySelector<HTMLElement>('[data-role="history-toolbar"]')
   panelDom.historyToggleButtons = Array.from(
     panel.querySelectorAll<HTMLButtonElement>('[data-role="history-toggle"]'),
   )

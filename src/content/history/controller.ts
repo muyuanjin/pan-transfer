@@ -171,74 +171,6 @@ export function createHistoryController(deps: HistoryControllerDeps) {
     }
   }
 
-  function updateHistorySelectionSummary(filtered: HistoryGroup[] | null = null): void {
-    const groups = filtered || getFilteredHistoryGroups()
-    const total = groups.length
-    const selectedWithinFilter = groups.filter((group) =>
-      state.historySelectedKeys.has(group.key),
-    ).length
-    if (panelDom.historySelectionCount) {
-      panelDom.historySelectionCount.textContent =
-        selectedWithinFilter > 0 ? `已选 ${selectedWithinFilter} / ${total}` : `共 ${total}`
-    }
-    if (panelDom.historySelectAll) {
-      if (selectedWithinFilter === groups.length && groups.length > 0) {
-        panelDom.historySelectAll.checked = true
-        panelDom.historySelectAll.indeterminate = false
-      } else if (selectedWithinFilter === 0) {
-        panelDom.historySelectAll.checked = false
-        panelDom.historySelectAll.indeterminate = false
-      } else {
-        panelDom.historySelectAll.checked = false
-        panelDom.historySelectAll.indeterminate = true
-      }
-    }
-  }
-
-  function updateHistoryBatchControls(filtered: HistoryGroup[] | null = null): void {
-    const groups = filtered || getFilteredHistoryGroups()
-    const selectedGroups = groups.filter((group) => state.historySelectedKeys.has(group.key))
-    const selectableSelected = selectedGroups.filter(canCheckHistoryGroup)
-    if (panelDom.historyBatchCheck) {
-      if (state.historyBatchRunning) {
-        panelDom.historyBatchCheck.disabled = true
-        panelDom.historyBatchCheck.textContent = state.historyBatchProgressLabel || '检测中...'
-      } else {
-        panelDom.historyBatchCheck.disabled = selectableSelected.length === 0
-        panelDom.historyBatchCheck.textContent = '批量检测更新'
-      }
-    }
-    if (panelDom.historyDeleteSelected) {
-      panelDom.historyDeleteSelected.disabled =
-        state.historyBatchRunning || state.historySelectedKeys.size === 0
-    }
-    if (panelDom.historyClear) {
-      panelDom.historyClear.disabled = state.historyBatchRunning || !state.historyGroups.length
-    }
-    if (panelDom.historySelectAll) {
-      panelDom.historySelectAll.disabled = state.historyBatchRunning || groups.length === 0
-    }
-    if (panelDom.historyList) {
-      panelDom.historyList
-        .querySelectorAll('input[type="checkbox"][data-role="history-select-item"]')
-        .forEach((input) => {
-          ;(input as HTMLInputElement).disabled = state.historyBatchRunning
-        })
-    }
-  }
-
-  function updateHistorySearchControls(): void {
-    const term = state.historySearchTerm || ''
-    if (panelDom.historySearch) {
-      panelDom.historySearch.value = term
-    }
-    if (panelDom.historySearchClear) {
-      const isEmpty = term.length === 0
-      panelDom.historySearchClear.hidden = isEmpty
-      panelDom.historySearchClear.disabled = isEmpty
-    }
-  }
-
   function updateHistoryExpansion(): void {
     const floatingPanel = getFloatingPanel()
     if (!floatingPanel) {
@@ -262,11 +194,7 @@ export function createHistoryController(deps: HistoryControllerDeps) {
   }
 
   function renderHistoryCard(): void {
-    updateHistorySearchControls()
     pruneHistorySelection()
-    const filtered = getFilteredHistoryGroups()
-    updateHistorySelectionSummary(filtered)
-    updateHistoryBatchControls(filtered)
     renderHistoryCardComponent({
       state,
       panelDom,
@@ -275,8 +203,6 @@ export function createHistoryController(deps: HistoryControllerDeps) {
       getHistoryGroupByKey,
       closeHistoryDetail,
       getFilteredHistoryGroups,
-      updateHistorySelectionSummary,
-      updateHistoryBatchControls,
       updateHistoryExpansion,
       isHistoryGroupCompleted,
     })
@@ -522,7 +448,7 @@ export function createHistoryController(deps: HistoryControllerDeps) {
     }
     state.historyBatchRunning = true
     setHistoryBatchProgressLabel('准备中...')
-    updateHistoryBatchControls()
+    renderHistoryCard()
 
     let updated = 0
     let completed = 0
@@ -657,8 +583,6 @@ export function createHistoryController(deps: HistoryControllerDeps) {
       next.delete(groupKey)
     }
     state.historySelectedKeys = next
-    updateHistorySelectionSummary()
-    updateHistoryBatchControls()
   }
 
   function setHistorySelectAll(selected: boolean): void {
@@ -690,15 +614,11 @@ export function createHistoryController(deps: HistoryControllerDeps) {
       return
     }
     state.historySearchTerm = next
-    updateHistorySearchControls()
     renderHistoryCard()
   }
 
   function setHistoryBatchProgressLabel(label: string): void {
     state.historyBatchProgressLabel = label
-    if (panelDom.historyBatchCheck) {
-      panelDom.historyBatchCheck.textContent = label || '批量检测更新'
-    }
   }
 
   function setHistoryExpanded(expanded: boolean): void {
@@ -738,8 +658,6 @@ export function createHistoryController(deps: HistoryControllerDeps) {
     handleHistoryClear,
     handleHistoryBatchCheck,
     renderHistoryCard,
-    updateHistoryBatchControls,
-    updateHistorySelectionSummary,
     setHistorySelection,
     setHistorySelectAll,
     setHistoryFilter,

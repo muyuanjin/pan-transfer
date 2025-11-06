@@ -130,51 +130,6 @@ export function createHistoryListBinder({
         )
       }
 
-      if (panelDom.historySelectAll) {
-        panelDom.historySelectAll.addEventListener(
-          'change',
-          (event) => {
-            if (state.historyBatchRunning) {
-              event.preventDefault()
-              history.updateHistorySelectionSummary()
-              return
-            }
-            history.setHistorySelectAll(Boolean((event.target as HTMLInputElement)?.checked))
-          },
-          { signal },
-        )
-      }
-
-      if (panelDom.historyBatchCheck) {
-        panelDom.historyBatchCheck.addEventListener(
-          'click',
-          () => {
-            history.handleHistoryBatchCheck()
-          },
-          { signal },
-        )
-      }
-
-      if (panelDom.historyDeleteSelected) {
-        panelDom.historyDeleteSelected.addEventListener(
-          'click',
-          () => {
-            history.handleHistoryDeleteSelected()
-          },
-          { signal },
-        )
-      }
-
-      if (panelDom.historyClear) {
-        panelDom.historyClear.addEventListener(
-          'click',
-          () => {
-            history.handleHistoryClear()
-          },
-          { signal },
-        )
-      }
-
       panelDom.historyList.addEventListener(
         'click',
         (event) => {

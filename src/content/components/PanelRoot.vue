@@ -67,56 +67,8 @@
         </div>
         <div class="chaospace-history-controls" data-role="history-controls">
           <HistoryFilterTabs />
-          <div class="chaospace-history-search">
-            <span class="chaospace-history-search-icon" aria-hidden="true">🔍</span>
-            <input
-              type="search"
-              class="chaospace-history-search-input"
-              data-role="history-search"
-              placeholder="搜索标题、目录或来源"
-              aria-label="搜索转存历史"
-              enterkeyhint="search"
-            />
-            <button
-              type="button"
-              class="chaospace-history-search-clear"
-              data-role="history-search-clear"
-              aria-label="清除搜索"
-              hidden
-            >
-              ✕
-            </button>
-          </div>
-          <div class="chaospace-history-toolbar" data-role="history-toolbar">
-            <label class="chaospace-history-select-all">
-              <input type="checkbox" data-role="history-select-all" />
-              <span>全选当前筛选结果</span>
-            </label>
-            <div class="chaospace-history-toolbar-actions">
-              <span class="chaospace-history-selection-count" data-role="history-selection-count"
-                >已选 0 项</span
-              >
-              <button
-                type="button"
-                class="chaospace-history-primary-btn"
-                data-role="history-batch-check"
-                disabled
-              >
-                批量检测更新
-              </button>
-              <button
-                type="button"
-                class="chaospace-history-ghost-btn"
-                data-role="history-delete-selected"
-                disabled
-              >
-                删除选中
-              </button>
-              <button type="button" class="chaospace-history-ghost-btn" data-role="history-clear">
-                清空历史
-              </button>
-            </div>
-          </div>
+          <HistorySearchBar />
+          <HistoryToolbar />
         </div>
         <div class="chaospace-history-overlay-scroll">
           <div class="chaospace-history-empty" data-role="history-empty">还没有转存记录</div>
@@ -430,6 +382,8 @@
 import { computed } from 'vue'
 import PanelToolbar from './PanelToolbar.vue'
 import HistoryFilterTabs from './history/HistoryFilterTabs.vue'
+import HistorySearchBar from './history/HistorySearchBar.vue'
+import HistoryToolbar from './history/HistoryToolbar.vue'
 import PresetList from './PresetList.vue'
 
 type PanelTheme = 'light' | 'dark'

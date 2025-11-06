@@ -29,8 +29,6 @@ export interface HistoryCardRenderParams {
   getHistoryGroupByKey: ((key: string) => HistoryGroup | null | undefined) | undefined
   closeHistoryDetail: (() => void) | undefined
   getFilteredHistoryGroups: (() => HistoryGroup[]) | undefined
-  updateHistorySelectionSummary: ((groups: HistoryGroup[]) => void) | undefined
-  updateHistoryBatchControls: ((groups: HistoryGroup[]) => void) | undefined
   updateHistoryExpansion: (() => void) | undefined
   isHistoryGroupCompleted: ((group: HistoryGroup) => boolean) | undefined
 }
@@ -47,8 +45,6 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
     getHistoryGroupByKey,
     closeHistoryDetail,
     getFilteredHistoryGroups,
-    updateHistorySelectionSummary,
-    updateHistoryBatchControls,
     updateHistoryExpansion,
     isHistoryGroupCompleted,
   } = params
@@ -164,12 +160,6 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
     })
   }
 
-  if (typeof updateHistorySelectionSummary === 'function') {
-    updateHistorySelectionSummary(filteredGroups)
-  }
-  if (typeof updateHistoryBatchControls === 'function') {
-    updateHistoryBatchControls(filteredGroups)
-  }
   if (typeof updateHistoryExpansion === 'function') {
     updateHistoryExpansion()
   }

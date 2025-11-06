@@ -269,14 +269,6 @@ export interface PanelDomRefs {
   historySummary?: HTMLElement | null
   historySummaryBody?: HTMLElement | null
   historyControls?: HTMLElement | null
-  historySearch?: HTMLInputElement | null
-  historySearchClear?: HTMLButtonElement | null
-  historySelectAll?: HTMLInputElement | null
-  historySelectionCount?: HTMLElement | null
-  historyBatchCheck?: HTMLButtonElement | null
-  historyDeleteSelected?: HTMLButtonElement | null
-  historyClear?: HTMLButtonElement | null
-  historyToolbar?: HTMLElement | null
   historyToggleButtons?: HTMLButtonElement[]
   resourceSummary?: HTMLElement | null
   resourceTitle?: HTMLElement | null

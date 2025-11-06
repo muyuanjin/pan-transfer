@@ -1,6 +1,6 @@
 # Chaospace MV3 Refactor Plan
 
-_Last updated: 2025-11-06 03:55 (UTC-8)_
+_Last updated: 2025-11-06 04:28 (UTC-8)_
 
 ## Mission & Guardrails
 
@@ -18,6 +18,7 @@ _Last updated: 2025-11-06 03:55 (UTC-8)_
 - Migrated the resource toolbar (sorting + selection) from imperative binders to `PanelToolbar.vue` + `toolbar-context`, leveraging Pinia refs and VueUse keyboard listeners.
 - Trimmed `page-analyzer.spec.ts` runtime (~0.89s → ~0.81s) by caching fixture reads and resetting analyzer caches through a dedicated test hook, keeping fetch/document behaviour intact.
 - Replaced the history filter tabs and preset list binders with Vue components (`HistoryFilterTabs.vue`, `PresetList.vue`) wired through provide/inject contexts; removed the old binder modules and their `panelDom` hooks.
+- Ported the history search binder into `HistorySearchBar.vue` + `useHistorySearch` (debounced Pinia sync, clear-state, Escape handling) and replaced the imperative batch toolbar with `HistoryToolbar.vue`, making selection counts/actions reactive; removed associated `panelDom` refs/binders and refreshed controller/tests (`npm run typecheck`, `npm run test` green on 2025-11-06 04:24, UTC-8).
 
 ## Current Status Snapshot
 
@@ -56,6 +57,12 @@ _Last updated: 2025-11-06 03:55 (UTC-8)_
 ### Legacy Baseline
 
 - `chaospace-extension/` remains the Manifest V2 snapshot for parity checks only—do not edit.
+
+## Next Steps
+
+- Componentize the remaining history overlay affordances (selection checkboxes, detail triggers) so the runtime binder focuses purely on side-effects Vue cannot own.
+- Tighten `PanelDomRefs` by removing the catch-all index signature and exposing typed accessors per controller now that search/toolbar nodes are Vue-owned.
+- Run the full `npm run check` suite after the next binder extraction to confirm Playwright coverage stays green with the reactive overlay.
 
 ## Completed Foundation
 

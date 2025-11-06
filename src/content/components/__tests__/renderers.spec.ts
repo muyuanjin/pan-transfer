@@ -206,8 +206,6 @@ describe('HistoryCard renderer toggles', () => {
       getHistoryGroupByKey: undefined,
       closeHistoryDetail: undefined,
       getFilteredHistoryGroups: undefined,
-      updateHistorySelectionSummary: undefined,
-      updateHistoryBatchControls: undefined,
       updateHistoryExpansion: undefined,
       isHistoryGroupCompleted: undefined,
     })

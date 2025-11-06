@@ -35,7 +35,6 @@ import { createPanelFactory } from './panel/panel-factory'
 import { createSettingsCoordinator } from './panel/settings-coordinator'
 import { createBaseDirBinder } from './ui/binders/base-dir-binder'
 import { createHistoryListBinder } from './ui/binders/history-list-binder'
-import { createHistorySearchBinder } from './ui/binders/history-search-binder'
 import { createPosterPreviewBinder } from './ui/binders/poster-preview-binder'
 import { createItemSelectionBinder } from './ui/binders/item-selection-binder'
 import { createSeasonTabsBinder } from './ui/binders/season-tabs-binder'
@@ -456,12 +455,6 @@ export function createRuntimeApp() {
     history,
   })
 
-  const historySearchBinder = createHistorySearchBinder({
-    panelDom,
-    state,
-    history,
-  })
-
   const posterPreviewBinder = createPosterPreviewBinder({
     panelDom,
     state,
@@ -515,7 +508,6 @@ export function createRuntimeApp() {
     mountPanelShell,
     settingsCoordinator,
     staticBinders: [
-      historySearchBinder,
       posterPreviewBinder,
       baseDirBinder,
       itemSelectionBinder,
