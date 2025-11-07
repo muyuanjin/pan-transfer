@@ -6,7 +6,7 @@ import {
   ensureHistoryLoaded,
   reloadHistoryFromStorage,
 } from './storage/history-store'
-import { ensureCacheLoaded } from './storage/cache-store'
+import { ensureCacheLoaded, reloadCacheFromStorage } from './storage/cache-store'
 import {
   clearTabSeasonPreference,
   getTabSeasonPreference,
@@ -224,10 +224,14 @@ bootstrapStores()
 
 chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendResponse) => {
   if (isHistoryRefreshMessage(message)) {
-    void reloadHistoryFromStorage()
+    const reloadPromise = (async () => {
+      await reloadCacheFromStorage()
+      await reloadHistoryFromStorage()
+    })()
+    reloadPromise
       .then(() => sendResponse({ ok: true }))
       .catch((error) => {
-        console.warn('[Chaospace Transfer] Failed to reload history state', error)
+        console.warn('[Chaospace Transfer] Failed to reload storage state', error)
         sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) })
       })
     return true

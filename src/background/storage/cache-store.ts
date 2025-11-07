@@ -78,62 +78,78 @@ function pruneCompletedShareCacheIfNeeded(): void {
     })
 }
 
+async function hydrateCacheState(): Promise<void> {
+  try {
+    const stored = await storageGet<{ [STORAGE_KEYS.cache]: CacheState | undefined }>([
+      STORAGE_KEYS.cache,
+    ])
+    const raw = stored[STORAGE_KEYS.cache]
+    if (raw && raw.version === CACHE_VERSION && raw.directories && raw.ensured) {
+      persistentCacheState = {
+        version: CACHE_VERSION,
+        directories: raw.directories || {},
+        ensured: { ...raw.ensured },
+        completedShares: raw.completedShares || {},
+      }
+    } else {
+      persistentCacheState = createDefaultCacheState()
+    }
+  } catch (error) {
+    console.warn('[Chaospace Transfer] Failed to load persistent cache', error)
+    persistentCacheState = createDefaultCacheState()
+  }
+
+  ensuredDirectories.clear()
+  ensuredDirectories.add('/')
+  if (persistentCacheState && persistentCacheState.ensured) {
+    Object.keys(persistentCacheState.ensured).forEach((path) => {
+      if (path) {
+        ensuredDirectories.add(path)
+      }
+    })
+  }
+
+  directoryFileCache.clear()
+  if (persistentCacheState && persistentCacheState.directories) {
+    Object.entries(persistentCacheState.directories).forEach(([path, entry]) => {
+      if (!path || !entry || !Array.isArray(entry.files)) {
+        return
+      }
+      directoryFileCache.set(path, new Set(entry.files))
+    })
+  }
+
+  completedShareCache.clear()
+  if (persistentCacheState && persistentCacheState.completedShares) {
+    Object.entries(persistentCacheState.completedShares).forEach(([surl, ts]) => {
+      if (surl) {
+        const timestamp = typeof ts === 'number' ? ts : nowTs()
+        completedShareCache.set(surl, timestamp)
+      }
+    })
+  }
+}
+
 export async function ensureCacheLoaded(): Promise<void> {
   if (cacheLoadPromise) {
     await cacheLoadPromise
     return
   }
-  cacheLoadPromise = (async () => {
-    try {
-      const stored = await storageGet<{ [STORAGE_KEYS.cache]: CacheState | undefined }>([
-        STORAGE_KEYS.cache,
-      ])
-      const raw = stored[STORAGE_KEYS.cache]
-      if (raw && raw.version === CACHE_VERSION && raw.directories && raw.ensured) {
-        persistentCacheState = {
-          version: CACHE_VERSION,
-          directories: raw.directories || {},
-          ensured: { ...raw.ensured },
-          completedShares: raw.completedShares || {},
-        }
-      } else {
-        persistentCacheState = createDefaultCacheState()
-      }
-    } catch (error) {
-      console.warn('[Chaospace Transfer] Failed to load persistent cache', error)
-      persistentCacheState = createDefaultCacheState()
-    }
-
-    ensuredDirectories.clear()
-    ensuredDirectories.add('/')
-    if (persistentCacheState && persistentCacheState.ensured) {
-      Object.keys(persistentCacheState.ensured).forEach((path) => {
-        if (path) {
-          ensuredDirectories.add(path)
-        }
-      })
-    }
-
-    directoryFileCache.clear()
-    if (persistentCacheState && persistentCacheState.directories) {
-      Object.entries(persistentCacheState.directories).forEach(([path, entry]) => {
-        if (!path || !entry || !Array.isArray(entry.files)) {
-          return
-        }
-        directoryFileCache.set(path, new Set(entry.files))
-      })
-    }
-
-    completedShareCache.clear()
-    if (persistentCacheState && persistentCacheState.completedShares) {
-      Object.entries(persistentCacheState.completedShares).forEach(([surl, ts]) => {
-        if (surl) {
-          completedShareCache.set(surl, ts || 0)
-        }
-      })
-    }
-  })()
+  cacheLoadPromise = hydrateCacheState()
   await cacheLoadPromise
+}
+
+export async function reloadCacheFromStorage(): Promise<void> {
+  if (cacheLoadPromise) {
+    try {
+      await cacheLoadPromise
+    } catch (error) {
+      console.warn('[Chaospace Transfer] Previous cache load failed before reload', error)
+    }
+  }
+  const nextLoad = hydrateCacheState()
+  cacheLoadPromise = nextLoad
+  await nextLoad
 }
 
 export async function persistCacheNow(): Promise<void> {
