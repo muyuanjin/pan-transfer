@@ -1,3 +1,5 @@
+import { chaosLogger } from '@/shared/log'
+
 const STORAGE_INVALIDATION_WARNING = '[Chaospace Transfer]'
 const STORAGE_UNAVAILABLE_WARNING = '[Chaospace Transfer]'
 
@@ -35,7 +37,7 @@ export function warnStorageInvalidation(
     return
   }
   const contextSuffix = contextLabel ? `（${contextLabel}）` : ''
-  console.warn(
+  chaosLogger.warn(
     `${STORAGE_INVALIDATION_WARNING} ${operation} skipped${contextSuffix} · extension context invalidated. 请重新加载扩展或页面以继续。`,
   )
   storageInvalidationWarned = true
@@ -46,7 +48,7 @@ const warnStorageUnavailable = (operation = 'Storage operation', contextLabel?: 
     return
   }
   const contextSuffix = contextLabel ? `（${contextLabel}）` : ''
-  console.warn(
+  chaosLogger.warn(
     `${STORAGE_UNAVAILABLE_WARNING} ${operation} skipped${contextSuffix} · chrome.storage.local unavailable.`,
   )
   storageUnavailableWarned = true
@@ -73,7 +75,7 @@ export async function safeStorageGet<T = Record<string, unknown>>(
       warnStorageInvalidation('Storage read', contextLabel)
       return {} as T & Record<string, unknown>
     }
-    console.error('[Chaospace Transfer] Failed to read ' + contextLabel, error)
+    chaosLogger.error('[Chaospace Transfer] Failed to read ' + contextLabel, error)
     return {} as T & Record<string, unknown>
   }
 }
@@ -94,7 +96,7 @@ export async function safeStorageSet(
       warnStorageInvalidation('Storage write', contextLabel)
       return
     }
-    console.error('[Chaospace Transfer] Failed to persist ' + contextLabel, error)
+    chaosLogger.error('[Chaospace Transfer] Failed to persist ' + contextLabel, error)
   }
 }
 
@@ -114,6 +116,6 @@ export async function safeStorageRemove(
       warnStorageInvalidation('Storage delete', contextLabel)
       return
     }
-    console.error('[Chaospace Transfer] Failed to remove ' + contextLabel, error)
+    chaosLogger.error('[Chaospace Transfer] Failed to remove ' + contextLabel, error)
   }
 }

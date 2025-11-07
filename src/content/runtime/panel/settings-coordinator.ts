@@ -1,3 +1,4 @@
+import { chaosLogger } from '@/shared/log'
 import { createSettingsModal } from '../../components/settings-modal'
 import type { ToastHandler } from '../../components/toast'
 import { safeStorageRemove, safeStorageSet } from '../../utils/storage'
@@ -68,7 +69,7 @@ export function createSettingsCoordinator({
         cancelEdgeHide({ show: true })
         showToast('success', '布局已重置', '面板大小与位置已恢复默认值')
       } catch (error) {
-        console.error('[Chaospace Transfer] Failed to reset layout', error)
+        chaosLogger.error('[Chaospace Transfer] Failed to reset layout', error)
         const message = error instanceof Error ? error.message : '无法重置面板布局'
         showToast('error', '重置失败', message)
       }

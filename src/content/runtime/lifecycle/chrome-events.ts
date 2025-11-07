@@ -1,3 +1,4 @@
+import { chaosLogger } from '@/shared/log'
 import { state } from '../../state'
 import {
   EDGE_STATE_KEY,
@@ -171,7 +172,7 @@ export function registerChromeEvents(deps: {
           sendResponse(result)
         })
         .catch((error) => {
-          console.error('[Chaospace Transfer] Message handler error:', error)
+          chaosLogger.error('[Chaospace Transfer] Message handler error:', error)
           sendResponse({ items: [], url: '', origin: '', title: '', poster: null })
         })
       return true

@@ -1,3 +1,4 @@
+import { chaosLogger } from '@/shared/log'
 import {
   analyzePage,
   extractItemsFromDocument,
@@ -639,7 +640,7 @@ export function createRuntimeApp() {
       mountPoint.appendChild(link)
       return link
     } catch (error) {
-      console.error('[Chaospace] Failed to inject styles:', error)
+      chaosLogger.error('[Chaospace] Failed to inject styles:', error)
       return null
     }
   }

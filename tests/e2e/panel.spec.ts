@@ -194,12 +194,35 @@ const createChaospaceErrorTracker = (page: Page): ChaospaceErrorTracker => {
     }
   }
 
+  const failForUnprefixedChaospaceLog = (
+    message: ConsoleMessage,
+    locationUrl: string | undefined,
+  ) => {
+    if (!locationUrl || !locationUrl.startsWith('chrome-extension://')) {
+      return
+    }
+    if (message.text().includes(CHAOSPACE_LOG_PREFIX)) {
+      return
+    }
+    if (!abortReject || !earlyAbortActive) {
+      return
+    }
+    earlyAbortActive = false
+    abortReject(
+      new Error(
+        `Detected extension console.error without ${CHAOSPACE_LOG_PREFIX} prefix:\\n${
+          message.text() || '<empty>'
+        }`,
+      ),
+    )
+  }
+
   const consoleListener = (message: ConsoleMessage) => {
     if (message.type() !== 'error') return
     const location = message.location()
-    consoleErrors.push(
-      `[${location.url || 'unknown'}:${location.lineNumber ?? '-'}] ${message.text()}`,
-    )
+    const formatted = `[${location.url || 'unknown'}:${location.lineNumber ?? '-'}] ${message.text()}`
+    consoleErrors.push(formatted)
+    failForUnprefixedChaospaceLog(message, location.url)
     maybeAbort()
   }
 

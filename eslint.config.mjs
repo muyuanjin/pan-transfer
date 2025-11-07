@@ -53,7 +53,12 @@ export default [
       ...typescript.configs.recommended.rules,
       '@typescript-eslint/no-unused-vars': [
         'warn',
-        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+        },
       ],
     },
   },
@@ -81,7 +86,12 @@ export default [
       ...typescript.configs.recommended.rules,
       '@typescript-eslint/no-unused-vars': [
         'warn',
-        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+        },
       ],
       '@typescript-eslint/no-explicit-any': 'warn',
       // 测试文件放宽一些规则
@@ -115,7 +125,12 @@ export default [
       ...typescript.configs.recommended.rules,
       '@typescript-eslint/no-unused-vars': [
         'warn',
-        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+        },
       ],
       '@typescript-eslint/no-explicit-any': 'warn',
       // 测试文件放宽一些规则
@@ -156,13 +171,46 @@ export default [
       ...typescript.configs.recommended.rules,
       '@typescript-eslint/no-unused-vars': [
         'warn',
-        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+        },
       ],
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/no-empty-object-type': 'warn',
       '@typescript-eslint/ban-ts-comment': 'warn',
       'no-useless-escape': 'warn',
       'no-redeclare': 'warn',
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'console',
+          property: 'log',
+          message: 'Use chaosLogger.log instead of console.log',
+        },
+        {
+          object: 'console',
+          property: 'warn',
+          message: 'Use chaosLogger.warn instead of console.warn',
+        },
+        {
+          object: 'console',
+          property: 'error',
+          message: 'Use chaosLogger.error instead of console.error',
+        },
+        {
+          object: 'console',
+          property: 'info',
+          message: 'Use chaosLogger.info instead of console.info',
+        },
+        {
+          object: 'console',
+          property: 'debug',
+          message: 'Use chaosLogger.debug instead of console.debug',
+        },
+      ],
       // 放宽一些过于严格的规则
       '@typescript-eslint/no-unsafe-assignment': 'warn',
       '@typescript-eslint/no-unsafe-member-access': 'warn',
@@ -202,9 +250,60 @@ export default [
       'vue/one-component-per-file': 'off',
       '@typescript-eslint/no-unused-vars': [
         'warn',
-        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+        },
+      ],
+      'no-restricted-properties': [
+        'error',
+        {
+          object: 'console',
+          property: 'log',
+          message: 'Use chaosLogger.log instead of console.log',
+        },
+        {
+          object: 'console',
+          property: 'warn',
+          message: 'Use chaosLogger.warn instead of console.warn',
+        },
+        {
+          object: 'console',
+          property: 'error',
+          message: 'Use chaosLogger.error instead of console.error',
+        },
+        {
+          object: 'console',
+          property: 'info',
+          message: 'Use chaosLogger.info instead of console.info',
+        },
+        {
+          object: 'console',
+          property: 'debug',
+          message: 'Use chaosLogger.debug instead of console.debug',
+        },
       ],
       'no-unused-vars': 'off', // 关闭基础规则,避免与 TypeScript 规则冲突
+    },
+  },
+
+  // 允许日志 helper 内部调用 console
+  {
+    files: ['src/shared/log.ts'],
+    rules: {
+      'no-restricted-properties': 'off',
+    },
+  },
+
+  // Node-based maintenance scripts
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
     },
   },
 

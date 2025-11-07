@@ -1,4 +1,4 @@
-import * as TinyPinyin from 'tiny-pinyin'
+import { chaosLogger } from '@/shared/log'
 import { HISTORY_KEY, HISTORY_FILTERS, type HistoryFilter } from '../constants'
 import { normalizePageUrl } from './page-analyzer'
 import type { CompletionStatus, SeasonEntry } from '@/shared/utils/completion-status'
@@ -10,6 +10,50 @@ import type {
   HistoryRecordsPayload,
 } from '../types'
 import { safeStorageGet } from '../utils/storage'
+
+type TinyPinyinModule = typeof import('tiny-pinyin')
+
+let tinyPinyinModule: TinyPinyinModule | null = null
+let tinyPinyinLoadPromise: Promise<TinyPinyinModule | null> | null = null
+
+async function loadTinyPinyin(): Promise<TinyPinyinModule | null> {
+  if (tinyPinyinModule) {
+    return tinyPinyinModule
+  }
+  if (!tinyPinyinLoadPromise) {
+    tinyPinyinLoadPromise = import('tiny-pinyin')
+      .then((mod) => {
+        const resolved = ((mod as { default?: TinyPinyinModule }).default ??
+          mod) as TinyPinyinModule
+        tinyPinyinModule = resolved
+        return resolved
+      })
+      .catch((error) => {
+        chaosLogger.warn('Failed to load TinyPinyin module', error)
+        return null
+      })
+      .finally(() => {
+        tinyPinyinLoadPromise = null
+      })
+  }
+  return tinyPinyinLoadPromise
+}
+
+function getTinyPinyin(): TinyPinyinModule | null {
+  if (tinyPinyinModule) {
+    return tinyPinyinModule
+  }
+  void loadTinyPinyin()
+  return tinyPinyinModule
+}
+
+export function primeHistorySearchTransliteration(): Promise<TinyPinyinModule | null> {
+  return loadTinyPinyin()
+}
+
+export async function ensureHistorySearchTransliterationReady(): Promise<void> {
+  await loadTinyPinyin()
+}
 
 interface CompletionLike {
   label?: unknown
@@ -65,7 +109,7 @@ export async function readHistoryFromStorage(): Promise<StoredHistorySnapshot | 
     }
     return null
   } catch (error) {
-    console.error('[Chaospace Transfer] Failed to read history from storage', error)
+    chaosLogger.error('[Chaospace Transfer] Failed to read history from storage', error)
     return null
   }
 }
@@ -488,11 +532,12 @@ function buildPinyinVariants(value: string): string[] {
     return variants
   }
   try {
-    if (typeof TinyPinyin?.convertToPinyin !== 'function') {
+    const tiny = getTinyPinyin()
+    if (typeof tiny?.convertToPinyin !== 'function') {
       return variants
     }
-    const spaced = TinyPinyin.convertToPinyin(value, ' ', true)
-    const compact = TinyPinyin.convertToPinyin(value, '', true)
+    const spaced = tiny.convertToPinyin(value, ' ', true)
+    const compact = tiny.convertToPinyin(value, '', true)
     if (spaced && spaced !== value) {
       variants.push(spaced)
       const initials = spaced
@@ -697,7 +742,7 @@ export async function deleteHistoryRecords(urls: string[] = []): Promise<History
     }
     return response
   } catch (error) {
-    console.error('[Chaospace Transfer] Failed to delete history records', error)
+    chaosLogger.error('[Chaospace Transfer] Failed to delete history records', error)
     throw error
   }
 }
@@ -716,7 +761,7 @@ export async function clearAllHistoryRecords(): Promise<HistoryMutationResponse>
     }
     return response
   } catch (error) {
-    console.error('[Chaospace Transfer] Failed to clear history', error)
+    chaosLogger.error('[Chaospace Transfer] Failed to clear history', error)
     throw error
   }
 }
@@ -758,7 +803,7 @@ export async function requestHistoryUpdate(pageUrl: string): Promise<HistoryUpda
     }
     return response
   } catch (error) {
-    console.error('[Chaospace Transfer] Failed to request history update', error)
+    chaosLogger.error('[Chaospace Transfer] Failed to request history update', error)
     return { ok: false, error: error instanceof Error ? error : new Error(String(error)) }
   }
 }
@@ -768,7 +813,7 @@ export async function fetchHistorySnapshot(): Promise<HistoryRecordsPayload> {
     const rawHistory = await readHistoryFromStorage()
     return prepareHistoryRecords(rawHistory)
   } catch (error) {
-    console.error('[Chaospace Transfer] Failed to load history', error)
+    chaosLogger.error('[Chaospace Transfer] Failed to load history', error)
     return { records: [], groups: [] }
   }
 }

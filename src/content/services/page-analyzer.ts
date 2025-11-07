@@ -1,3 +1,4 @@
+import { chaosLogger } from '@/shared/log'
 import {
   CLASSIFICATION_PATH_MAP,
   TV_SHOW_INITIAL_SEASON_BATCH,
@@ -564,7 +565,7 @@ class ChaospaceClassifier implements ClassificationCache {
       this.cachedMainDocUrl = mainUrl
       return doc
     } catch (error) {
-      console.warn('[Chaospace Transfer] Failed to load main page for classification', error)
+      chaosLogger.warn('[Chaospace Transfer] Failed to load main page for classification', error)
       return document
     }
   }
@@ -624,7 +625,7 @@ class ChaospaceClassifier implements ClassificationCache {
       const text = clone.textContent || ''
       return text.replace(/\s+/g, ' ').trim()
     } catch (error) {
-      console.warn('[Chaospace Transfer] Failed to extract page text', error)
+      chaosLogger.warn('[Chaospace Transfer] Failed to extract page text', error)
       return ''
     }
   }
@@ -688,7 +689,7 @@ class ChaospaceClassifier implements ClassificationCache {
       }
       return ''
     } catch (error) {
-      console.warn('[Chaospace Transfer] Failed to extract description', error)
+      chaosLogger.warn('[Chaospace Transfer] Failed to extract description', error)
       return ''
     }
   }
@@ -718,7 +719,7 @@ export async function getPageClassification({
   if (!pageClassificationPromise) {
     const classifier = new ChaospaceClassifier()
     pageClassificationPromise = classifier.getDetailedClassification().catch((error) => {
-      console.error('[Chaospace Transfer] Page classification failed', error)
+      chaosLogger.error('[Chaospace Transfer] Page classification failed', error)
       return {
         url: window.location.href || '',
         classification: 'unknown',
@@ -956,7 +957,7 @@ export async function fetchSeasonDetail(
       poster = docPoster
     }
   } catch (error) {
-    console.error('[Chaospace Transfer] Failed to load season page', info.url, error)
+    chaosLogger.error('[Chaospace Transfer] Failed to load season page', info.url, error)
   }
   return {
     items: seasonItems,
@@ -1114,7 +1115,7 @@ async function collectLinks(options: AnalyzePageOptions = {}): Promise<PageAnaly
       classificationDetail,
     }
   } catch (error) {
-    console.error('[Chaospace Transfer] Failed to collect links', error)
+    chaosLogger.error('[Chaospace Transfer] Failed to collect links', error)
     let classificationDetail: DetailedClassificationResult | null = null
     try {
       classificationDetail = await getPageClassification({ detailed: true })
@@ -1263,7 +1264,7 @@ async function collectTvShowSeasonItems(
         const result = await fetchSeasonDetail(info)
         return { info, ...result }
       } catch (error) {
-        console.error('[Chaospace Transfer] Failed to load season page', info.url, error)
+        chaosLogger.error('[Chaospace Transfer] Failed to load season page', info.url, error)
         return {
           info,
           items: [] as ResourceItem[],

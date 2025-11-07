@@ -1,3 +1,5 @@
+import { chaosLogger } from '@/shared/log'
+
 export interface ToastStats {
   success: number
   failed: number
@@ -194,6 +196,6 @@ export function showToast(
       }
     }, 5000)
   } catch (error) {
-    console.error('[Chaospace Transfer] Failed to show toast', error)
+    chaosLogger.error('[Chaospace Transfer] Failed to show toast', error)
   }
 }

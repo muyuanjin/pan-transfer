@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { filterHistoryGroups } from './history-service'
+import { ensureHistorySearchTransliterationReady, filterHistoryGroups } from './history-service'
 import type { HistoryGroup, ContentHistoryRecord } from '../types'
 import type { CompletionStatus, SeasonEntry } from '@/shared/utils/completion-status'
 
@@ -170,7 +170,7 @@ describe('filterHistoryGroups', () => {
     expect(result[0]?.key).toBe('g1')
   })
 
-  it('matches full Pinyin search input', () => {
+  it('matches full Pinyin search input', async () => {
     const groups: HistoryGroup[] = [
       createHistoryGroup({
         key: 'g1',
@@ -179,13 +179,14 @@ describe('filterHistoryGroups', () => {
       }),
     ]
 
+    await ensureHistorySearchTransliterationReady()
     const result = filterHistoryGroups(groups, 'all', { searchTerm: 'guduyaogun' })
 
     expect(result).toHaveLength(1)
     expect(result[0]?.key).toBe('g1')
   })
 
-  it('matches Pinyin initials search input', () => {
+  it('matches Pinyin initials search input', async () => {
     const groups: HistoryGroup[] = [
       createHistoryGroup({
         key: 'g1',
@@ -204,6 +205,7 @@ describe('filterHistoryGroups', () => {
       }),
     ]
 
+    await ensureHistorySearchTransliterationReady()
     const result = filterHistoryGroups(groups, 'all', { searchTerm: 'lldq' })
 
     expect(result).toHaveLength(1)

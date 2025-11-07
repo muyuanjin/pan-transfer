@@ -1,3 +1,4 @@
+import { chaosLogger } from '@/shared/log'
 import { HISTORY_VERSION, STORAGE_KEYS, MAX_HISTORY_RECORDS } from '../common/constants'
 import { storageGet, storageSet } from './utils'
 import {
@@ -431,7 +432,7 @@ export async function ensureHistoryLoaded(): Promise<void> {
         historyState = createDefaultHistoryState()
       }
     } catch (error) {
-      console.warn('[Chaospace Transfer] Failed to load transfer history', error)
+      chaosLogger.warn('[Chaospace Transfer] Failed to load transfer history', error)
       historyState = createDefaultHistoryState()
     }
     rebuildHistoryIndex()
@@ -456,7 +457,7 @@ export async function persistHistoryNow(): Promise<void> {
       [STORAGE_KEYS.history]: historyState,
     })
   } catch (error) {
-    console.warn('[Chaospace Transfer] Failed to persist history', error)
+    chaosLogger.warn('[Chaospace Transfer] Failed to persist history', error)
   }
 }
 

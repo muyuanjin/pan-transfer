@@ -1,3 +1,4 @@
+import { chaosLogger } from '@/shared/log'
 import {
   STORAGE_KEY,
   HISTORY_KEY,
@@ -561,7 +562,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
       downloadJsonFile(document, formatExportFilename('chaospace-settings'), payload)
       showToast('success', '设置已导出', 'JSON 文件可用于快速迁移参数')
     } catch (error) {
-      console.error('[Chaospace Transfer] Failed to export settings', error)
+      chaosLogger.error('[Chaospace Transfer] Failed to export settings', error)
       const message = error instanceof Error ? error.message : '无法导出设置'
       showToast('error', '导出失败', message)
     }
@@ -598,7 +599,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
       downloadJsonFile(document, formatExportFilename('chaospace-backup'), payload)
       showToast('success', '插件数据已导出', '备份包含设置、历史、缓存与面板布局')
     } catch (error) {
-      console.error('[Chaospace Transfer] Failed to export backup', error)
+      chaosLogger.error('[Chaospace Transfer] Failed to export backup', error)
       const message = error instanceof Error ? error.message : '无法导出插件数据'
       showToast('error', '导出失败', message)
     }
@@ -756,7 +757,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     try {
       await chrome.runtime.sendMessage({ type: 'chaospace:history-refresh' })
     } catch (error) {
-      console.warn('[Chaospace Transfer] Failed to notify background history reload', error)
+      chaosLogger.warn('[Chaospace Transfer] Failed to notify background history reload', error)
     }
   }
 
@@ -787,7 +788,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
       try {
         stop?.()
       } catch (error) {
-        console.error('[Chaospace Transfer] Failed to detach settings listener', error)
+        chaosLogger.error('[Chaospace Transfer] Failed to detach settings listener', error)
       }
     }
     listenersBound = false
@@ -846,7 +847,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
         finalizeOpen()
       })
       .catch((error) => {
-        console.error('[Chaospace Transfer] Failed to load settings styles:', error)
+        chaosLogger.error('[Chaospace Transfer] Failed to load settings styles:', error)
         finalizeOpen()
       })
   }
@@ -933,7 +934,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
             showToast('success', '设置已保存', '所有参数已更新并立即生效')
             closeSettingsPanel({ restoreFocus: true })
           } catch (error) {
-            console.error('[Chaospace Transfer] Failed to save settings', error)
+            chaosLogger.error('[Chaospace Transfer] Failed to save settings', error)
             const message = error instanceof Error ? error.message : '请检查输入是否正确'
             if (domRefs.historyRateInput && message.includes('间隔')) {
               domRefs.historyRateInput.classList.add('is-invalid')
@@ -987,7 +988,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
             }
             await importSettingsSnapshot(parsed)
           } catch (error) {
-            console.error('[Chaospace Transfer] Settings import failed', error)
+            chaosLogger.error('[Chaospace Transfer] Settings import failed', error)
             const message = error instanceof Error ? error.message : '无法导入设置文件'
             showToast('error', '导入失败', message)
           } finally {
@@ -1023,7 +1024,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
             }
             await importFullBackup(parsed)
           } catch (error) {
-            console.error('[Chaospace Transfer] Backup import failed', error)
+            chaosLogger.error('[Chaospace Transfer] Backup import failed', error)
             const message = error instanceof Error ? error.message : '无法导入数据备份'
             showToast('error', '导入失败', message)
           } finally {
@@ -1039,7 +1040,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
           try {
             await onResetLayout?.()
           } catch (error) {
-            console.error('[Chaospace Transfer] Failed to reset layout from settings', error)
+            chaosLogger.error('[Chaospace Transfer] Failed to reset layout from settings', error)
             const message = error instanceof Error ? error.message : '无法完成布局重置'
             showToast('error', '重置失败', message)
           }

@@ -1,3 +1,4 @@
+import { chaosLogger } from '@/shared/log'
 import { handleTransfer, setProgressHandlers } from './services/transfer-service'
 import { handleCheckUpdates, handleHistoryDetail } from './services/history-service'
 import {
@@ -162,7 +163,7 @@ function emitProgress(jobId: string | undefined, data: ProgressPayload = {}): vo
     const callback = (): void => {
       const error = chrome.runtime.lastError
       if (error && !isIgnorableMessageError(error)) {
-        console.warn('[Chaospace Transfer] Failed to post progress to tab', {
+        chaosLogger.warn('[Chaospace Transfer] Failed to post progress to tab', {
           jobId,
           tabId: context.tabId,
           message: error.message,
@@ -180,7 +181,7 @@ function emitProgress(jobId: string | undefined, data: ProgressPayload = {}): vo
       }
     } catch (error) {
       const err = error as Error
-      console.warn('[Chaospace Transfer] tabs.sendMessage threw', {
+      chaosLogger.warn('[Chaospace Transfer] tabs.sendMessage threw', {
         jobId,
         tabId: context.tabId,
         message: err.message,
@@ -191,7 +192,7 @@ function emitProgress(jobId: string | undefined, data: ProgressPayload = {}): vo
   chrome.runtime.sendMessage(message, () => {
     const error = chrome.runtime.lastError
     if (error && !isIgnorableMessageError(error)) {
-      console.warn('[Chaospace Transfer] Failed to post progress via runtime message', {
+      chaosLogger.warn('[Chaospace Transfer] Failed to post progress via runtime message', {
         jobId,
         message: error.message,
       })
@@ -221,12 +222,12 @@ async function bootstrapStores(): Promise<void> {
   try {
     await ensureCacheLoaded()
   } catch (error) {
-    console.warn('[Chaospace Transfer] Failed to preload cache store', error)
+    chaosLogger.warn('[Chaospace Transfer] Failed to preload cache store', error)
   }
   try {
     await ensureHistoryLoaded()
   } catch (error) {
-    console.warn('[Chaospace Transfer] Failed to preload history store', error)
+    chaosLogger.warn('[Chaospace Transfer] Failed to preload history store', error)
   }
 }
 
@@ -241,7 +242,7 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
     reloadPromise
       .then(() => sendResponse({ ok: true }))
       .catch((error: unknown) => {
-        console.warn('[Chaospace Transfer] Failed to reload storage state', error)
+        chaosLogger.warn('[Chaospace Transfer] Failed to reload storage state', error)
         sendResponse({ ok: false, error: resolveErrorMessage(error, String(error)) })
       })
     return true
@@ -255,7 +256,7 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
     getTabSeasonPreference(tabId)
       .then((value) => sendResponse({ ok: true, tabId, value }))
       .catch((error: unknown) => {
-        console.warn('[Chaospace Transfer] Failed to read tab season preference', {
+        chaosLogger.warn('[Chaospace Transfer] Failed to read tab season preference', {
           tabId,
           error,
         })
@@ -279,7 +280,7 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
     setTabSeasonPreference(tabId, rawValue)
       .then(() => sendResponse({ ok: true }))
       .catch((error: unknown) => {
-        console.warn('[Chaospace Transfer] Failed to persist tab season preference', {
+        chaosLogger.warn('[Chaospace Transfer] Failed to persist tab season preference', {
           tabId,
           error,
         })
@@ -300,7 +301,7 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
     clearTabSeasonPreference(tabId)
       .then(() => sendResponse({ ok: true }))
       .catch((error: unknown) => {
-        console.warn('[Chaospace Transfer] Failed to clear tab season preference', {
+        chaosLogger.warn('[Chaospace Transfer] Failed to clear tab season preference', {
           tabId,
           error,
         })

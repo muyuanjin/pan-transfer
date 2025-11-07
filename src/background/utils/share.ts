@@ -1,3 +1,5 @@
+import { chaosLogger } from '@/shared/log'
+
 export function buildSurl(linkUrl: string | null | undefined): string {
   if (!linkUrl) {
     return ''
@@ -18,7 +20,7 @@ export function buildSurl(linkUrl: string | null | undefined): string {
       }
     }
   } catch (error) {
-    console.warn('无法解析 surl', linkUrl, error)
+    chaosLogger.warn('无法解析 surl', linkUrl, error)
   }
   return ''
 }

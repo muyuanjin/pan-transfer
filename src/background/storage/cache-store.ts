@@ -1,3 +1,4 @@
+import { chaosLogger } from '@/shared/log'
 import {
   CACHE_VERSION,
   MAX_DIRECTORY_CACHE_ENTRIES,
@@ -95,7 +96,7 @@ async function hydrateCacheState(): Promise<void> {
       persistentCacheState = createDefaultCacheState()
     }
   } catch (error) {
-    console.warn('[Chaospace Transfer] Failed to load persistent cache', error)
+    chaosLogger.warn('[Chaospace Transfer] Failed to load persistent cache', error)
     persistentCacheState = createDefaultCacheState()
   }
 
@@ -144,7 +145,7 @@ export async function reloadCacheFromStorage(): Promise<void> {
     try {
       await cacheLoadPromise
     } catch (error) {
-      console.warn('[Chaospace Transfer] Previous cache load failed before reload', error)
+      chaosLogger.warn('[Chaospace Transfer] Previous cache load failed before reload', error)
     }
   }
   const nextLoad = hydrateCacheState()
@@ -167,7 +168,7 @@ export async function persistCacheNow(): Promise<void> {
       },
     })
   } catch (error) {
-    console.warn('[Chaospace Transfer] Failed to persist directory cache', error)
+    chaosLogger.warn('[Chaospace Transfer] Failed to persist directory cache', error)
   }
 }
 

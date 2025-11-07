@@ -1,3 +1,4 @@
+import { chaosLogger } from '@/shared/log'
 import {
   INITIAL_PANEL_DELAY_MS,
   PANEL_CREATION_MAX_ATTEMPTS,
@@ -96,7 +97,7 @@ export function createDomLifecycle({
             }
           }
         } catch (error) {
-          console.error('[Chaospace Transfer] Observer error:', error)
+          chaosLogger.error('[Chaospace Transfer] Observer error:', error)
         }
       }, 1000)
     })

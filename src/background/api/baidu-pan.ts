@@ -1,3 +1,4 @@
+import { chaosLogger } from '@/shared/log'
 import { DIRECTORY_LIST_PAGE_SIZE, PAN_BASE_HEADERS, TOKEN_TTL } from '../common/constants'
 import {
   createLoginRequiredError,
@@ -174,14 +175,17 @@ export function getCookie(
     try {
       chrome.cookies.get(details, (cookie) => {
         if (chrome.runtime.lastError) {
-          console.warn('[Chaospace Transfer] cookies.get failed', chrome.runtime.lastError.message)
+          chaosLogger.warn(
+            '[Chaospace Transfer] cookies.get failed',
+            chrome.runtime.lastError.message,
+          )
           resolve(null)
           return
         }
         resolve(cookie || null)
       })
     } catch (error) {
-      console.warn('[Chaospace Transfer] cookies.get threw error', error)
+      chaosLogger.warn('[Chaospace Transfer] cookies.get threw error', error)
       resolve(null)
     }
   })
@@ -258,7 +262,7 @@ export async function verifySharePassword(
     return { errno: -1 }
   }
 
-  console.log('[Chaospace Transfer] verifySharePassword params', {
+  chaosLogger.log('[Chaospace Transfer] verifySharePassword params', {
     linkUrl,
     passCode,
     surl,
@@ -273,7 +277,7 @@ export async function verifySharePassword(
     vcode: '',
     vcode_str: '',
   })
-  console.log('[Chaospace Transfer] verify request', {
+  chaosLogger.log('[Chaospace Transfer] verify request', {
     url,
     referer: 'https://pan.baidu.com',
     body: body.toString(),
@@ -303,7 +307,7 @@ export async function verifySharePassword(
         detail: message,
       },
     )
-    console.warn('[Chaospace Transfer] verify share failed', {
+    chaosLogger.warn('[Chaospace Transfer] verify share failed', {
       linkUrl,
       surl,
       errno: data.errno,
@@ -327,7 +331,7 @@ export async function verifySharePassword(
         },
         () => {
           if (chrome.runtime.lastError) {
-            console.warn('设置 BDCLND Cookie 失败：', chrome.runtime.lastError.message)
+            chaosLogger.warn('设置 BDCLND Cookie 失败：', chrome.runtime.lastError.message)
           }
           resolve()
         },
@@ -354,7 +358,7 @@ export async function fetchShareMetadata(
   if (passCode) {
     const verifyResult = await verifySharePassword(linkUrl, passCode, bdstoken, options)
     if (verifyResult.errno && verifyResult.errno !== 0) {
-      console.warn('[Chaospace Transfer] verify password failed', linkUrl, verifyResult.errno)
+      chaosLogger.warn('[Chaospace Transfer] verify password failed', linkUrl, verifyResult.errno)
       logStage?.(jobId, 'verify', `${titleLabel}提取码验证失败（errno ${verifyResult.errno}）`, {
         level: 'error',
       })
@@ -388,7 +392,7 @@ export async function fetchShareMetadata(
   })
   if (!response.ok) {
     const message = `访问分享链接失败：${response.status}`
-    console.warn('[Chaospace Transfer] fetch share page failed', linkUrl, message)
+    chaosLogger.warn('[Chaospace Transfer] fetch share page failed', linkUrl, message)
     logStage?.(jobId, 'list', `${titleLabel}访问分享页失败（${response.status}）`, {
       level: 'error',
       detail: message,
@@ -399,7 +403,7 @@ export async function fetchShareMetadata(
   const html = await response.text()
   const match = html.match(/locals\.mset\((\{[\s\S]*?\})\);/)
   if (!match) {
-    console.warn('[Chaospace Transfer] locals.mset missing', linkUrl)
+    chaosLogger.warn('[Chaospace Transfer] locals.mset missing', linkUrl)
     logStage?.(jobId, 'list', `${titleLabel}未解析到分享元数据`, { level: 'error' })
     return { error: '未解析到分享元数据' }
   }
@@ -415,7 +419,7 @@ export async function fetchShareMetadata(
     meta = JSON.parse(rawMeta) as ShareMetadataPayload
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    console.error('[Chaospace Transfer] share metadata json parse failed', linkUrl, error)
+    chaosLogger.error('[Chaospace Transfer] share metadata json parse failed', linkUrl, error)
     logStage?.(jobId, 'list', `${titleLabel}解析分享元数据失败：${message}`, { level: 'error' })
     return { error: `解析分享元数据失败：${message}` }
   }
@@ -516,7 +520,7 @@ export async function checkDirectoryExists(
   }
 
   if (data.errno === -9 || data.errno === 2 || data.errno === 12 || data.errno === 31066) {
-    console.log('[Chaospace Transfer] directory missing, preparing to create', {
+    chaosLogger.log('[Chaospace Transfer] directory missing, preparing to create', {
       path: normalized,
       errno: data.errno,
     })
@@ -531,7 +535,7 @@ export async function checkDirectoryExists(
     throw createLoginRequiredError()
   }
 
-  console.warn('[Chaospace Transfer] directory existence check failed', {
+  chaosLogger.warn('[Chaospace Transfer] directory existence check failed', {
     path: normalized,
     errno: data.errno,
     raw: data,
