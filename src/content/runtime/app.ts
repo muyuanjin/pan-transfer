@@ -15,6 +15,7 @@ import {
   getPanelHeaderDom,
   getPanelLoggingDom,
   getPanelResourceDom,
+  getPanelSettingsDom,
   getPanelTransferDom,
 } from '../types'
 import { createLoggingController } from '../controllers/logging-controller'
@@ -70,6 +71,7 @@ export function createRuntimeApp() {
   const panelHeaderDom = getPanelHeaderDom(panelDom)
   const panelLoggingDom = getPanelLoggingDom(panelDom)
   const panelResourceDom = getPanelResourceDom(panelDom)
+  const panelSettingsDom = getPanelSettingsDom(panelDom)
 
   const handleSeasonDefaultChange = (value: boolean): void => {
     const normalized = Boolean(value)
@@ -371,7 +373,10 @@ export function createRuntimeApp() {
     document,
   })
 
-  const headerPresenter = createHeaderPresenter()
+  const headerPresenter = createHeaderPresenter({
+    headerDom: panelHeaderDom,
+    transferDom: panelTransferDom,
+  })
 
   const preferences = createPanelPreferencesController({
     state,
@@ -496,6 +501,7 @@ export function createRuntimeApp() {
     renderResourceList: () => resourceRenderer.renderResourceList(),
     showToast,
     seasonPreference: tabSeasonPreference!,
+    panelDom: panelSettingsDom,
   })
 
   const panelFactory = createPanelFactory({

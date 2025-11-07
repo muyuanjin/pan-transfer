@@ -51,18 +51,14 @@ function formatStageLabel(stage?: string | null): string {
 export function createLoggingController({ state, panelDom, document }: LoggingControllerDeps) {
   function renderLogs(): void {
     const list = panelDom.logList
-    if (!list) {
-      return
-    }
-
     list.innerHTML = ''
 
     if (!state.logs.length) {
-      panelDom.logContainer?.classList.add('is-empty')
+      panelDom.logContainer.classList.add('is-empty')
       return
     }
 
-    panelDom.logContainer?.classList.remove('is-empty')
+    panelDom.logContainer.classList.remove('is-empty')
 
     const entries = [...state.logs].reverse()
     entries.forEach((entry, index) => {
@@ -87,14 +83,12 @@ export function createLoggingController({ state, panelDom, document }: LoggingCo
     })
 
     const logWrapper = panelDom.logContainer
-    if (logWrapper) {
-      requestAnimationFrame(() => {
-        logWrapper.scrollTo({
-          top: 0,
-          behavior: 'smooth',
-        })
+    requestAnimationFrame(() => {
+      logWrapper.scrollTo({
+        top: 0,
+        behavior: 'smooth',
       })
-    }
+    })
   }
 
   function resetLogs(): void {
@@ -132,20 +126,18 @@ export function createLoggingController({ state, panelDom, document }: LoggingCo
       panelDom.statusText.innerHTML = `<span class="chaospace-status-emoji">${emoji}</span>${state.statusMessage}`
     }
 
-    if (panelDom.resultSummary) {
-      if (!state.lastResult) {
-        panelDom.resultSummary.innerHTML = ''
-        panelDom.resultSummary.classList.add('is-empty')
-      } else {
-        panelDom.resultSummary.classList.remove('is-empty')
-        const result = state.lastResult as { title?: string; detail?: string }
-        const title = result.title || ''
-        const detail = result.detail || ''
-        panelDom.resultSummary.innerHTML = `
-          <span class="chaospace-log-summary-title">${title}</span>
-          ${detail ? `<span class="chaospace-log-summary-detail">${detail}</span>` : ''}
-        `
-      }
+    if (!state.lastResult) {
+      panelDom.resultSummary.innerHTML = ''
+      panelDom.resultSummary.classList.add('is-empty')
+    } else {
+      panelDom.resultSummary.classList.remove('is-empty')
+      const result = state.lastResult as { title?: string; detail?: string }
+      const title = result.title || ''
+      const detail = result.detail || ''
+      panelDom.resultSummary.innerHTML = `
+        <span class="chaospace-log-summary-title">${title}</span>
+        ${detail ? `<span class="chaospace-log-summary-detail">${detail}</span>` : ''}
+      `
     }
   }
 

@@ -13,9 +13,14 @@ import {
   MIN_HISTORY_RATE_LIMIT_MS,
   MAX_HISTORY_RATE_LIMIT_MS,
 } from '../constants'
-import { panelDom, state } from '../state'
+import { state } from '../state'
 import { normalizeDir } from '../services/page-analyzer'
-import type { PanelRuntimeState, PanelPositionSnapshot, PanelSizeSnapshot } from '../types'
+import type {
+  PanelRuntimeState,
+  PanelPositionSnapshot,
+  PanelSettingsDomRefs,
+  PanelSizeSnapshot,
+} from '../types'
 import { normalizePinState } from '../utils/panel-pin'
 import { normalizeEdgeState } from '../utils/panel-edge'
 import { safeStorageGet as readStorageSnapshot } from '../utils/storage'
@@ -74,30 +79,9 @@ interface SettingsSnapshot {
   [key: string]: unknown
 }
 
-interface SettingsDomRefs {
-  overlay: HTMLElement | null
-  form: HTMLFormElement | null
-  closeBtn: HTMLButtonElement | null
-  cancelBtn: HTMLButtonElement | null
-  baseDirInput: HTMLInputElement | null
-  useTitleCheckbox: HTMLInputElement | null
-  useSeasonCheckbox: HTMLInputElement | null
-  themeSegment: HTMLElement | null
-  presetsTextarea: HTMLTextAreaElement | null
-  historyRateInput: HTMLInputElement | null
-  filterModeSelect: HTMLSelectElement | null
-  filterEditorRoot: HTMLElement | null
-  renameEditorRoot: HTMLElement | null
+interface SettingsDomRefs extends PanelSettingsDomRefs {
   filterEditor?: FileFilterEditor | null
   renameEditor?: FileRenameEditor | null
-  exportSettingsBtn: HTMLButtonElement | null
-  exportDataBtn: HTMLButtonElement | null
-  importSettingsTrigger: HTMLButtonElement | null
-  importSettingsInput: HTMLInputElement | null
-  importDataTrigger: HTMLButtonElement | null
-  importDataInput: HTMLInputElement | null
-  resetLayoutBtn: HTMLButtonElement | null
-  toggleBtn: HTMLButtonElement | null
 }
 
 interface SettingsUpdatePayload extends Partial<SettingsSnapshot> {
@@ -108,6 +92,7 @@ export interface CreateSettingsModalOptions {
   document: Document
   floatingPanel: HTMLElement | null | undefined
   panelState: PanelRuntimeState
+  panelDom: PanelSettingsDomRefs
   scheduleEdgeHide: ((delay?: number) => void) | undefined
   cancelEdgeHide: ((options?: { show?: boolean }) => void) | undefined
   applyPanelSize?: (width?: number, height?: number) => PanelSizeSnapshot | null
@@ -350,6 +335,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     document,
     floatingPanel,
     panelState,
+    panelDom: settingsDom,
     scheduleEdgeHide,
     cancelEdgeHide,
     applyPanelSize: _applyPanelSize,
@@ -370,27 +356,9 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
   } = options
 
   const domRefs: SettingsDomRefs = {
-    overlay: panelDom.settingsOverlay as HTMLElement | null,
-    form: panelDom.settingsForm as HTMLFormElement | null,
-    closeBtn: panelDom.settingsClose as HTMLButtonElement | null,
-    cancelBtn: panelDom.settingsCancel as HTMLButtonElement | null,
-    baseDirInput: panelDom.settingsBaseDir as HTMLInputElement | null,
-    useTitleCheckbox: panelDom.settingsUseTitle as HTMLInputElement | null,
-    useSeasonCheckbox: panelDom.settingsUseSeason as HTMLInputElement | null,
-    themeSegment: panelDom.settingsThemeGroup as HTMLElement | null,
-    presetsTextarea: panelDom.settingsPresets as HTMLTextAreaElement | null,
-    historyRateInput: panelDom.settingsHistoryRate as HTMLInputElement | null,
-    filterModeSelect: panelDom.settingsFilterMode as HTMLSelectElement | null,
-    filterEditorRoot: panelDom.settingsFilterEditor as HTMLElement | null,
-    renameEditorRoot: panelDom.settingsRenameEditor as HTMLElement | null,
-    exportSettingsBtn: panelDom.settingsExportConfig as HTMLButtonElement | null,
-    exportDataBtn: panelDom.settingsExportData as HTMLButtonElement | null,
-    importSettingsTrigger: panelDom.settingsImportConfigTrigger as HTMLButtonElement | null,
-    importSettingsInput: panelDom.settingsImportConfigInput as HTMLInputElement | null,
-    importDataTrigger: panelDom.settingsImportDataTrigger as HTMLButtonElement | null,
-    importDataInput: panelDom.settingsImportDataInput as HTMLInputElement | null,
-    resetLayoutBtn: panelDom.settingsResetLayout as HTMLButtonElement | null,
-    toggleBtn: panelDom.settingsToggle as HTMLButtonElement | null,
+    ...settingsDom,
+    filterEditor: null,
+    renameEditor: null,
   }
 
   let filterEditor: FileFilterEditor | null = null
@@ -556,11 +524,11 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     state.theme = theme
 
     setBaseDir(baseDir, { persist: false })
-    if (panelDom.useTitleCheckbox instanceof HTMLInputElement) {
-      panelDom.useTitleCheckbox.checked = state.useTitleSubdir
+    if (domRefs.useTitleCheckbox instanceof HTMLInputElement) {
+      domRefs.useTitleCheckbox.checked = state.useTitleSubdir
     }
-    if (panelDom.useSeasonCheckbox instanceof HTMLInputElement) {
-      panelDom.useSeasonCheckbox.checked = state.useSeasonSubdir
+    if (domRefs.useSeasonCheckbox instanceof HTMLInputElement) {
+      domRefs.useSeasonCheckbox.checked = state.useSeasonSubdir
     }
     if (floatingPanel) {
       renderSeasonHint()

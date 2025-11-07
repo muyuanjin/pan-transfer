@@ -177,8 +177,8 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
     history.renderHistoryCard()
     history.updateHistoryExpansion()
     resourceRenderer.renderResourceList()
+    logging.resetLogs()
     logging.setStatus('idle', state.statusMessage)
-    logging.renderLogs()
     headerPresenter.updateTransferButton()
   }
 
@@ -264,7 +264,7 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
 
       hydrator.hydrate(data.items || [], deferredSeasons, data)
       applyAutoBaseDir(state.classificationDetails || state.classification)
-      logging.resetLogs()
+      state.logs = []
       history.applyHistoryToCurrentPage()
       if (token !== lifecycleToken) {
         return false

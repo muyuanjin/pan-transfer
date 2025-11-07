@@ -511,25 +511,25 @@ export function getPanelHeaderDom(panelDom: PanelDomRefs): PanelHeaderDomRefs {
 }
 
 export interface PanelLoggingDomRefs {
-  readonly logContainer: HTMLElement | null
-  readonly logList: HTMLUListElement | null
+  readonly logContainer: HTMLElement
+  readonly logList: HTMLUListElement
   readonly statusText: HTMLElement | null
-  readonly resultSummary: HTMLElement | null
+  readonly resultSummary: HTMLElement
 }
 
 export function getPanelLoggingDom(panelDom: PanelDomRefs): PanelLoggingDomRefs {
   return {
     get logContainer() {
-      return panelDom.get('logContainer')
+      return panelDom.ensure('logContainer', 'Missing log container binding')
     },
     get logList() {
-      return panelDom.get('logList')
+      return panelDom.ensure('logList', 'Missing log list binding')
     },
     get statusText() {
       return panelDom.get('statusText')
     },
     get resultSummary() {
-      return panelDom.get('resultSummary')
+      return panelDom.ensure('resultSummary', 'Missing log summary binding')
     },
   }
 }
@@ -582,6 +582,110 @@ export function getPanelResourceDom(panelDom: PanelDomRefs): PanelResourceDomRef
     },
     get seasonTabs() {
       return panelDom.get('seasonTabs')
+    },
+  }
+}
+
+export interface PanelSettingsDomRefs {
+  readonly overlay: HTMLElement
+  readonly form: HTMLFormElement
+  readonly closeBtn: HTMLButtonElement
+  readonly cancelBtn: HTMLButtonElement
+  readonly baseDirInput: HTMLInputElement
+  readonly useTitleCheckbox: HTMLInputElement
+  readonly useSeasonCheckbox: HTMLInputElement
+  readonly themeSegment: HTMLElement
+  readonly presetsTextarea: HTMLTextAreaElement
+  readonly historyRateInput: HTMLInputElement
+  readonly filterModeSelect: HTMLSelectElement
+  readonly filterEditorRoot: HTMLElement
+  readonly renameEditorRoot: HTMLElement
+  readonly exportSettingsBtn: HTMLButtonElement
+  readonly exportDataBtn: HTMLButtonElement
+  readonly importSettingsTrigger: HTMLButtonElement
+  readonly importSettingsInput: HTMLInputElement
+  readonly importDataTrigger: HTMLButtonElement
+  readonly importDataInput: HTMLInputElement
+  readonly resetLayoutBtn: HTMLButtonElement
+  readonly toggleBtn: HTMLButtonElement
+}
+
+export function getPanelSettingsDom(panelDom: PanelDomRefs): PanelSettingsDomRefs {
+  return {
+    get overlay() {
+      return panelDom.ensure('settingsOverlay', 'Missing settings overlay binding')
+    },
+    get form() {
+      return panelDom.ensure('settingsForm', 'Missing settings form binding')
+    },
+    get closeBtn() {
+      return panelDom.ensure('settingsClose', 'Missing settings close button binding')
+    },
+    get cancelBtn() {
+      return panelDom.ensure('settingsCancel', 'Missing settings cancel button binding')
+    },
+    get baseDirInput() {
+      return panelDom.ensure('settingsBaseDir', 'Missing settings base dir input binding')
+    },
+    get useTitleCheckbox() {
+      return panelDom.ensure('settingsUseTitle', 'Missing settings title checkbox binding')
+    },
+    get useSeasonCheckbox() {
+      return panelDom.ensure('settingsUseSeason', 'Missing settings season checkbox binding')
+    },
+    get themeSegment() {
+      return panelDom.ensure('settingsThemeGroup', 'Missing settings theme segment binding')
+    },
+    get presetsTextarea() {
+      return panelDom.ensure('settingsPresets', 'Missing settings presets textarea binding')
+    },
+    get historyRateInput() {
+      return panelDom.ensure('settingsHistoryRate', 'Missing settings history rate input binding')
+    },
+    get filterModeSelect() {
+      return panelDom.ensure('settingsFilterMode', 'Missing settings filter mode binding')
+    },
+    get filterEditorRoot() {
+      return panelDom.ensure('settingsFilterEditor', 'Missing settings filter editor binding')
+    },
+    get renameEditorRoot() {
+      return panelDom.ensure('settingsRenameEditor', 'Missing settings rename editor binding')
+    },
+    get exportSettingsBtn() {
+      return panelDom.ensure('settingsExportConfig', 'Missing settings export config binding')
+    },
+    get exportDataBtn() {
+      return panelDom.ensure('settingsExportData', 'Missing settings export data binding')
+    },
+    get importSettingsTrigger() {
+      return panelDom.ensure(
+        'settingsImportConfigTrigger',
+        'Missing settings import config trigger binding',
+      )
+    },
+    get importSettingsInput() {
+      return panelDom.ensure(
+        'settingsImportConfigInput',
+        'Missing settings import config input binding',
+      )
+    },
+    get importDataTrigger() {
+      return panelDom.ensure(
+        'settingsImportDataTrigger',
+        'Missing settings import data trigger binding',
+      )
+    },
+    get importDataInput() {
+      return panelDom.ensure(
+        'settingsImportDataInput',
+        'Missing settings import data input binding',
+      )
+    },
+    get resetLayoutBtn() {
+      return panelDom.ensure('settingsResetLayout', 'Missing settings reset layout binding')
+    },
+    get toggleBtn() {
+      return panelDom.ensure('settingsToggle', 'Missing settings toggle binding')
     },
   }
 }

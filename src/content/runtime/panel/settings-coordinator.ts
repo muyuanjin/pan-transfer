@@ -1,7 +1,7 @@
 import { createSettingsModal } from '../../components/settings-modal'
 import type { ToastHandler } from '../../components/toast'
 import { safeStorageRemove, safeStorageSet } from '../../utils/storage'
-import type { PanelRuntimeState } from '../../types'
+import type { PanelRuntimeState, PanelSettingsDomRefs } from '../../types'
 import type { createPanelPreferencesController } from '../../controllers/panel-preferences'
 import type { createHistoryController } from '../../history/controller'
 import type { PanelShellInstance, SettingsModalHandle } from '../types'
@@ -20,6 +20,7 @@ interface SettingsCoordinatorDeps {
   renderResourceList: () => void
   showToast: ToastHandler
   seasonPreference: TabSeasonPreferenceController
+  panelDom: PanelSettingsDomRefs
 }
 
 export interface SettingsCoordinator {
@@ -34,6 +35,7 @@ export function createSettingsCoordinator({
   renderResourceList,
   showToast,
   seasonPreference,
+  panelDom,
 }: SettingsCoordinatorDeps): SettingsCoordinator {
   const attachToShell = (shell: PanelShellInstance): SettingsModalHandle => {
     const {
@@ -76,6 +78,7 @@ export function createSettingsCoordinator({
       document,
       floatingPanel: shell.panel,
       panelState,
+      panelDom,
       scheduleEdgeHide,
       cancelEdgeHide,
       applyPanelSize,

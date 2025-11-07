@@ -1,17 +1,22 @@
-import { state, panelDom } from '../../state'
+import { state } from '../../state'
 import { disableElementDrag } from '../../utils/dom'
 import { formatOriginLabel, sanitizeCssUrl } from '../../utils/format'
-import { getPanelHeaderDom, getPanelTransferDom } from '../../types'
+import type { PanelHeaderDomRefs, PanelTransferDomRefs } from '../../types'
 
 export interface HeaderPresenter {
   updateHeader: () => void
   updateTransferButton: () => void
 }
 
-const transferDom = getPanelTransferDom(panelDom)
-const headerDom = getPanelHeaderDom(panelDom)
+interface HeaderPresenterDeps {
+  headerDom: PanelHeaderDomRefs
+  transferDom: PanelTransferDomRefs
+}
 
-export function createHeaderPresenter(): HeaderPresenter {
+export function createHeaderPresenter({
+  headerDom,
+  transferDom,
+}: HeaderPresenterDeps): HeaderPresenter {
   const updateHeader = (): void => {
     const hasPoster = Boolean(state.poster?.src)
 
