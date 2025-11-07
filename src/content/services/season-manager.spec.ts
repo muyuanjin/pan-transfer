@@ -48,8 +48,8 @@ describe('season-manager', () => {
     state.transferStatus = 'idle'
     state.seasonDirMap = {}
     state.seasonResolvedPaths = []
-    panelDom.seasonRow = null
-    panelDom.useSeasonCheckbox = null
+    panelDom.set('seasonRow', null)
+    panelDom.set('useSeasonCheckbox', null)
   })
 
   it('does not auto-enable season subdirectories without explicit preference', () => {
@@ -68,8 +68,8 @@ describe('season-manager', () => {
     const seasonCheckbox = document.createElement('input')
     seasonCheckbox.type = 'checkbox'
     seasonCheckbox.checked = true
-    panelDom.seasonRow = seasonRow
-    panelDom.useSeasonCheckbox = seasonCheckbox
+    panelDom.set('seasonRow', seasonRow)
+    panelDom.set('useSeasonCheckbox', seasonCheckbox)
 
     renderSeasonControls()
 
@@ -95,8 +95,8 @@ describe('season-manager', () => {
     const seasonCheckbox = document.createElement('input')
     seasonCheckbox.type = 'checkbox'
     seasonCheckbox.checked = false
-    panelDom.seasonRow = seasonRow
-    panelDom.useSeasonCheckbox = seasonCheckbox
+    panelDom.set('seasonRow', seasonRow)
+    panelDom.set('useSeasonCheckbox', seasonCheckbox)
 
     renderSeasonControls()
 

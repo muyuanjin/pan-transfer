@@ -340,10 +340,6 @@ export interface PanelDomDefinition {
   closeSettingsPanel: (options?: { restoreFocus?: boolean }) => void
 }
 
-type PanelDomStore = {
-  [K in PanelDomKey]: PanelDomDefinition[K] | null
-}
-
 type PanelDomAccessors = {
   get<K extends PanelDomKey>(key: K): PanelDomDefinition[K] | null
   set<K extends PanelDomKey>(key: K, value: PanelDomDefinition[K] | null): void
@@ -352,23 +348,17 @@ type PanelDomAccessors = {
   clear(): void
 }
 
-export type PanelDomRefs = PanelDomAccessors & PanelDomStore
+type PanelDomStore = {
+  [K in PanelDomKey]: PanelDomDefinition[K] | null
+}
+
+export type PanelDomRefs = PanelDomAccessors
 
 export function createPanelDomRefs(): PanelDomRefs {
   const store = new Map<PanelDomKey, PanelDomDefinition[PanelDomKey] | null>()
-  const refs = {} as PanelDomStore
 
   for (const key of PANEL_DOM_KEYS) {
     store.set(key, null)
-    Object.defineProperty(refs, key, {
-      get() {
-        return (store.get(key) ?? null) as PanelDomDefinition[typeof key] | null
-      },
-      set(value: PanelDomDefinition[typeof key] | null) {
-        store.set(key, value ?? null)
-      },
-      enumerable: true,
-    })
   }
 
   const assertKnownKey = (key: PanelDomKey): void => {
@@ -409,7 +399,7 @@ export function createPanelDomRefs(): PanelDomRefs {
     },
   }
 
-  return Object.assign(refs, accessors)
+  return accessors
 }
 
 export type DetailDomRefs = Record<string, HTMLElement | null>

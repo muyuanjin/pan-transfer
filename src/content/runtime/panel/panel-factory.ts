@@ -187,12 +187,12 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
 
     disposeBinders()
 
-    panelDom.openSettingsPanel = () => {
+    panelDom.set('openSettingsPanel', () => {
       settingsModal?.open()
-    }
-    panelDom.closeSettingsPanel = (options = {}) => {
+    })
+    panelDom.set('closeSettingsPanel', (options = {}) => {
       settingsModal?.close(options)
-    }
+    })
 
     edgeController.updatePinButton()
 

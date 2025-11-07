@@ -56,8 +56,9 @@ function createSeasonPreferenceStub(
     applyHistorySelection: vi.fn().mockImplementation(async (value: boolean) => {
       state.useSeasonSubdir = value
       state.seasonPreferenceScope = value === state.seasonSubdirDefault ? 'default' : 'tab'
-      if (panelDom.useSeasonCheckbox) {
-        panelDom.useSeasonCheckbox.checked = value
+      const panelUseSeasonCheckbox = panelDom.get('useSeasonCheckbox')
+      if (panelUseSeasonCheckbox) {
+        panelUseSeasonCheckbox.checked = value
       }
       renderSeasonHint()
       renderPathPreview()
@@ -70,12 +71,12 @@ function createSeasonPreferenceStub(
 describe('history controller', () => {
   beforeEach(() => {
     state.$reset()
-    panelDom.useSeasonCheckbox = document.createElement('input')
-    panelDom.settingsUseSeason = document.createElement('input')
-    panelDom.historyList = document.createElement('div')
-    panelDom.historyEmpty = document.createElement('div')
-    panelDom.historySummary = document.createElement('div')
-    panelDom.historySummaryBody = document.createElement('div')
+    panelDom.set('useSeasonCheckbox', document.createElement('input'))
+    panelDom.set('settingsUseSeason', document.createElement('input'))
+    panelDom.set('historyList', document.createElement('div'))
+    panelDom.set('historyEmpty', document.createElement('div'))
+    panelDom.set('historySummary', document.createElement('div'))
+    panelDom.set('historySummaryBody', document.createElement('div'))
   })
 
   it('persists restored season preference derived from history', () => {
@@ -105,8 +106,8 @@ describe('history controller', () => {
     history.applyHistoryToCurrentPage()
 
     expect(state.useSeasonSubdir).toBe(true)
-    expect(panelDom.useSeasonCheckbox?.checked).toBe(true)
-    expect(panelDom.settingsUseSeason?.checked).toBe(false)
+    expect(panelDom.get('useSeasonCheckbox')?.checked).toBe(true)
+    expect(panelDom.get('settingsUseSeason')?.checked).toBe(false)
     expect(renderPathPreview).toHaveBeenCalled()
     expect(renderSeasonHint).toHaveBeenCalled()
     expect(seasonPreference.applyHistorySelection).toHaveBeenCalledWith(true)

@@ -509,94 +509,141 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
   }
   window.requestAnimationFrame(finalizeInitialLayout)
 
-  panelDom.container = panel
-  panelDom.header = panel.querySelector<HTMLElement>('.chaospace-float-header')
-  panelDom.headerArt = panel.querySelector<HTMLElement>('[data-role="header-art"]')
-  panelDom.headerPoster = panel.querySelector<HTMLImageElement>('[data-role="header-poster"]')
-  if (panelDom.headerPoster) {
-    disableElementDrag(panelDom.headerPoster)
+  const header = panel.querySelector<HTMLElement>('.chaospace-float-header')
+  const headerArt = panel.querySelector<HTMLElement>('[data-role="header-art"]')
+  const headerPoster = panel.querySelector<HTMLImageElement>('[data-role="header-poster"]')
+  if (headerPoster) {
+    disableElementDrag(headerPoster)
   }
-  panelDom.showTitle = panel.querySelector<HTMLElement>('[data-role="show-title"]')
-  panelDom.showSubtitle = panel.querySelector<HTMLElement>('[data-role="show-subtitle"]')
-  panelDom.baseDirInput = panel.querySelector<HTMLInputElement>('[data-role="base-dir"]')
-  panelDom.useTitleCheckbox = panel.querySelector<HTMLInputElement>('[data-role="use-title"]')
-  panelDom.useSeasonCheckbox = panel.querySelector<HTMLInputElement>('[data-role="use-season"]')
-  panelDom.seasonRow = panel.querySelector<HTMLElement>('[data-role="season-row"]')
-  panelDom.seasonPathHint = panel.querySelector<HTMLElement>('[data-role="season-path-hint"]')
-  panelDom.pathPreview = panel.querySelector<HTMLElement>('[data-role="path-preview"]')
-  panelDom.addPresetButton = panel.querySelector<HTMLButtonElement>('[data-role="add-preset"]')
-  panelDom.themeToggle = panel.querySelector<HTMLButtonElement>('[data-role="theme-toggle"]')
-  panelDom.settingsToggle = panel.querySelector<HTMLButtonElement>('[data-role="settings-toggle"]')
-  panelDom.settingsOverlay = panel.querySelector<HTMLElement>('[data-role="settings-overlay"]')
-  panelDom.settingsForm = panel.querySelector<HTMLFormElement>('[data-role="settings-form"]')
-  panelDom.settingsClose = panel.querySelector<HTMLButtonElement>('[data-role="settings-close"]')
-  panelDom.settingsCancel = panel.querySelector<HTMLButtonElement>('[data-role="settings-cancel"]')
-  panelDom.settingsBaseDir = panel.querySelector<HTMLInputElement>(
-    '[data-role="settings-base-dir"]',
-  )
-  panelDom.settingsUseTitle = panel.querySelector<HTMLInputElement>(
-    '[data-role="settings-use-title"]',
-  )
-  panelDom.settingsUseSeason = panel.querySelector<HTMLInputElement>(
+  const showTitle = panel.querySelector<HTMLElement>('[data-role="show-title"]')
+  const showSubtitle = panel.querySelector<HTMLElement>('[data-role="show-subtitle"]')
+  const baseDirInput = panel.querySelector<HTMLInputElement>('[data-role="base-dir"]')
+  const useTitleCheckbox = panel.querySelector<HTMLInputElement>('[data-role="use-title"]')
+  const useSeasonCheckbox = panel.querySelector<HTMLInputElement>('[data-role="use-season"]')
+  const seasonRow = panel.querySelector<HTMLElement>('[data-role="season-row"]')
+  const seasonPathHint = panel.querySelector<HTMLElement>('[data-role="season-path-hint"]')
+  const pathPreview = panel.querySelector<HTMLElement>('[data-role="path-preview"]')
+  const addPresetButton = panel.querySelector<HTMLButtonElement>('[data-role="add-preset"]')
+  const themeToggle = panel.querySelector<HTMLButtonElement>('[data-role="theme-toggle"]')
+  const settingsToggle = panel.querySelector<HTMLButtonElement>('[data-role="settings-toggle"]')
+  const settingsOverlay = panel.querySelector<HTMLElement>('[data-role="settings-overlay"]')
+  const settingsForm = panel.querySelector<HTMLFormElement>('[data-role="settings-form"]')
+  const settingsClose = panel.querySelector<HTMLButtonElement>('[data-role="settings-close"]')
+  const settingsCancel = panel.querySelector<HTMLButtonElement>('[data-role="settings-cancel"]')
+  const settingsBaseDir = panel.querySelector<HTMLInputElement>('[data-role="settings-base-dir"]')
+  const settingsUseTitle = panel.querySelector<HTMLInputElement>('[data-role="settings-use-title"]')
+  const settingsUseSeason = panel.querySelector<HTMLInputElement>(
     '[data-role="settings-use-season"]',
   )
-  panelDom.settingsThemeGroup = panel.querySelector<HTMLElement>('[data-role="settings-theme"]')
-  panelDom.settingsPresets = panel.querySelector<HTMLTextAreaElement>(
-    '[data-role="settings-presets"]',
-  )
-  panelDom.settingsHistoryRate = panel.querySelector<HTMLInputElement>(
+  const settingsThemeGroup = panel.querySelector<HTMLElement>('[data-role="settings-theme"]')
+  const settingsPresets = panel.querySelector<HTMLTextAreaElement>('[data-role="settings-presets"]')
+  const settingsHistoryRate = panel.querySelector<HTMLInputElement>(
     '[data-role="settings-history-rate"]',
   )
-  panelDom.settingsFilterMode = panel.querySelector<HTMLSelectElement>(
+  const settingsFilterMode = panel.querySelector<HTMLSelectElement>(
     '[data-role="settings-filter-mode"]',
   )
-  panelDom.settingsFilterEditor = panel.querySelector<HTMLElement>(
+  const settingsFilterEditor = panel.querySelector<HTMLElement>(
     '[data-role="settings-filter-editor"]',
   )
-  panelDom.settingsRenameEditor = panel.querySelector<HTMLElement>(
+  const settingsRenameEditor = panel.querySelector<HTMLElement>(
     '[data-role="settings-rename-editor"]',
   )
-  panelDom.settingsExportConfig = panel.querySelector<HTMLButtonElement>(
+  const settingsExportConfig = panel.querySelector<HTMLButtonElement>(
     '[data-role="settings-export-config"]',
   )
-  panelDom.settingsExportData = panel.querySelector<HTMLButtonElement>(
+  const settingsExportData = panel.querySelector<HTMLButtonElement>(
     '[data-role="settings-export-data"]',
   )
-  panelDom.settingsImportConfigTrigger = panel.querySelector<HTMLButtonElement>(
+  const settingsImportConfigTrigger = panel.querySelector<HTMLButtonElement>(
     '[data-role="settings-import-config-trigger"]',
   )
-  panelDom.settingsImportDataTrigger = panel.querySelector<HTMLButtonElement>(
+  const settingsImportDataTrigger = panel.querySelector<HTMLButtonElement>(
     '[data-role="settings-import-data-trigger"]',
   )
-  panelDom.settingsImportConfigInput = panel.querySelector<HTMLInputElement>(
+  const settingsImportConfigInput = panel.querySelector<HTMLInputElement>(
     '[data-role="settings-import-config"]',
   )
-  panelDom.settingsImportDataInput = panel.querySelector<HTMLInputElement>(
+  const settingsImportDataInput = panel.querySelector<HTMLInputElement>(
     '[data-role="settings-import-data"]',
   )
-  panelDom.settingsResetLayout = panel.querySelector<HTMLButtonElement>(
+  const settingsResetLayout = panel.querySelector<HTMLButtonElement>(
     '[data-role="settings-reset-layout"]',
   )
-  panelDom.pinBtn = panel.querySelector<HTMLButtonElement>('[data-role="pin-toggle"]')
-  panelDom.logContainer = panel.querySelector<HTMLElement>('[data-role="log-container"]')
-  panelDom.logList = panel.querySelector<HTMLUListElement>('[data-role="log-list"]')
-  panelDom.resultSummary = panel.querySelector<HTMLElement>('[data-role="result-summary"]')
-  panelDom.itemsContainer = panel.querySelector<HTMLElement>('[data-role="items"]')
-  panelDom.historyOverlay = panel.querySelector<HTMLElement>('[data-role="history-overlay"]')
-  panelDom.historyList = panel.querySelector<HTMLElement>('[data-role="history-list"]')
-  panelDom.historyEmpty = panel.querySelector<HTMLElement>('[data-role="history-empty"]')
-  panelDom.historySummary = panel.querySelector<HTMLElement>('[data-role="history-summary"]')
-  panelDom.historySummaryBody = panel.querySelector<HTMLElement>(
-    '[data-role="history-summary-body"]',
-  )
-  panelDom.resourceSummary = panel.querySelector<HTMLElement>('[data-role="resource-summary"]')
-  panelDom.resourceTitle = panel.querySelector<HTMLElement>('[data-role="resource-title"]')
-  panelDom.seasonTabs = panel.querySelector<HTMLElement>('[data-role="season-tabs"]')
-  panelDom.transferBtn = panel.querySelector<HTMLButtonElement>('[data-role="transfer-btn"]')
-  panelDom.transferLabel = panel.querySelector<HTMLElement>('[data-role="transfer-label"]')
-  panelDom.transferSpinner = panel.querySelector<HTMLElement>('[data-role="transfer-spinner"]')
-  panelDom.resizeHandle = panel.querySelector<HTMLElement>('[data-role="resize-handle"]')
-  panelDom.statusText = panel.querySelector<HTMLElement>('[data-role="status-text"]')
+  const pinBtn = panel.querySelector<HTMLButtonElement>('[data-role="pin-toggle"]')
+  const logContainer = panel.querySelector<HTMLElement>('[data-role="log-container"]')
+  const logList = panel.querySelector<HTMLUListElement>('[data-role="log-list"]')
+  const resultSummary = panel.querySelector<HTMLElement>('[data-role="result-summary"]')
+  const itemsContainer = panel.querySelector<HTMLElement>('[data-role="items"]')
+  const historyOverlay = panel.querySelector<HTMLElement>('[data-role="history-overlay"]')
+  const historyList = panel.querySelector<HTMLElement>('[data-role="history-list"]')
+  const historyEmpty = panel.querySelector<HTMLElement>('[data-role="history-empty"]')
+  const historySummary = panel.querySelector<HTMLElement>('[data-role="history-summary"]')
+  const historySummaryBody = panel.querySelector<HTMLElement>('[data-role="history-summary-body"]')
+  const resourceSummary = panel.querySelector<HTMLElement>('[data-role="resource-summary"]')
+  const resourceTitle = panel.querySelector<HTMLElement>('[data-role="resource-title"]')
+  const seasonTabs = panel.querySelector<HTMLElement>('[data-role="season-tabs"]')
+  const transferBtn = panel.querySelector<HTMLButtonElement>('[data-role="transfer-btn"]')
+  const transferLabel = panel.querySelector<HTMLElement>('[data-role="transfer-label"]')
+  const transferSpinner = panel.querySelector<HTMLElement>('[data-role="transfer-spinner"]')
+  const resizeHandle = panel.querySelector<HTMLElement>('[data-role="resize-handle"]')
+  const statusText = panel.querySelector<HTMLElement>('[data-role="status-text"]')
+
+  panelDom.assignAll({
+    container: panel,
+    header,
+    headerArt,
+    headerPoster,
+    showTitle,
+    showSubtitle,
+    baseDirInput,
+    useTitleCheckbox,
+    useSeasonCheckbox,
+    seasonRow,
+    seasonPathHint,
+    pathPreview,
+    addPresetButton,
+    themeToggle,
+    settingsToggle,
+    settingsOverlay,
+    settingsForm,
+    settingsClose,
+    settingsCancel,
+    settingsBaseDir,
+    settingsUseTitle,
+    settingsUseSeason,
+    settingsThemeGroup,
+    settingsPresets,
+    settingsHistoryRate,
+    settingsFilterMode,
+    settingsFilterEditor,
+    settingsRenameEditor,
+    settingsExportConfig,
+    settingsExportData,
+    settingsImportConfigTrigger,
+    settingsImportDataTrigger,
+    settingsImportConfigInput,
+    settingsImportDataInput,
+    settingsResetLayout,
+    pinBtn,
+    logContainer,
+    logList,
+    resultSummary,
+    itemsContainer,
+    historyOverlay,
+    historyList,
+    historyEmpty,
+    historySummary,
+    historySummaryBody,
+    resourceSummary,
+    resourceTitle,
+    seasonTabs,
+    transferBtn,
+    transferLabel,
+    transferSpinner,
+    resizeHandle,
+    statusText,
+  })
 
   const handlePointerEnter = (event: PointerEvent) => {
     updatePointerPosition(event)
@@ -682,8 +729,6 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
   panel.addEventListener('focusin', handleFocusIn)
   panel.addEventListener('focusout', handleFocusOut)
 
-  const header = panelDom.header
-
   const shouldIgnoreDragTarget = (event: Event): boolean => {
     const target = event.target
     if (!(target instanceof HTMLElement)) {
@@ -697,10 +742,10 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
   }
 
   const startResize = (event: MouseEvent) => {
-    if (event.button !== 0 || !(panelDom.resizeHandle instanceof HTMLElement)) {
+    if (event.button !== 0 || !(resizeHandle instanceof HTMLElement)) {
       return
     }
-    if (!panelDom.resizeHandle.contains(event.target as Node)) {
+    if (!resizeHandle.contains(event.target as Node)) {
       return
     }
     cancelEdgeHide({ show: true })
@@ -775,8 +820,8 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     })
   }
 
-  const stopResizeHandleMouseDown = panelDom.resizeHandle
-    ? useEventListener(panelDom.resizeHandle, 'mousedown', startResize)
+  const stopResizeHandleMouseDown = resizeHandle
+    ? useEventListener(resizeHandle, 'mousedown', startResize)
     : null
 
   const handleDocumentMouseMove = (event: MouseEvent) => {

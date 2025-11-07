@@ -28,11 +28,13 @@ describe('tab-season-preference controller', () => {
     state.seasonPreferenceScope = 'default'
     state.seasonPreferenceTabId = null
     state.items = [{ id: 'item-1', title: 'Episode 1', order: 0, seasonId: 's-1', seasonIndex: 0 }]
-    panelDom.useSeasonCheckbox = document.createElement('input')
-    panelDom.useSeasonCheckbox.type = 'checkbox'
-    panelDom.settingsUseSeason = document.createElement('input')
-    panelDom.settingsUseSeason.type = 'checkbox'
-    panelDom.seasonRow = document.createElement('div')
+    const useSeasonCheckbox = document.createElement('input')
+    useSeasonCheckbox.type = 'checkbox'
+    panelDom.set('useSeasonCheckbox', useSeasonCheckbox)
+    const settingsUseSeason = document.createElement('input')
+    settingsUseSeason.type = 'checkbox'
+    panelDom.set('settingsUseSeason', settingsUseSeason)
+    panelDom.set('seasonRow', document.createElement('div'))
     bindSeasonManagerDomRefs({
       baseDir: panelBaseDirDom,
       resource: panelResourceDom,

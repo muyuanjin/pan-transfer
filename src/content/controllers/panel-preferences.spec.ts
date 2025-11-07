@@ -22,13 +22,16 @@ describe('panel preferences controller', () => {
     state.seasonSubdirDefault = false
     state.useSeasonSubdir = false
     state.seasonPreferenceScope = 'default'
-    panelDom.useSeasonCheckbox = document.createElement('input')
-    panelDom.useSeasonCheckbox.type = 'checkbox'
-    panelDom.settingsUseSeason = document.createElement('input')
-    panelDom.settingsUseSeason.type = 'checkbox'
-    panelDom.baseDirInput = document.createElement('input')
-    panelDom.baseDirInput.value = '/'
-    panelDom.addPresetButton = document.createElement('button')
+    const useSeasonCheckbox = document.createElement('input')
+    useSeasonCheckbox.type = 'checkbox'
+    panelDom.set('useSeasonCheckbox', useSeasonCheckbox)
+    const settingsUseSeason = document.createElement('input')
+    settingsUseSeason.type = 'checkbox'
+    panelDom.set('settingsUseSeason', settingsUseSeason)
+    const baseDirInput = document.createElement('input')
+    baseDirInput.value = '/'
+    panelDom.set('baseDirInput', baseDirInput)
+    panelDom.set('addPresetButton', document.createElement('button'))
   })
 
   afterEach(() => {
