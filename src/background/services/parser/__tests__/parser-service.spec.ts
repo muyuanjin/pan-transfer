@@ -84,6 +84,24 @@ const seasonsHtml = `
       </div>
       <img data-src="https://cdn.example.com/season2.jpg" alt="">
     </div>
+    <div class="se-c broken">
+      <div class="se-q">
+        <div class="cta">
+          <a href="/redirect?target=/promo?ref=season">
+            <span class="title">
+              <span class="cta-link">
+                <a href="/seasons/789.html" aria-label="nested-link"></a>
+              </span>
+              &nbsp;
+            </span>
+          </a>
+        </div>
+      </div>
+      <picture>
+        <source srcset="//cdn.example.com/season3-320.webp 320w, //cdn.example.com/season3-720.webp 720w">
+        <img data-src="/images/season3-lazy.jpg" alt="">
+      </picture>
+    </div>
   </div>
 `
 
@@ -101,6 +119,11 @@ const downloadHtml = `
             <a href="/links/2.html">资源 2</a>
           </td>
         </tr>
+        <tr id="link-3">
+          <td>
+            <a href="/links/3.html"><strong>&nbsp;</strong></a>
+          </td>
+        </tr>
       </tbody>
     </table>
   </div>
@@ -113,6 +136,20 @@ describe('parser-service', () => {
     expect(result).toEqual({
       linkUrl: 'https://pan.baidu.com/s/foobar?pwd=abcd',
       passCode: 'abcd',
+    })
+  })
+
+  it('falls back to 提取码 text when passcode is missing from URL', () => {
+    const html = `
+      <div class="link-card" data-clipboard-text="https://pan.baidu.com/s/baidu-share">
+        <p>百度网盘下载 · CHAOSPACE</p>
+        <span>提取码：Z9X8</span>
+      </div>
+    `
+    const result = parseLinkPage(html)
+    expect(result).toEqual({
+      linkUrl: 'https://pan.baidu.com/s/baidu-share',
+      passCode: 'Z9X8',
     })
   })
 
@@ -159,9 +196,9 @@ describe('parser-service', () => {
       seasonsHtml,
       'https://chaospace.tv/tvshows/1.html',
     )
-    expect(entries).toHaveLength(2)
-    const [firstEntry, secondEntry] = entries
-    if (!firstEntry || !secondEntry) {
+    expect(entries).toHaveLength(3)
+    const [firstEntry, secondEntry, thirdEntry] = entries
+    if (!firstEntry || !secondEntry || !thirdEntry) {
       throw new Error('Expected season entries to be populated')
     }
     expect(firstEntry).toMatchObject({
@@ -173,12 +210,31 @@ describe('parser-service', () => {
     expect(firstEntry.poster?.src).toBe('https://chaospace.tv/images/season1.jpg')
     expect(secondEntry.seasonId).toBe('456')
     expect(secondEntry.poster?.src).toBe('https://cdn.example.com/season2.jpg')
+    expect(thirdEntry.url).toBe('https://chaospace.tv/redirect?target=/promo?ref=season')
+    expect(thirdEntry.poster?.src).toBe('https://chaospace.tv/images/season3-lazy.jpg')
+    expect(thirdEntry.poster?.alt).toBe('')
   })
 
   it('parses completion labels from season listings', () => {
     const completion = parseTvShowSeasonCompletionFromHtml(seasonsHtml)
     expect(completion['123']?.state).toBe('completed')
     expect(completion['123']?.label).toBe('完结')
+  })
+
+  it('falls back to generated season identifiers when markup is malformed', () => {
+    const entries = parseTvShowSeasonEntriesFromHtml(
+      seasonsHtml,
+      'https://chaospace.tv/tvshows/1.html',
+    )
+    const fallbackEntry = entries[2]
+    if (!fallbackEntry) {
+      throw new Error('Expected fallback season entry to exist')
+    }
+    expect(fallbackEntry).toMatchObject({
+      seasonId: 'season-3',
+      url: 'https://chaospace.tv/redirect?target=/promo?ref=season',
+      label: '未命名资源',
+    })
   })
 
   it('extracts items from download tables using history fallback', () => {
@@ -196,6 +252,12 @@ describe('parser-service', () => {
       {
         id: '2',
         title: '资源 2',
+        linkUrl: '',
+        passCode: '',
+      },
+      {
+        id: '3',
+        title: '未命名资源',
         linkUrl: '',
         passCode: '',
       },

@@ -18,15 +18,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **⚠️ 重要**: 本项目已采用 **Vite + TypeScript** 构建系统,源代码位于 `src/` 目录。`chaospace-extension/` 目录为**遗留构建产物,仅供对比验证**,**禁止直接修改**。
 
-### 重构状态(截至 2025-11-04)
-
-本项目正在进行**渐进式模块化重构**,详见 `REFACTOR_PROGRESS.md`:
-
-- ✅ **Background 层 100% TypeScript 化**:所有 API、服务、存储模块已迁移至 `.ts`,采用 `@tsconfig/strictest` 严格检查
-- ✅ **Shared 工具 TypeScript 化**:`sanitizers`、`completion-status`、`chinese-numeral` 已类型化
-- ✅ **Vue 3 浮动面板**:已将面板 UI 迁移至 Vue 3 组件(保留拖拽/调整大小等原生逻辑)
-- 🚧 **Content 层部分模块化**:已提取 `page-analyzer`、`season-loader`、`history-service` 等服务,主入口仍需进一步拆分
-
 ### 项目结构
 
 ```
@@ -504,40 +495,10 @@ chrome.tabs.sendMessage(tabId, {
 - 避免在公共仓库中提交包含个人凭证的测试数据
 - BDCLND Cookie 设置时使用 `secure: true` 和 `sameSite: 'no_restriction'`
 
-## 扩展功能建议
-
-如需添加新功能,遵循以下模式:
-
-1. **新增 API 交互**:
-   - 在 `src/background/api/` 中创建 `.ts` 文件
-   - 定义请求/响应类型接口
-   - 使用统一的错误处理(`maybeHandleLoginRequired`)
-
-2. **新增 UI 组件**:
-   - 优先在 `src/content/components/` 中创建 Vue 单文件组件(`.vue`)
-   - 如需原生 JS,创建 `.js` 模块并导出工厂函数
-   - 保持单一职责,避免组件超过 300 行
-
-3. **新增配置项**:
-   - 状态管理:在 `src/content/state/index.js` 中添加
-   - 持久化存储:在 `src/background/storage/` 中处理
-   - 跨端共享配置:使用 `chrome.storage.sync`
-
-4. **新增共享工具**:
-   - 创建 TypeScript 模块放在 `src/shared/utils/` 中
-   - 导出纯函数,避免副作用
-   - 补充类型定义到 `src/shared/types/` 中
-
-5. **重构遗留代码**:
-   - 参考 `REFACTOR_PROGRESS.md` 中的模式
-   - 小步迭代,每次提交保持构建通过
-   - 提取前先写类型定义,提取后补充单元测试
-
 ## 相关文档
 
 ### 项目文档
 
-- `REFACTOR_PROGRESS.md` - 重构进度追踪(包含已完成/进行中/待办任务)
 - `AGENTS.md` - 项目结构、构建命令、代码规范速查表
 - `CLAUDE.md` - 本文件,技术栈和开发指南
 
@@ -590,4 +551,3 @@ chrome.tabs.sendMessage(tabId, {
 - ✅ **提交信息遵循 Conventional Commits**(`feat:`、`fix:`、`refactor:`、`docs:`)
 - ✅ **大功能分阶段提交**(每个提交保持构建绿色)
 - ✅ **从现有代码中学习模式**(参考 `src/background/api/baidu-pan.ts` 的类型设计)
-- ✅ **更新 `REFACTOR_PROGRESS.md`**(记录重构进展和待办事项)
