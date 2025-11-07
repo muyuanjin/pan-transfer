@@ -3,6 +3,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { createPanelPreferencesController } from './panel-preferences'
 import { state, panelDom } from '../state'
 import { STORAGE_KEY } from '../constants'
+import { getPanelBaseDirDom } from '../types'
 
 vi.mock('../utils/storage', () => {
   return {
@@ -14,6 +15,7 @@ vi.mock('../utils/storage', () => {
 import { safeStorageGet, safeStorageSet } from '../utils/storage'
 
 describe('panel preferences controller', () => {
+  const panelBaseDirDom = getPanelBaseDirDom(panelDom)
   beforeEach(() => {
     vi.useFakeTimers()
     state.$reset()
@@ -46,7 +48,7 @@ describe('panel preferences controller', () => {
 
     const controller = createPanelPreferencesController({
       state,
-      panelDom,
+      panelDom: panelBaseDirDom,
       document,
       getFloatingPanel: () => document.createElement('div'),
       renderSeasonHint: vi.fn(),
@@ -69,7 +71,7 @@ describe('panel preferences controller', () => {
     const onSeasonDefaultChange = vi.fn()
     const controller = createPanelPreferencesController({
       state,
-      panelDom,
+      panelDom: panelBaseDirDom,
       document,
       getFloatingPanel: () => document.createElement('div'),
       renderSeasonHint: vi.fn(),

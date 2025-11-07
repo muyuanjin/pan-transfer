@@ -2,7 +2,7 @@ import { state } from '../../state'
 import type { createHistoryController } from '../../history/controller'
 import type { createPanelPreferencesController } from '../../controllers/panel-preferences'
 import type { createLoggingController } from '../../controllers/logging-controller'
-import type { PanelDomRefs, ResourceItem } from '../../types'
+import type { PanelBaseDirDomRefs, ResourceItem } from '../../types'
 import { computeItemTargetPath, getTargetPath } from '../../services/season-manager'
 import { normalizePageUrl } from '../../services/page-analyzer'
 import { showToast } from '../../components/toast'
@@ -19,7 +19,7 @@ type PanelPreferencesController = ReturnType<typeof createPanelPreferencesContro
 type LoggingController = ReturnType<typeof createLoggingController>
 
 export function createTransferController(deps: {
-  panelDom: PanelDomRefs
+  panelDom: PanelBaseDirDomRefs
   logging: LoggingController
   preferences: PanelPreferencesController
   history: HistoryController

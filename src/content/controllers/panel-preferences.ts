@@ -2,7 +2,7 @@ import { DEFAULT_PRESETS, HISTORY_BATCH_RATE_LIMIT_MS, STORAGE_KEY } from '../co
 import { normalizeDir } from '../services/page-analyzer'
 import { clampHistoryRateLimit, sanitizePreset } from '../components/settings-modal'
 import { safeStorageGet, safeStorageSet } from '../utils/storage'
-import type { PanelDomRefs } from '../types'
+import type { PanelBaseDirDomRefs } from '../types'
 import type { ContentStore } from '../state'
 import { useDebounceFn } from '@vueuse/core'
 import type { ToastHandler } from '../components/toast'
@@ -19,7 +19,7 @@ import {
 
 interface PanelPreferencesDeps {
   state: ContentStore
-  panelDom: PanelDomRefs
+  panelDom: PanelBaseDirDomRefs
   document: Document
   getFloatingPanel: () => HTMLElement | null
   renderSeasonHint: () => void

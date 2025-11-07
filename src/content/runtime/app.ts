@@ -9,6 +9,7 @@ import {
 import { state, panelDom, detailDom } from '../state'
 import { createPanelRuntimeState } from './panel-state'
 import type { PanelEdgeSnapshot, PanelPositionSnapshot, PanelSizeSnapshot } from '../types'
+import { getPanelBaseDirDom, getPanelEdgeDom, getPanelTransferDom } from '../types'
 import { createLoggingController } from '../controllers/logging-controller'
 import { createPanelPreferencesController } from '../controllers/panel-preferences'
 import { createPanelEdgeController } from '../controllers/panel-edge-controller'
@@ -56,6 +57,9 @@ export function createRuntimeApp() {
   let tabSeasonPreference: ReturnType<typeof createTabSeasonPreferenceController> | null = null
   let stylesObserver: MutationObserver | null = null
   let stylesObserverRaf: number | null = null
+  const panelEdgeDom = getPanelEdgeDom(panelDom)
+  const panelBaseDirDom = getPanelBaseDirDom(panelDom)
+  const panelTransferDom = getPanelTransferDom(panelDom)
 
   const handleSeasonDefaultChange = (value: boolean): void => {
     const normalized = Boolean(value)
@@ -264,8 +268,9 @@ export function createRuntimeApp() {
           (typeof event?.clientX === 'number' &&
             typeof event?.clientY === 'number' &&
             ((event?.clientX ?? 0) !== 0 || (event?.clientY ?? 0) !== 0)))
-      if (isPointerActivation && panelDom.pinBtn && typeof panelDom.pinBtn.blur === 'function') {
-        panelDom.pinBtn.blur()
+      const pinButton = panelEdgeDom.pinButton
+      if (isPointerActivation && pinButton && typeof pinButton.blur === 'function') {
+        pinButton.blur()
       }
     }
   }
@@ -360,7 +365,7 @@ export function createRuntimeApp() {
 
   const preferences = createPanelPreferencesController({
     state,
-    panelDom,
+    panelDom: panelBaseDirDom,
     document,
     getFloatingPanel,
     renderSeasonHint,
@@ -373,7 +378,7 @@ export function createRuntimeApp() {
   const edgeController = createPanelEdgeController({
     state,
     panelState,
-    panelDom,
+    panelDom: panelEdgeDom,
     detailDom,
     getFloatingPanel,
   })
@@ -430,7 +435,7 @@ export function createRuntimeApp() {
   const pageDataHydrator = createPageDataHydrator()
 
   const transferController = createTransferController({
-    panelDom,
+    panelDom: panelBaseDirDom,
     logging,
     preferences,
     history,
@@ -441,7 +446,7 @@ export function createRuntimeApp() {
   })
 
   const baseDirBinder = createBaseDirBinder({
-    panelDom,
+    panelDom: panelBaseDirDom,
     state,
     preferences,
     showToast,
@@ -469,7 +474,7 @@ export function createRuntimeApp() {
   })
 
   const transferBinder = createTransferBinder({
-    panelDom,
+    panelDom: panelTransferDom,
     transfer: transferController,
   })
 
@@ -510,7 +515,7 @@ export function createRuntimeApp() {
     shellBinderFactories: [
       () =>
         createPinButtonBinder({
-          panelDom,
+          panelDom: panelEdgeDom,
           getPinnedState: () => panelState.isPinned,
           onPinChange: (nextPinned, context) =>
             applyPinnedState(nextPinned, {
@@ -555,11 +560,13 @@ export function createRuntimeApp() {
     if (tabSeasonPreference) {
       tabSeasonPreference.syncCheckboxes()
     } else {
-      if (panelDom.useSeasonCheckbox) {
-        panelDom.useSeasonCheckbox.checked = state.useSeasonSubdir
+      const useSeasonCheckbox = panelBaseDirDom.useSeasonCheckbox
+      if (useSeasonCheckbox) {
+        useSeasonCheckbox.checked = state.useSeasonSubdir
       }
-      if (panelDom.settingsUseSeason) {
-        panelDom.settingsUseSeason.checked = state.seasonSubdirDefault
+      const settingsUseSeason = panelBaseDirDom.settingsUseSeason
+      if (settingsUseSeason) {
+        settingsUseSeason.checked = state.seasonSubdirDefault
       }
     }
   }

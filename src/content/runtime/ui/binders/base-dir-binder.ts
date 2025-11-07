@@ -1,5 +1,5 @@
 import { normalizeDir } from '../../../services/page-analyzer'
-import type { PanelDomRefs } from '../../../types'
+import type { PanelBaseDirDomRefs } from '../../../types'
 import type { ContentStore } from '../../../state'
 import type { createPanelPreferencesController } from '../../../controllers/panel-preferences'
 import type { ToastHandler } from '../../../components/toast'
@@ -9,7 +9,7 @@ import type { TabSeasonPreferenceController } from '../../../services/tab-season
 type PanelPreferencesController = ReturnType<typeof createPanelPreferencesController>
 
 interface BaseDirBinderDeps {
-  panelDom: PanelDomRefs
+  panelDom: PanelBaseDirDomRefs
   state: ContentStore
   preferences: PanelPreferencesController
   showToast: ToastHandler

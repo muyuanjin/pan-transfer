@@ -1,8 +1,8 @@
-import type { PanelDomRefs } from '../../../types'
+import type { PanelEdgeDomRefs } from '../../../types'
 import type { Binder } from './types'
 
 interface PinButtonBinderDeps {
-  panelDom: PanelDomRefs
+  panelDom: PanelEdgeDomRefs
   getPinnedState: () => boolean
   onPinChange: (nextPinned: boolean, context: { event: MouseEvent }) => void
 }
@@ -14,7 +14,7 @@ export function createPinButtonBinder({
 }: PinButtonBinderDeps): Binder {
   return {
     bind(): () => void {
-      const pinBtn = panelDom.pinBtn
+      const pinBtn = panelDom.pinButton
       if (!pinBtn) {
         return () => {}
       }

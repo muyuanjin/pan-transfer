@@ -6,6 +6,7 @@ import {
   updateSeasonExampleDir,
 } from './season-manager'
 import type { SeasonPreferenceScope } from '../types'
+import { getPanelBaseDirDom } from '../types'
 
 interface TabSeasonPreferenceDeps {
   getFloatingPanel: () => HTMLElement | null
@@ -37,12 +38,16 @@ async function runtimeSendMessage<T = SeasonPreferenceMessageResponse>(
   }
 }
 
+const panelBaseDirDom = getPanelBaseDirDom(panelDom)
+
 function syncCheckboxes(): void {
-  if (panelDom.useSeasonCheckbox instanceof HTMLInputElement) {
-    panelDom.useSeasonCheckbox.checked = state.useSeasonSubdir
+  const useSeasonCheckbox = panelBaseDirDom.useSeasonCheckbox
+  if (useSeasonCheckbox instanceof HTMLInputElement) {
+    useSeasonCheckbox.checked = state.useSeasonSubdir
   }
-  if (panelDom.settingsUseSeason instanceof HTMLInputElement) {
-    panelDom.settingsUseSeason.checked = state.seasonSubdirDefault
+  const settingsUseSeason = panelBaseDirDom.settingsUseSeason
+  if (settingsUseSeason instanceof HTMLInputElement) {
+    settingsUseSeason.checked = state.seasonSubdirDefault
   }
 }
 

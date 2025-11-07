@@ -1,10 +1,10 @@
 import type { ContentStore } from '../state'
-import type { DetailDomRefs, PanelDomRefs, PanelRuntimeState } from '../types'
+import type { DetailDomRefs, PanelEdgeDomRefs, PanelRuntimeState } from '../types'
 
 interface PanelEdgeControllerOptions {
   state: ContentStore
   panelState: PanelRuntimeState
-  panelDom: PanelDomRefs
+  panelDom: PanelEdgeDomRefs
   detailDom: DetailDomRefs
   getFloatingPanel: () => HTMLElement | null
 }
@@ -64,7 +64,7 @@ export function createPanelEdgeController(
   }
 
   const updatePinButton = (): void => {
-    const pinButton = panelDom['pinBtn']
+    const pinButton = panelDom.pinButton
     const panel = getFloatingPanel()
     if (!pinButton) {
       if (panel) {

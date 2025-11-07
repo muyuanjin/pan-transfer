@@ -356,21 +356,38 @@ export type PanelDomRefs = PanelDomAccessors & PanelDomStore
 
 export function createPanelDomRefs(): PanelDomRefs {
   const store = new Map<PanelDomKey, PanelDomDefinition[PanelDomKey] | null>()
+  const refs = {} as PanelDomStore
 
   for (const key of PANEL_DOM_KEYS) {
     store.set(key, null)
+    Object.defineProperty(refs, key, {
+      get() {
+        return (store.get(key) ?? null) as PanelDomDefinition[typeof key] | null
+      },
+      set(value: PanelDomDefinition[typeof key] | null) {
+        store.set(key, value ?? null)
+      },
+      enumerable: true,
+    })
   }
 
-  const keyLookup = new Set<string>(PANEL_DOM_KEYS as readonly string[])
+  const assertKnownKey = (key: PanelDomKey): void => {
+    if (!store.has(key)) {
+      throw new Error(`[Chaospace Transfer] Unknown panel DOM ref "${key}"`)
+    }
+  }
 
   const accessors: PanelDomAccessors = {
     get<K extends PanelDomKey>(key: K) {
+      assertKnownKey(key)
       return (store.get(key) ?? null) as PanelDomDefinition[K] | null
     },
     set<K extends PanelDomKey>(key: K, value: PanelDomDefinition[K] | null) {
+      assertKnownKey(key)
       store.set(key, value ?? null)
     },
     ensure<K extends PanelDomKey>(key: K, message?: string) {
+      assertKnownKey(key)
       const value = store.get(key)
       if (!value) {
         throw new Error(message ?? `Missing panel DOM ref "${key}"`)
@@ -392,27 +409,75 @@ export function createPanelDomRefs(): PanelDomRefs {
     },
   }
 
-  return new Proxy(accessors as PanelDomRefs, {
-    get(target, prop, receiver) {
-      if (typeof prop === 'string' && keyLookup.has(prop)) {
-        return accessors.get(prop as PanelDomKey)
-      }
-      return Reflect.get(target, prop, receiver)
-    },
-    set(_target, prop, value, receiver) {
-      if (typeof prop === 'string' && keyLookup.has(prop)) {
-        accessors.set(prop as PanelDomKey, value as PanelDomDefinition[PanelDomKey] | null)
-        return true
-      }
-      return Reflect.set(_target, prop, value, receiver)
-    },
-    has(_target, prop) {
-      if (typeof prop === 'string' && keyLookup.has(prop)) {
-        return true
-      }
-      return prop in accessors
-    },
-  })
+  return Object.assign(refs, accessors)
 }
 
 export type DetailDomRefs = Record<string, HTMLElement | null>
+
+export interface PanelEdgeDomRefs {
+  readonly pinButton: HTMLButtonElement | null
+}
+
+export function getPanelEdgeDom(panelDom: PanelDomRefs): PanelEdgeDomRefs {
+  return {
+    get pinButton() {
+      return panelDom.get('pinBtn')
+    },
+  }
+}
+
+export interface PanelTransferDomRefs {
+  readonly transferButton: HTMLButtonElement | null
+  readonly transferLabel: HTMLElement | null
+  readonly transferSpinner: HTMLElement | null
+}
+
+export function getPanelTransferDom(panelDom: PanelDomRefs): PanelTransferDomRefs {
+  return {
+    get transferButton() {
+      return panelDom.get('transferBtn')
+    },
+    get transferLabel() {
+      return panelDom.get('transferLabel')
+    },
+    get transferSpinner() {
+      return panelDom.get('transferSpinner')
+    },
+  }
+}
+
+export interface PanelBaseDirDomRefs {
+  readonly baseDirInput: HTMLInputElement | null
+  readonly useTitleCheckbox: HTMLInputElement | null
+  readonly useSeasonCheckbox: HTMLInputElement | null
+  readonly addPresetButton: HTMLButtonElement | null
+  readonly themeToggle: HTMLButtonElement | null
+  readonly pathPreview: HTMLElement | null
+  readonly settingsUseSeason: HTMLInputElement | null
+}
+
+export function getPanelBaseDirDom(panelDom: PanelDomRefs): PanelBaseDirDomRefs {
+  return {
+    get baseDirInput() {
+      return panelDom.get('baseDirInput')
+    },
+    get useTitleCheckbox() {
+      return panelDom.get('useTitleCheckbox')
+    },
+    get useSeasonCheckbox() {
+      return panelDom.get('useSeasonCheckbox')
+    },
+    get addPresetButton() {
+      return panelDom.get('addPresetButton')
+    },
+    get themeToggle() {
+      return panelDom.get('themeToggle')
+    },
+    get pathPreview() {
+      return panelDom.get('pathPreview')
+    },
+    get settingsUseSeason() {
+      return panelDom.get('settingsUseSeason')
+    },
+  }
+}

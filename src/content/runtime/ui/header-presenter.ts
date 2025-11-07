@@ -1,11 +1,14 @@
 import { state, panelDom } from '../../state'
 import { disableElementDrag } from '../../utils/dom'
 import { formatOriginLabel, sanitizeCssUrl } from '../../utils/format'
+import { getPanelTransferDom } from '../../types'
 
 export interface HeaderPresenter {
   updateHeader: () => void
   updateTransferButton: () => void
 }
+
+const transferDom = getPanelTransferDom(panelDom)
 
 export function createHeaderPresenter(): HeaderPresenter {
   const updateHeader = (): void => {
@@ -73,17 +76,20 @@ export function createHeaderPresenter(): HeaderPresenter {
   }
 
   const updateTransferButton = (): void => {
-    if (!panelDom.transferBtn || !panelDom.transferLabel) {
+    const transferButton = transferDom.transferButton
+    const transferLabel = transferDom.transferLabel
+    const transferSpinner = transferDom.transferSpinner
+    if (!transferButton || !transferLabel) {
       return
     }
     const count = state.selectedIds.size
     const isRunning = state.transferStatus === 'running'
-    panelDom.transferBtn.disabled = isRunning || count === 0
-    panelDom.transferBtn.classList.toggle('is-loading', isRunning)
-    if (panelDom.transferSpinner) {
-      panelDom.transferSpinner.classList.toggle('is-visible', isRunning)
+    transferButton.disabled = isRunning || count === 0
+    transferButton.classList.toggle('is-loading', isRunning)
+    if (transferSpinner) {
+      transferSpinner.classList.toggle('is-visible', isRunning)
     }
-    panelDom.transferLabel.textContent = isRunning
+    transferLabel.textContent = isRunning
       ? '正在转存...'
       : count > 0
         ? `转存选中 ${count} 项`
