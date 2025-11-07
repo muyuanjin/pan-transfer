@@ -1,4 +1,4 @@
-import { state, panelDom, detailDom } from '../state'
+import { state, detailDom } from '../state'
 import {
   deleteHistoryRecords,
   clearAllHistoryRecords,
@@ -23,7 +23,6 @@ import type { HistoryDetailOverrides as HistoryDetailOverridesInput } from '../c
 import { renderHistoryCard as renderHistoryCardComponent } from '../components/history-card'
 import { showToast } from '../components/toast'
 import type { PanelRuntimeState, HistoryGroup, PanelHistoryDomRefs } from '../types'
-import { getPanelHistoryDom } from '../types'
 import { HISTORY_BATCH_RATE_LIMIT_MS, EDGE_HIDE_DELAY } from '../constants'
 import historyDetailCssHref from '../styles/overlays/history-detail.css?url'
 import { loadCss } from '../styles.loader'
@@ -52,7 +51,7 @@ interface HistoryControllerDeps {
   renderPathPreview: () => void
   renderSeasonHint: () => void
   seasonPreference: TabSeasonPreferenceController
-  panelDom?: PanelHistoryDomRefs
+  panelDom: PanelHistoryDomRefs
 }
 
 interface LoadHistoryOptions {
@@ -83,8 +82,6 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, duration))
 }
 
-const defaultHistoryDom = getPanelHistoryDom(panelDom)
-
 export function createHistoryController(deps: HistoryControllerDeps) {
   const {
     getFloatingPanel,
@@ -93,7 +90,7 @@ export function createHistoryController(deps: HistoryControllerDeps) {
     renderPathPreview,
     renderSeasonHint,
     seasonPreference,
-    panelDom = defaultHistoryDom,
+    panelDom,
   } = deps
   const historyDom = panelDom
 
@@ -246,11 +243,9 @@ export function createHistoryController(deps: HistoryControllerDeps) {
       floatingPanel.classList.add('is-hovering')
       floatingPanel.classList.remove('is-leaving')
     }
-    try {
-      await ensureHistoryDetailStyles()
-    } catch (error) {
+    void ensureHistoryDetailStyles().catch((error) => {
       console.error('[Chaospace Transfer] Failed to load history detail styles:', error)
-    }
+    })
     ensureHistoryDetailOverlayMounted()
     const fallback = buildHistoryDetailFallback(group, overrides)
     const overridePageUrl = typeof overrides.pageUrl === 'string' ? overrides.pageUrl.trim() : ''

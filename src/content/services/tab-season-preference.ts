@@ -1,4 +1,4 @@
-import { state, panelDom } from '../state'
+import { state } from '../state'
 import {
   dedupeSeasonDirMap,
   renderSeasonControls,
@@ -7,13 +7,12 @@ import {
 } from './season-manager'
 import type { SeasonPreferenceScope } from '../types'
 import type { PanelBaseDirDomRefs } from '../types'
-import { getPanelBaseDirDom } from '../types'
 
 interface TabSeasonPreferenceDeps {
   getFloatingPanel: () => HTMLElement | null
   renderResourceList: () => void
   renderPathPreview: () => void
-  panelDom?: PanelBaseDirDomRefs
+  panelDom: PanelBaseDirDomRefs
 }
 
 type SeasonPreferenceMessageResponse = {
@@ -113,13 +112,11 @@ export interface TabSeasonPreferenceController {
   syncCheckboxes: () => void
 }
 
-const defaultBaseDirDom = getPanelBaseDirDom(panelDom)
-
 export function createTabSeasonPreferenceController({
   getFloatingPanel,
   renderResourceList,
   renderPathPreview,
-  panelDom = defaultBaseDirDom,
+  panelDom,
 }: TabSeasonPreferenceDeps): TabSeasonPreferenceController {
   let initialized = false
   let pendingInit: Promise<void> | null = null

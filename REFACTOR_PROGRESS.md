@@ -32,6 +32,9 @@ _Last updated: 2025-11-06 10:20 (UTC-8)_
 
 ## Recent Progress (since 2025-11-05)
 
+- History detail header clicks widened (2025-11-07 06:00 UTC-8): the entire history entry header now delegates clicks to the detail handler (ignoring interactive controls), and the overlay visibility flag flips synchronously so a single click reliably opens the sheet; added renderer specs to guard both behaviours.
+- History detail overlay opens immediately (2025-11-07 21:16 UTC-8): stopped awaiting the CSS preload before mounting the Vue overlay so a single click shows the detail fallback instantly, and added a regression test that stubs the stylesheet loader to ensure the panel renders even while styles are pending.
+- Season DOM refs require explicit binding (2025-11-07 14:40 UTC-8): removed the global `panelDom` fallbacks from `season-manager`, `tab-season-preference`, and the history controller so ContentRuntime must pass scoped DOM accessors, taught the season manager to throw if its refs are unbound, and promoted the item-selection binder to fail fast when the items container hook is missing (tests now bind refs up front).
 - Tightened panel DOM access (2025-11-07 11:10 UTC-8): added `PanelSettingsDomRefs`/`getPanelSettingsDom`, injected those accessors into the settings modal + coordinator, routed header/log presenters through accessor factories, and began using `panelDom.ensure` for log/summary bindings while keeping pre-mount-safe fallbacks for the optional status text hook.
 - Finished the history overlay Vue migration (2025-11-06 07:35 UTC-8): removed `createHistoryListBinder`, introduced the `useHistoryListActions` composable under `history-context`, rewired `HistoryListView`/`HistorySummaryView` and season rows to call controller APIs directly, and updated `history-card` to provide the context plus Pinia-backed unit coverage.
 - `npm run check` passed on 2025-11-06 03:45 (UTC-8), producing fresh `dist/` artifacts after running Prettier, vue-tsc, ESLint, Vite build, 10 Vitest suites, and 3 Playwright scenarios.
@@ -91,6 +94,9 @@ _Last updated: 2025-11-06 10:20 (UTC-8)_
 
 ## Verification History
 
+- 2025-11-07 06:00 (UTC-8) — `npm run check` — PASS (Prettier → vue-tsc → ESLint → Vite build → Vitest ×11 → Playwright ×3 URLs).
+- 2025-11-07 21:16 (UTC-8) — `npm run check` — PASS (Prettier → vue-tsc → ESLint → Vite build → Vitest ×11 → Playwright ×3 URLs).
+- 2025-11-07 14:40 (UTC-8) — `npm run check` — PASS (Prettier → vue-tsc → ESLint → Vite build → Vitest ×11 → Playwright ×3 URLs).
 - 2025-11-07 11:10 (UTC-8) — `npm run check` — PASS (Prettier → vue-tsc → ESLint → Vite build → Vitest ×11 → Playwright ×3 URLs).
 - 2025-11-07 10:24 (UTC-8) — `npm run check` — PASS (Prettier → vue-tsc → ESLint → Vite build → Vitest ×11 → Playwright ×3 URLs).
 - 2025-11-06 07:33 (UTC-8) — `npm run check` — PASS (Prettier → vue-tsc → ESLint → Vite build → Vitest ×11 → Playwright ×3 URLs).

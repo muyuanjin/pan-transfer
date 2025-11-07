@@ -40,7 +40,7 @@
             </span>
           </button>
         </div>
-        <div class="chaospace-history-item-header">
+        <div class="chaospace-history-item-header" @click="handleHeaderClick(entry, $event)">
           <button
             v-if="entry.poster?.src"
             type="button"
@@ -419,6 +419,16 @@ function handleOpenUrl(url: unknown): void {
 
 function handleOpenPan(panInfo: { url: string; path: string }): void {
   historyActions.openHistoryPan({ url: panInfo.url, path: panInfo.path })
+}
+
+function handleHeaderClick(entry: DerivedEntryView, event: Event): void {
+  const target = event.target as HTMLElement | null
+  const interactiveSelector =
+    '.chaospace-history-select, .chaospace-history-actions, .chaospace-history-action, .chaospace-history-poster'
+  if (target && target.closest(interactiveSelector)) {
+    return
+  }
+  handleGroupDetail(entry, event)
 }
 
 function handleTriggerUpdate(entry: DerivedEntryView, event: Event): void {

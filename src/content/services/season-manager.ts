@@ -1,5 +1,5 @@
 import { ALL_SEASON_TAB_ID, NO_SEASON_TAB_ID } from '../constants'
-import { state, panelDom } from '../state'
+import { state } from '../state'
 import { normalizeDir, sanitizeSeasonDirSegment, deriveSeasonDirectory } from './page-analyzer'
 import { extractCleanTitle } from '../utils/title'
 import type {
@@ -9,7 +9,6 @@ import type {
   ResourceItem,
   SeasonResolvedPath,
 } from '../types'
-import { getPanelBaseDirDom, getPanelResourceDom, getPanelSeasonDom } from '../types'
 
 type SeasonTabType = 'all' | 'season' | 'misc'
 
@@ -19,21 +18,15 @@ interface SeasonManagerDomRefs {
   season: PanelSeasonDomRefs
 }
 
-const defaultSeasonDomRefs: SeasonManagerDomRefs = {
-  baseDir: getPanelBaseDirDom(panelDom),
-  resource: getPanelResourceDom(panelDom),
-  season: getPanelSeasonDom(panelDom),
-}
+let seasonDomRefs: SeasonManagerDomRefs | null = null
 
-let seasonDomRefs: SeasonManagerDomRefs = defaultSeasonDomRefs
-
-export function bindSeasonManagerDomRefs(refs?: SeasonManagerDomRefs): void {
-  seasonDomRefs = refs ?? defaultSeasonDomRefs
+export function bindSeasonManagerDomRefs(refs: SeasonManagerDomRefs): void {
+  seasonDomRefs = refs
 }
 
 function getSeasonDomRefs(): SeasonManagerDomRefs {
   if (!seasonDomRefs) {
-    return defaultSeasonDomRefs
+    throw new Error('[Chaospace Transfer] Season DOM refs not bound')
   }
   return seasonDomRefs
 }

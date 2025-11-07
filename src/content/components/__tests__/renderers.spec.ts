@@ -131,6 +131,131 @@ describe('ResourceList renderer summary', () => {
   })
 })
 
+describe('History list interactions', () => {
+  it('opens history detail when clicking the entry header background', () => {
+    const historyList = document.createElement('div')
+    const historyEmpty = document.createElement('div')
+    const historySummaryBody = document.createElement('div')
+    const historySummary = document.createElement('div')
+    const historyOverlay = document.createElement('div')
+
+    const panelDom = {
+      historyList,
+      historyEmpty,
+      historySummaryBody,
+      historySummary,
+      historyOverlay,
+    } as HistoryCardRenderParams['panelDom']
+
+    const historyGroup = {
+      key: 'group-1',
+      title: '示例记录',
+      origin: 'chaospace',
+      poster: null,
+      updatedAt: Date.now(),
+      records: [],
+      main: {
+        id: 'record-1',
+        pageTitle: '示例记录',
+        completion: { state: 'ongoing', label: '连载中' },
+        targetDirectory: '/示例',
+        urls: ['https://example.com'],
+        pageUrl: 'https://example.com',
+      },
+      children: [],
+      urls: ['https://example.com'],
+      seasonEntries: [],
+    } as unknown as HistoryGroup
+
+    const state = {
+      historyGroups: [historyGroup],
+      historyDetail: {
+        isOpen: false,
+        loading: false,
+        groupKey: '',
+        pageUrl: '',
+        data: null,
+        error: '',
+        fallback: null,
+      },
+      historySelectedKeys: new Set<string>(),
+      historySeasonExpanded: new Set<string>(),
+      historyBatchRunning: false,
+      historyExpanded: false,
+      pageUrl: 'https://example.com',
+      baseDir: '/',
+      baseDirLocked: false,
+      autoSuggestedDir: null,
+      classification: 'unknown',
+      classificationDetails: null,
+      useTitleSubdir: true,
+      useSeasonSubdir: false,
+      seasonSubdirDefault: false,
+      seasonPreferenceScope: 'default',
+      seasonPreferenceTabId: null,
+      presets: [],
+      items: [],
+      itemIdSet: new Set<string>(),
+      isSeasonLoading: false,
+      seasonLoadProgress: { total: 0, loaded: 0 },
+      deferredSeasonInfos: [],
+      sortKey: 'page' as const,
+      sortOrder: 'asc' as const,
+      selectedIds: new Set<string>(),
+      newItemIds: new Set<string>(),
+      transferredIds: new Set<string>(),
+      seasonCompletion: {},
+      seasonEntries: [],
+      completion: null,
+      historyRecords: [],
+      historyFilter: 'all',
+      historyBatchProgressLabel: '',
+      historyDetailCache: new Map<string, unknown>(),
+      logs: [],
+      transferStatus: 'idle',
+      lastResult: null,
+      statusMessage: '',
+      theme: 'dark',
+      toolbarDisabled: false,
+      presetsDisabled: false,
+      jobId: null,
+      origin: 'chaospace',
+      poster: null,
+      seasonDirMap: {},
+      seasonResolvedPaths: [],
+      activeSeasonId: null,
+      settingsPanel: { isOpen: false },
+    } as unknown as HistoryCardRenderParams['state']
+
+    const historyController = createHistoryControllerStub()
+
+    renderHistoryCard({
+      state,
+      panelDom,
+      floatingPanel: null,
+      pruneHistorySelection: undefined,
+      getHistoryGroupByKey: () => historyGroup,
+      closeHistoryDetail: undefined,
+      getFilteredHistoryGroups: () => [historyGroup],
+      updateHistoryExpansion: undefined,
+      isHistoryGroupCompleted: undefined,
+      historyController,
+    })
+
+    const header = panelDom.historyList?.querySelector(
+      '.chaospace-history-item-header',
+    ) as HTMLElement | null
+    expect(header).toBeTruthy()
+    header?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+
+    expect(historyController.openHistoryDetail).toHaveBeenCalledTimes(1)
+    expect(historyController.openHistoryDetail).toHaveBeenCalledWith(
+      'group-1',
+      expect.objectContaining({ pageUrl: 'https://example.com' }),
+    )
+  })
+})
+
 describe('HistoryCard renderer toggles', () => {
   it('enables toggle buttons after rendering groups', () => {
     const historyList = document.createElement('div')

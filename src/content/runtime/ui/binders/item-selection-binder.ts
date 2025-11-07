@@ -18,14 +18,15 @@ export function createItemSelectionBinder({
 }: ItemSelectionBinderDeps): Binder {
   return {
     bind(): () => void {
-      if (!panelDom.itemsContainer) {
-        return () => {}
+      const container = panelDom.itemsContainer
+      if (!container) {
+        throw new Error('[Chaospace Transfer] Missing resource items container binding')
       }
 
       const abort = new AbortController()
       const { signal } = abort
 
-      panelDom.itemsContainer.addEventListener(
+      container.addEventListener(
         'change',
         (event) => {
           const checkbox = closestElement<HTMLInputElement>(

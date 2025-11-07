@@ -1,10 +1,13 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createTabSeasonPreferenceController } from './tab-season-preference'
+import { bindSeasonManagerDomRefs } from './season-manager'
 import { state, panelDom } from '../state'
-import { getPanelBaseDirDom } from '../types'
+import { getPanelBaseDirDom, getPanelResourceDom, getPanelSeasonDom } from '../types'
 
 const panelBaseDirDom = getPanelBaseDirDom(panelDom)
+const panelResourceDom = getPanelResourceDom(panelDom)
+const panelSeasonDom = getPanelSeasonDom(panelDom)
 
 describe('tab-season-preference controller', () => {
   let originalChrome: typeof chrome | undefined
@@ -30,6 +33,11 @@ describe('tab-season-preference controller', () => {
     panelDom.settingsUseSeason = document.createElement('input')
     panelDom.settingsUseSeason.type = 'checkbox'
     panelDom.seasonRow = document.createElement('div')
+    bindSeasonManagerDomRefs({
+      baseDir: panelBaseDirDom,
+      resource: panelResourceDom,
+      season: panelSeasonDom,
+    })
   })
 
   afterEach(() => {

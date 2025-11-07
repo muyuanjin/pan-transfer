@@ -394,9 +394,12 @@ export function renderHistoryDetail(params: RenderHistoryDetailParams): void {
   }
 
   overlay.removeAttribute('hidden')
-  window.requestAnimationFrame(() => {
-    overlayState.visible = true
-  })
+  overlayState.visible = true
+  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(() => {
+      overlayState.visible = true
+    })
+  }
   document.body.classList.add('chaospace-history-detail-active')
 
   const group =
