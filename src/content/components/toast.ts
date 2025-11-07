@@ -196,6 +196,6 @@ export function showToast(
       }
     }, 5000)
   } catch (error) {
-    chaosLogger.error('[Chaospace Transfer] Failed to show toast', error)
+    chaosLogger.error('[Pan Transfer] Failed to show toast', error)
   }
 }

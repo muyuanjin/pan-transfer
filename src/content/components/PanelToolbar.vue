@@ -69,7 +69,7 @@ const store = useContentStore()
 const toolbar = inject(toolbarContextKey)
 
 if (!toolbar) {
-  throw new Error('[Chaospace Transfer] Toolbar context is missing')
+  throw new Error('[Pan Transfer] Toolbar context is missing')
 }
 
 const sortOptions = [

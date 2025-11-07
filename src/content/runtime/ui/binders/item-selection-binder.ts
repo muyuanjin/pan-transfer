@@ -20,7 +20,7 @@ export function createItemSelectionBinder({
     bind(): () => void {
       const container = panelDom.itemsContainer
       if (!container) {
-        throw new Error('[Chaospace Transfer] Missing resource items container binding')
+        throw new Error('[Pan Transfer] Missing resource items container binding')
       }
 
       const abort = new AbortController()

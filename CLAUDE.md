@@ -217,7 +217,7 @@ npm run check
 - **浏览器 API**: Chrome Extensions Manifest V3(`chrome.storage`、`chrome.runtime`、`chrome.declarativeNetRequest`)
 - **代码质量**: ESLint 9.x + Prettier 3.x + TypeScript ESLint(自动检查与格式化)
 - **测试框架**: Vitest 2.x(单元测试) + Playwright 1.x(E2E 测试)
-- **代码规范**: 两空格缩进,Conventional Commits 风格,`[Chaospace Transfer]` 日志前缀
+- **代码规范**: 两空格缩进,Conventional Commits 风格,`[Pan Transfer]` 日志前缀
 
 ### 类型系统设计
 
@@ -335,7 +335,7 @@ npm run check
 
 1. 在扩展管理页面,点击扩展卡片上的"Service Worker"链接
 2. 打开 DevTools 控制台查看日志
-3. 所有日志以 `[Chaospace Transfer]` 前缀
+3. 所有日志以 `[Pan Transfer]` 前缀
 4. 相关文件: `src/background/index.ts`(已 TypeScript 化)
 
 **TypeScript 源码映射**:
@@ -445,11 +445,11 @@ import { normalizePath } from '../utils/path.ts'
 
 ### 日志规范
 
-统一使用 `[Chaospace Transfer]` 前缀:
+统一使用 `[Pan Transfer]` 前缀:
 
 ```javascript
-console.log('[Chaospace Transfer] bdstoken response', data)
-console.warn('[Chaospace Transfer] Failed to load persistent cache', error)
+console.log('[Pan Transfer] bdstoken response', data)
+console.warn('[Pan Transfer] Failed to load persistent cache', error)
 ```
 
 ### 错误处理

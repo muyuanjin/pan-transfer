@@ -29,7 +29,7 @@ export async function getTabSeasonPreference(tabId: number): Promise<boolean | n
       return Boolean((record as { value: boolean }).value)
     }
   } catch (error) {
-    chaosLogger.warn('[Chaospace Transfer] Failed to read tab season preference', {
+    chaosLogger.warn('[Pan Transfer] Failed to read tab season preference', {
       tabId,
       error,
     })
@@ -50,7 +50,7 @@ export async function setTabSeasonPreference(tabId: number, value: boolean): Pro
       [key]: { value: Boolean(value), updatedAt: Date.now() },
     })
   } catch (error) {
-    chaosLogger.warn('[Chaospace Transfer] Failed to persist tab season preference', {
+    chaosLogger.warn('[Pan Transfer] Failed to persist tab season preference', {
       tabId,
       error,
     })
@@ -68,7 +68,7 @@ export async function clearTabSeasonPreference(tabId: number): Promise<void> {
   try {
     await chrome.storage.session.remove(key)
   } catch (error) {
-    chaosLogger.warn('[Chaospace Transfer] Failed to clear tab season preference', {
+    chaosLogger.warn('[Pan Transfer] Failed to clear tab season preference', {
       tabId,
       error,
     })

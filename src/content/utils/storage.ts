@@ -1,7 +1,7 @@
 import { chaosLogger } from '@/shared/log'
 
-const STORAGE_INVALIDATION_WARNING = '[Chaospace Transfer]'
-const STORAGE_UNAVAILABLE_WARNING = '[Chaospace Transfer]'
+const STORAGE_INVALIDATION_WARNING = '[Pan Transfer]'
+const STORAGE_UNAVAILABLE_WARNING = '[Pan Transfer]'
 
 let storageInvalidationWarned = false
 let storageUnavailableWarned = false
@@ -75,7 +75,7 @@ export async function safeStorageGet<T = Record<string, unknown>>(
       warnStorageInvalidation('Storage read', contextLabel)
       return {} as T & Record<string, unknown>
     }
-    chaosLogger.error('[Chaospace Transfer] Failed to read ' + contextLabel, error)
+    chaosLogger.error('[Pan Transfer] Failed to read ' + contextLabel, error)
     return {} as T & Record<string, unknown>
   }
 }
@@ -96,7 +96,7 @@ export async function safeStorageSet(
       warnStorageInvalidation('Storage write', contextLabel)
       return
     }
-    chaosLogger.error('[Chaospace Transfer] Failed to persist ' + contextLabel, error)
+    chaosLogger.error('[Pan Transfer] Failed to persist ' + contextLabel, error)
   }
 }
 
@@ -116,6 +116,6 @@ export async function safeStorageRemove(
       warnStorageInvalidation('Storage delete', contextLabel)
       return
     }
-    chaosLogger.error('[Chaospace Transfer] Failed to remove ' + contextLabel, error)
+    chaosLogger.error('[Pan Transfer] Failed to remove ' + contextLabel, error)
   }
 }

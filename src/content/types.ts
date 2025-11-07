@@ -383,7 +383,7 @@ export function createPanelDomRefs(): PanelDomRefs {
 
   const assertKnownKey = (key: PanelDomKey): void => {
     if (!store.has(key)) {
-      throw new Error(`[Chaospace Transfer] Unknown panel DOM ref "${key}"`)
+      throw new Error(`[Pan Transfer] Unknown panel DOM ref "${key}"`)
     }
   }
 

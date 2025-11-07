@@ -432,7 +432,7 @@ export async function ensureHistoryLoaded(): Promise<void> {
         historyState = createDefaultHistoryState()
       }
     } catch (error) {
-      chaosLogger.warn('[Chaospace Transfer] Failed to load transfer history', error)
+      chaosLogger.warn('[Pan Transfer] Failed to load transfer history', error)
       historyState = createDefaultHistoryState()
     }
     rebuildHistoryIndex()
@@ -457,7 +457,7 @@ export async function persistHistoryNow(): Promise<void> {
       [STORAGE_KEYS.history]: historyState,
     })
   } catch (error) {
-    chaosLogger.warn('[Chaospace Transfer] Failed to persist history', error)
+    chaosLogger.warn('[Pan Transfer] Failed to persist history', error)
   }
 }
 

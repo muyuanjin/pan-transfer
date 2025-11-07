@@ -179,7 +179,7 @@ async function maybeStripShareRootDirectory(
     )
   } catch (error) {
     const err = error as Error
-    chaosLogger.warn('[Chaospace Transfer] strip root directory failed', {
+    chaosLogger.warn('[Pan Transfer] strip root directory failed', {
       shareId: meta.shareId,
       dir: dirPath,
       error: err?.message,
@@ -260,13 +260,10 @@ async function filterAlreadyTransferred(
     if (err?.code === 'PAN_LOGIN_REQUIRED') {
       throw err
     }
-    chaosLogger.warn(
-      '[Chaospace Transfer] directory listing failed, proceeding without skip filter',
-      {
-        path: targetPath,
-        error: err?.message,
-      },
-    )
+    chaosLogger.warn('[Pan Transfer] directory listing failed, proceeding without skip filter', {
+      path: targetPath,
+      error: err?.message,
+    })
     logStage(
       jobId,
       'list',
@@ -359,7 +356,7 @@ async function transferWithRetry(
       try {
         await invalidateDirectoryCaches([targetPath])
       } catch (cacheError) {
-        chaosLogger.warn('[Chaospace Transfer] invalidate directory cache failed', {
+        chaosLogger.warn('[Pan Transfer] invalidate directory cache failed', {
           path: targetPath,
           error: (cacheError as Error)?.message,
         })
@@ -370,7 +367,7 @@ async function transferWithRetry(
     if (!shouldRetry) {
       break
     }
-    chaosLogger.log('[Chaospace Transfer] transfer retry scheduled', {
+    chaosLogger.log('[Pan Transfer] transfer retry scheduled', {
       path: targetPath,
       errno,
       attempt,
@@ -1024,7 +1021,7 @@ export async function handleTransfer(
                 await invalidateDirectoryCaches([targetPath])
               } catch (cacheError) {
                 chaosLogger.warn(
-                  '[Chaospace Transfer] Failed to refresh directory cache after rename',
+                  '[Pan Transfer] Failed to refresh directory cache after rename',
                   cacheError,
                 )
               }
@@ -1098,7 +1095,7 @@ export async function handleTransfer(
         }
       } catch (error) {
         const err = error as Error
-        chaosLogger.error('[Chaospace Transfer] unexpected error', item.id, err)
+        chaosLogger.error('[Pan Transfer] unexpected error', item.id, err)
         emitProgress(jobId, {
           stage: 'item:error',
           message: `《${item.title}》出现异常：${err.message || '未知错误'}`,
@@ -1131,13 +1128,13 @@ export async function handleTransfer(
     try {
       await recordTransferHistory(payload, { results, summary })
     } catch (historyError) {
-      chaosLogger.warn('[Chaospace Transfer] Failed to record transfer history', historyError)
+      chaosLogger.warn('[Pan Transfer] Failed to record transfer history', historyError)
     }
 
     try {
       await persistCacheNow()
     } catch (cacheError) {
-      chaosLogger.warn('[Chaospace Transfer] Failed to persist cache after transfer', cacheError)
+      chaosLogger.warn('[Pan Transfer] Failed to persist cache after transfer', cacheError)
     }
 
     const response: TransferResponsePayload = { results, summary }

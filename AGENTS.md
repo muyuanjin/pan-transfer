@@ -7,7 +7,7 @@ _Last updated: 2025-11-05 (UTC-8)_
 - **Mission**: Deliver a Manifest V3 Chrome extension using Vite 7 + TypeScript 5.9 + Vue 3 that mirrors the legacy behaviour while adding modern safety/tooling.
 - **Source of truth**: All active code lives in `src/`. Treat `chaospace-extension/` as read-only reference for parity checks.
 - **Quality gate**: Keep `npm run check` green (format:check → typecheck → lint:ci → build → vitest → playwright) before handing work back.
-- **Logging**: Prefix runtime logs with `[Chaospace Transfer]` across background, content, and UI contexts.
+- **Logging**: Prefix runtime logs with `[Pan Transfer]` across background, content, and UI contexts.
 
 ## !!IMPORTANT!! Keep `npm run check` green before handing work back!!!
 
@@ -41,7 +41,7 @@ _Last updated: 2025-11-05 (UTC-8)_
 
 ## Testing Expectations
 
-- Run Playwright (`npm run e2e`) after building; ensure the panel loads on real CHAOSPACE pages without `[Chaospace Transfer]` errors.
+- Run Playwright (`npm run e2e`) after building; ensure the panel loads on real CHAOSPACE pages without `[Pan Transfer]` errors.
 - When touching background transfer/history flows, manually verify via Chrome devtools (Network tab) and ensure retries handle known Baidu errno codes.
 - Document new manual verification steps alongside code changes (PR descriptions or notes).
 

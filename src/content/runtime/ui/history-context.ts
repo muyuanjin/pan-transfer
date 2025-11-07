@@ -176,7 +176,7 @@ export function createHistoryListActionHandlers(
 export function useHistoryListActions(): HistoryListActionHandlers {
   const history = inject(historyContextKey)
   if (!history) {
-    throw new Error('[Chaospace Transfer] History context is missing')
+    throw new Error('[Pan Transfer] History context is missing')
   }
   const store = useContentStore()
   return createHistoryListActionHandlers(history, {

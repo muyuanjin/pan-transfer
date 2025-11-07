@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Tag to publish (must already exist, e.g., v0.1.0)'
+        required: true
+        type: string
+
+jobs:
+  build-and-package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.release_tag }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run quality gate
+        run: npm run check
+
+      - name: Build extension
+        run: npm run build
+
+      - name: Create distributable archive
+        run: |
+          cd dist
+          zip -r ../pan-transfer-extension.zip .
+
+      - name: Generate release notes
+        run: |
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo '')
+          if [ -n "$PREVIOUS_TAG" ]; then
+            git log --pretty=format:'- %s' "$PREVIOUS_TAG"..HEAD > .release-changes.tmp || true
+          else
+            git log -10 --pretty=format:'- %s' > .release-changes.tmp || true
+          fi
+          if [ ! -s .release-changes.tmp ]; then
+            echo '- No commit summaries available.' > .release-changes.tmp
+          fi
+          python <<'PY'
+          from pathlib import Path
+
+          header = """## Installation / 安装
+          1. Download `pan-transfer-extension.zip` from the Assets section below. / 在下方 Assets 区域下载 `pan-transfer-extension.zip`。
+          2. Extract the archive to a local folder. / 将压缩包解压到本地目录。
+          3. Open `chrome://extensions/` (or `edge://extensions/`), enable Developer Mode, choose **Load unpacked**, and select the extracted `dist/` content. / 打开 `chrome://extensions/`（或 `edge://extensions/`），开启开发者模式，点击“加载已解压的扩展程序”，选择解压后的 `dist/`。
+
+          ## Changes / 更新内容
+          """
+
+          changes = Path('.release-changes.tmp').read_text(encoding='utf-8')
+          Path('release-notes.md').write_text(header + changes + ("\n" if not changes.endswith("\n") else ''), encoding='utf-8')
+          PY
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pan-transfer-extension
+          path: pan-transfer-extension.zip
+
+      - name: Publish tag release asset
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          files: pan-transfer-extension.zip
+          body_path: release-notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

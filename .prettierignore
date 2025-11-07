@@ -23,3 +23,6 @@ Thumbs.db
 # IDE files
 .vscode
 .idea
+
+# GitHub workflows with intentional heredoc formatting
+.github/workflows/release.yml

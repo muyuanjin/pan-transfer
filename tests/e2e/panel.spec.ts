@@ -37,7 +37,7 @@ const CHAOSPACE_LINK_PLACEHOLDER = `<!doctype html>
 
 const PANEL_SELECTOR = '.chaospace-panel-host .chaospace-float-panel'
 const PANEL_RENDER_TIMEOUT = 15000 // 降低面板渲染超时从 30s 到 15s
-const CHAOSPACE_LOG_PREFIX = '[Chaospace Transfer]'
+const CHAOSPACE_LOG_PREFIX = '[Pan Transfer]'
 
 function guessContentType(pathname: string): string {
   if (pathname.endsWith('.css')) return 'text/css; charset=utf-8'

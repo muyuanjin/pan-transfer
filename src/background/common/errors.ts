@@ -19,15 +19,12 @@ export function createLoginRequiredError(): LoginRequiredError {
 
 function safeTabsCreate(url: string): void {
   if (!chrome.tabs || typeof chrome.tabs.create !== 'function') {
-    chaosLogger.warn('[Chaospace Transfer] chrome.tabs API unavailable, cannot open login page')
+    chaosLogger.warn('[Pan Transfer] chrome.tabs API unavailable, cannot open login page')
     return
   }
   chrome.tabs.create({ url }, () => {
     if (chrome.runtime.lastError) {
-      chaosLogger.warn(
-        '[Chaospace Transfer] Failed to open login tab',
-        chrome.runtime.lastError.message,
-      )
+      chaosLogger.warn('[Pan Transfer] Failed to open login tab', chrome.runtime.lastError.message)
     }
   })
 }
@@ -35,7 +32,7 @@ function safeTabsCreate(url: string): void {
 export function redirectToBaiduLogin(reason = ''): void {
   const now = Date.now()
   if (lastLoginRedirectAt && now - lastLoginRedirectAt < LOGIN_REDIRECT_COOLDOWN) {
-    chaosLogger.log('[Chaospace Transfer] Skip login redirect due to cooldown', {
+    chaosLogger.log('[Pan Transfer] Skip login redirect due to cooldown', {
       reason,
       lastLoginRedirectAt,
     })
@@ -44,7 +41,7 @@ export function redirectToBaiduLogin(reason = ''): void {
   lastLoginRedirectAt = now
   const loginUrl = 'https://pan.baidu.com/'
   if (!chrome.tabs) {
-    chaosLogger.warn('[Chaospace Transfer] chrome.tabs API unavailable, cannot open login page')
+    chaosLogger.warn('[Pan Transfer] chrome.tabs API unavailable, cannot open login page')
     return
   }
   try {
@@ -54,7 +51,7 @@ export function redirectToBaiduLogin(reason = ''): void {
     }
     chrome.tabs.query({ url: 'https://pan.baidu.com/*' }, (tabs) => {
       if (chrome.runtime.lastError) {
-        chaosLogger.warn('[Chaospace Transfer] tabs.query failed', chrome.runtime.lastError.message)
+        chaosLogger.warn('[Pan Transfer] tabs.query failed', chrome.runtime.lastError.message)
         safeTabsCreate(loginUrl)
         return
       }
@@ -65,16 +62,13 @@ export function redirectToBaiduLogin(reason = ''): void {
       }
       chrome.tabs.update(targetTab.id as number, { url: loginUrl, active: true }, () => {
         if (chrome.runtime.lastError) {
-          chaosLogger.warn(
-            '[Chaospace Transfer] tabs.update failed',
-            chrome.runtime.lastError.message,
-          )
+          chaosLogger.warn('[Pan Transfer] tabs.update failed', chrome.runtime.lastError.message)
           safeTabsCreate(loginUrl)
         }
       })
     })
   } catch (error) {
-    chaosLogger.warn('[Chaospace Transfer] redirectToBaiduLogin threw error', error)
+    chaosLogger.warn('[Pan Transfer] redirectToBaiduLogin threw error', error)
     safeTabsCreate(loginUrl)
   }
 }

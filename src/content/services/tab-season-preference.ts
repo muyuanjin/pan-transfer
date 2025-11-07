@@ -32,7 +32,7 @@ async function runtimeSendMessage<T = SeasonPreferenceMessageResponse>(
   try {
     return (await chrome.runtime.sendMessage(message)) as T
   } catch (error) {
-    chaosLogger.warn('[Chaospace Transfer] Failed to send season preference message', {
+    chaosLogger.warn('[Pan Transfer] Failed to send season preference message', {
       message,
       error,
     })
@@ -91,7 +91,7 @@ async function persistTabPreference(value: boolean): Promise<SeasonPreferenceSco
   if (value === state.seasonSubdirDefault) {
     const response = await runtimeSendMessage({ type: 'chaospace:season-pref:clear' })
     if (response && response.ok === false) {
-      chaosLogger.warn('[Chaospace Transfer] Failed to clear tab season preference', response.error)
+      chaosLogger.warn('[Pan Transfer] Failed to clear tab season preference', response.error)
     }
     return 'default'
   }
@@ -100,7 +100,7 @@ async function persistTabPreference(value: boolean): Promise<SeasonPreferenceSco
     payload: { value: Boolean(value) },
   })
   if (response && response.ok === false) {
-    chaosLogger.warn('[Chaospace Transfer] Failed to persist tab season preference', response.error)
+    chaosLogger.warn('[Pan Transfer] Failed to persist tab season preference', response.error)
   }
   return 'tab'
 }
@@ -164,7 +164,7 @@ export function createTabSeasonPreferenceController({
     try {
       await pendingInit
     } catch (error) {
-      chaosLogger.warn('[Chaospace Transfer] Failed to initialize tab season preference', error)
+      chaosLogger.warn('[Pan Transfer] Failed to initialize tab season preference', error)
       applySeasonPreference(Boolean(state.seasonSubdirDefault), 'default', {
         forceRender: true,
         getFloatingPanel,

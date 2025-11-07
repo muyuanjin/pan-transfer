@@ -97,7 +97,7 @@ export function createDomLifecycle({
             }
           }
         } catch (error) {
-          chaosLogger.error('[Chaospace Transfer] Observer error:', error)
+          chaosLogger.error('[Pan Transfer] Observer error:', error)
         }
       }, 1000)
     })

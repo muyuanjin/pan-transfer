@@ -172,7 +172,7 @@ export function registerChromeEvents(deps: {
           sendResponse(result)
         })
         .catch((error) => {
-          chaosLogger.error('[Chaospace Transfer] Message handler error:', error)
+          chaosLogger.error('[Pan Transfer] Message handler error:', error)
           sendResponse({ items: [], url: '', origin: '', title: '', poster: null })
         })
       return true

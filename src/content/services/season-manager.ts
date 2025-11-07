@@ -26,7 +26,7 @@ export function bindSeasonManagerDomRefs(refs: SeasonManagerDomRefs): void {
 
 function getSeasonDomRefs(): SeasonManagerDomRefs {
   if (!seasonDomRefs) {
-    throw new Error('[Chaospace Transfer] Season DOM refs not bound')
+    throw new Error('[Pan Transfer] Season DOM refs not bound')
   }
   return seasonDomRefs
 }

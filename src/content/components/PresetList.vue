@@ -35,7 +35,7 @@ import { panelPreferencesContextKey } from '../runtime/ui/panel-preferences-cont
 const preferences = inject(panelPreferencesContextKey)
 
 if (!preferences) {
-  throw new Error('[Chaospace Transfer] Panel preferences context is missing')
+  throw new Error('[Pan Transfer] Panel preferences context is missing')
 }
 
 const store = useContentStore()

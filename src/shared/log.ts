@@ -1,4 +1,4 @@
-export const CHAOSPACE_LOG_PREFIX = '[Chaospace Transfer]'
+export const CHAOSPACE_LOG_PREFIX = '[Pan Transfer]'
 
 type LogMethod = 'log' | 'info' | 'warn' | 'error' | 'debug'
 

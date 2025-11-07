@@ -109,7 +109,7 @@ export async function readHistoryFromStorage(): Promise<StoredHistorySnapshot | 
     }
     return null
   } catch (error) {
-    chaosLogger.error('[Chaospace Transfer] Failed to read history from storage', error)
+    chaosLogger.error('[Pan Transfer] Failed to read history from storage', error)
     return null
   }
 }
@@ -742,7 +742,7 @@ export async function deleteHistoryRecords(urls: string[] = []): Promise<History
     }
     return response
   } catch (error) {
-    chaosLogger.error('[Chaospace Transfer] Failed to delete history records', error)
+    chaosLogger.error('[Pan Transfer] Failed to delete history records', error)
     throw error
   }
 }
@@ -761,7 +761,7 @@ export async function clearAllHistoryRecords(): Promise<HistoryMutationResponse>
     }
     return response
   } catch (error) {
-    chaosLogger.error('[Chaospace Transfer] Failed to clear history', error)
+    chaosLogger.error('[Pan Transfer] Failed to clear history', error)
     throw error
   }
 }
@@ -803,7 +803,7 @@ export async function requestHistoryUpdate(pageUrl: string): Promise<HistoryUpda
     }
     return response
   } catch (error) {
-    chaosLogger.error('[Chaospace Transfer] Failed to request history update', error)
+    chaosLogger.error('[Pan Transfer] Failed to request history update', error)
     return { ok: false, error: error instanceof Error ? error : new Error(String(error)) }
   }
 }
@@ -813,7 +813,7 @@ export async function fetchHistorySnapshot(): Promise<HistoryRecordsPayload> {
     const rawHistory = await readHistoryFromStorage()
     return prepareHistoryRecords(rawHistory)
   } catch (error) {
-    chaosLogger.error('[Chaospace Transfer] Failed to load history', error)
+    chaosLogger.error('[Pan Transfer] Failed to load history', error)
     return { records: [], groups: [] }
   }
 }

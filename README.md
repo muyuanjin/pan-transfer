@@ -1,4 +1,4 @@
-# CHAOSPACE Transfer Assistant Chrome Extension / CHAOSPACE 转存助手 Chrome 插件
+# Pan Transfer Chrome Extension / Pan Transfer 转存助手
 
 [English](#english) | [中文](#中文)
 
@@ -6,95 +6,87 @@
 
 ## English Version
 
-### Project Overview
+### Purpose
 
-The CHAOSPACE Transfer Assistant is a Manifest V3 Chrome/Edge extension built with Vite 7, TypeScript 5.9, and Vue 3. It automates copying CHAOSPACE resources (chaospace.xyz / chaospace.cc / etc.) into personal Baidu Netdisk folders while preserving the legacy workflow with safer tooling and stronger validation.
+Pan Transfer is a Manifest V3 Chrome/Edge extension built with Vite 7, TypeScript 5.9, and Vue 3. The current build is dedicated to Chaospace (chaospace.xyz / chaospace.cc) pages and helps copy the public resource metadata from those pages into a user's personal Baidu Netdisk workspace. The project is open-source, intended for research/testing, and carries no commercial promises.
 
-### Requirements
+### Current Capabilities
 
-- Node.js 20+ and npm 10+
-- Chrome/Edge in developer mode for local loading
+- Detect Chaospace detail pages and render a floating Vue panel with the matched titles, seasons, and downloadable assets.
+- Allow users to select files, adjust renaming presets, and push the choices to Baidu Netdisk while keeping a local history of transfers.
+- Provide non-intrusive toasts, toolbar actions, and panel preferences so the overlay can stay pinned or hidden per tab.
+- Offer both light and dark layouts plus granular settings for filters and path presets.
 
-### Getting Started
+### Screenshots
 
-1. **Install dependencies**
-   ```bash
-   npm install
-   ```
-2. **Start development preview** (serves the MV3 extension with HMR):
-   ```bash
-   npm run dev
-   ```
-3. **Build the production bundle** (outputs to `dist/`):
-   ```bash
-   npm run build
-   ```
-4. **Load in Chrome/Edge**
-   - Run `npm run build`
-   - Open `chrome://extensions/` (or `edge://extensions/`), enable Developer Mode
-   - Click **Load unpacked** and select the generated `dist/` directory
+<p align="center">
+  <img src="docs/panel-main-light.png" alt="Panel overview in light theme" width="640" />
+</p>
+<p align="center">
+  <img src="docs/panel-main-dark.png" alt="Panel overview in dark theme" width="640" />
+</p>
+<p align="center">
+  <img src="docs/history-detail.png" alt="History detail overlay" width="640" />
+</p>
+<p align="center">
+  <img src="docs/transfer-history.png" alt="Transfer history list" width="640" />
+</p>
+<p align="center">
+  <img src="docs/settings-filters.png" alt="Settings dialog - filters" width="640" />
+</p>
+<p align="center">
+  <img src="docs/settings-rename.png" alt="Settings dialog - renaming" width="640" />
+</p>
+<p align="center">
+  <img src="docs/settings-presets.png" alt="Settings dialog - presets" width="640" />
+</p>
 
-> `chaospace-extension/` holds the frozen MV2 reference bundle—do **not** modify it. All active code lives under `src/`.
+### Installation (Chrome/Edge)
 
-### Key Scripts
+1. Download `pan-transfer-extension.zip` from the latest GitHub Release or the `Release` workflow run artifacts.
+2. Verify that the archive only contains the generated `dist/` assets, then unzip it to a convenient folder.
+3. Open `chrome://extensions/` (or `edge://extensions/`), enable **Developer mode**, select **Load unpacked**, and choose the extracted `dist/` directory.
+4. Sign in to Chaospace and Baidu Netdisk in your browser profile before using the panel.
 
-| Command                                   | Description                                                                 |
-| ----------------------------------------- | --------------------------------------------------------------------------- |
-| `npm run dev`                             | Vite development server for the MV3 extension                               |
-| `npm run build`                           | Type-check + Vite production build into `dist/`                             |
-| `npm run typecheck`                       | `vue-tsc --noEmit -p tsconfig.app.json`                                     |
-| `npm run test`                            | Vitest unit suites                                                          |
-| `npm run e2e`                             | Ensures `dist/` exists (builds if missing) then runs Playwright smoke tests |
-| `npm run lint`                            | Lint with ESLint (warnings allowed)                                         |
-| `npm run lint:ci`                         | Lint with `--max-warnings=0` for CI                                         |
-| `npm run format` / `npm run format:check` | Prettier write/check                                                        |
-| `npm run check`                           | Quality gate: `format:check → typecheck → lint:ci → build → test → e2e`     |
+### Development Workflow
 
-`npm run check` never mutates files (thanks to `format:check`) and fails on any ESLint warning via `lint:ci`. Keep this command green before handing changes off.
+1. Install dependencies once: `npm install`.
+2. Start a hot-reload preview: `npm run dev`.
+3. Build the MV3 bundle: `npm run build`.
+4. Run lint + type + test gate: `npm run check` (runs `format:silent → typecheck → lint:ci → build → test → e2e`).
 
-### Architecture Snapshot (`src/`)
+Key standalone scripts:
 
-- **Background service worker**: `background/index.ts` plus services under `background/services/` and storage helpers in `background/storage/`. Handles Baidu Netdisk API calls, retries, caching, and typed message handling.
-- **Content runtime**: `content/index.ts` bootstraps `ContentRuntime`. Vue components render the floating panel (`components/PanelRoot.vue`, `components/ResourceListView.vue`, history overlays, detail modal). Controllers and UI binders live in `content/{controllers,history,runtime/ui}` and share state via `content/state/`.
-- **Shared modules**: Types in `shared/types`, sanitizers/completion utilities in `shared/utils`, and `shared/log.ts` which exposes the `chaosLogger` helper. All runtime logs must flow through this helper so messages carry the `[Chaospace Transfer]` prefix.
-- **Styles**: Modular CSS in `content/styles/{foundation,overlays,utilities}` with `styles.loader.ts` for on-demand injection.
-- **Tests**: Vitest specs under `src/**/__tests__` and `tests/e2e/panel.spec.ts` for Playwright.
+- `npm run typecheck` – `vue-tsc --noEmit -p tsconfig.app.json`.
+- `npm run test` – Vitest suites covering parsers, renderers, and history logic.
+- `npm run e2e` – Builds (if needed) then launches Playwright tests against Chaospace fixtures.
+- `npm run lint` / `npm run lint:ci` – ESLint with/without the zero-warning gate.
 
-### Logging & Diagnostics
-
-- Import `chaosLogger` from `@/shared/log` instead of calling `console.*`. ESLint forbids raw console usage so logs always include the `[Chaospace Transfer]` prefix.
-- Playwright’s error tracker fails fast if an extension error surfaces without the prefix.
-
-### Testing Workflow
-
-1. `npm run test` – fast Vitest suites.
-2. `npm run e2e` – automatically builds (if `dist/manifest.json` is missing) and runs Playwright. The script cleans `test-results/` afterwards.
-3. `npm run check` – complete CI-equivalent pipeline.
-
-Document any manual verification you performed (e.g., Chrome DevTools checks for Baidu errno handling) when opening a PR.
-
-### Directory Layout (excerpt)
+### Repository Layout (excerpt)
 
 ```
-Tookit/
+pan-transfer/
 ├── src/
-│   ├── background/
-│   ├── content/
-│   ├── shared/
-│   └── ...
-├── tests/e2e/panel.spec.ts
-├── scripts/run-e2e.mjs
-├── chaospace-extension/   # legacy reference bundle (read-only)
-├── dist/                  # built MV3 output
-├── AGENTS.md              # Agent guide / quality gate requirements
+│   ├── background/        # Service worker, Baidu integrations, message routing
+│   ├── content/           # Panel UI, controllers, history overlays, styles
+│   ├── shared/            # Types, logging helpers, utilities
+│   └── manifest.json      # MV3 definition
+├── docs/                  # Screenshots and internal notes
+├── tests/e2e/             # Playwright test
+├── scripts/               # Helper scripts (e.g., e2e runner)
+├── .github/workflows/     # Release automation (see release.yml)
 └── README.md
 ```
 
-### Contributing
+### Release Automation
 
-- Follow the logging, directory, and quality-gate rules outlined above and in `AGENTS.md`.
-- Run `npm run check` locally before pushing.
-- Avoid leaking personal credentials or CHAOSPACE content in commits.
+The `.github/workflows/release.yml` workflow can be triggered manually (`workflow_dispatch`) or by pushing a tag such as `v1.0.0`. It performs `npm ci`, runs `npm run check`, builds the extension, zips the `dist/` output, and uploads `pan-transfer-extension.zip` both as a workflow artifact and as a GitHub Release asset (for tagged runs). Review the workflow logs before distributing any build.
+
+### Notes
+
+- Logs are routed through `chaosLogger` and always include the `[Pan Transfer]` prefix for easier debugging.
+- The project is unaffiliated with Chaospace or Baidu. Use it responsibly and follow the terms of the target services.
+- Do not store personal credentials in the repository; rely on your browser profile for authentication.
 
 ---
 
@@ -102,91 +94,53 @@ Tookit/
 
 ## 中文版本
 
-### 项目简介
+### 项目说明
 
-CHAOSPACE 转存助手是基于 Vite 7、TypeScript 5.9 与 Vue 3 构建的 Manifest V3 Chrome/Edge 扩展，用于将 CHAOSPACE 站点上的资源自动转存到个人百度网盘，并在新版工具链中复刻旧版体验。
+Pan Transfer 是一个基于 Vite 7、TypeScript 5.9 与 Vue 3 的 Manifest V3 Chrome/Edge 扩展，当前版本仅针对 Chaospace (chaospace.xyz / chaospace.cc) 页面，帮助用户把公开的资源信息整理并转存到自己的百度网盘目录。本项目开源共享，用于个人研究或自测，不包含任何商业承诺。
 
-### 环境要求
+### 现有功能
 
-- Node.js 20+、npm 10+
-- Chrome/Edge 浏览器（需开启开发者模式以加载扩展）
+- 识别 Chaospace 影片/剧集详情页，在页面上方渲染浮动面板并列出匹配的剧集、季和资源。
+- 支持选择文件、调整重命名预设，并把选择结果提交给百度网盘，同时保留本地转存历史。
+- 通过提示气泡、工具栏按钮和面板偏好设置，在不同标签页中维持独立的显示状态。
+- 提供明亮/暗色主题和更细致的过滤、路径预设配置项。
 
-### 快速上手
+### 安装步骤（Chrome/Edge）
 
-1. **安装依赖**
-   ```bash
-   npm install
-   ```
-2. **启动开发预览**（热更新调试扩展）
-   ```bash
-   npm run dev
-   ```
-3. **构建发行包**（输出到 `dist/`）
-   ```bash
-   npm run build
-   ```
-4. **在浏览器中加载**
-   - 运行 `npm run build`
-   - 打开 `chrome://extensions/` 或 `edge://extensions/`，启用“开发者模式”
-   - 点击“加载已解压的扩展程序”，选择生成的 `dist/` 目录
+1. 前往 GitHub Releases 或最新一次 `Release` 工作流运行记录，下载 `pan-transfer-extension.zip`。
+2. 确认压缩包仅包含构建生成的 `dist/` 内容，并将其解压到本地目录。
+3. 打开 `chrome://extensions/` 或 `edge://extensions/`，开启“开发者模式”，点击“加载已解压的扩展程序”，选择刚解压的 `dist/` 目录。
+4. 使用前请确保浏览器已登录 Chaospace 与百度网盘账号。
 
-> `chaospace-extension/` 为只读的 MV2 参考，不再维护，切勿修改；所有源码均位于 `src/`。
+### 开发与测试
 
-### 常用脚本
+1. `npm install` 安装依赖。
+2. `npm run dev` 启动带热更新的开发预览。
+3. `npm run build` 构建生产包。
+4. `npm run check` 运行完整质量闸门（`format:silent → typecheck → lint:ci → build → test → e2e`）。
 
-| 命令                              | 作用                                                                 |
-| --------------------------------- | -------------------------------------------------------------------- |
-| `npm run dev`                     | 启动 Vite 开发服务器                                                 |
-| `npm run build`                   | 类型检查并产出生产包到 `dist/`                                       |
-| `npm run typecheck`               | `vue-tsc --noEmit` 类型检查                                          |
-| `npm run test`                    | 运行 Vitest 单元测试                                                 |
-| `npm run e2e`                     | 若缺少 `dist/manifest.json` 则自动构建，然后执行 Playwright 冒烟测试 |
-| `npm run lint`                    | ESLint（允许警告）                                                   |
-| `npm run lint:ci`                 | ESLint（警告即失败）                                                 |
-| `npm run format` / `format:check` | Prettier 写入/校验                                                   |
-| `npm run check`                   | 质量闸门：`format:check → typecheck → lint:ci → build → test → e2e`  |
+常用脚本：
 
-`npm run check` 只读运行，不会改动工作区；`lint:ci` 会把任何警告视为失败。提交前务必保持该命令通过。
+- `npm run typecheck`：`vue-tsc --noEmit -p tsconfig.app.json`。
+- `npm run test`：运行 Vitest 单元测试。
+- `npm run e2e`：若缺少 `dist/manifest.json` 则会先构建，再执行 Playwright 测试。
+- `npm run lint` / `npm run lint:ci`：ESLint（后者警告即失败）。
 
-### 架构速览（`src/`）
-
-- **后台 Service Worker**：`background/index.ts` 及其 `services/`、`storage/` 子目录，负责百度网盘 API、重试、缓存和消息分发。
-- **内容运行时**：`content/index.ts` 启动 `ContentRuntime`，Vue 组件（如 `components/PanelRoot.vue`、`components/ResourceListView.vue`、`components/history/*.vue`）渲染浮动面板与历史弹层，控制器位于 `content/{controllers,history,runtime/ui}`，共享状态在 `content/state/`。
-- **共享模块**：`shared/types`、`shared/utils` 以及 `shared/log.ts`（`chaosLogger`），所有运行期日志都必须经由该 helper，确保带有 `[Chaospace Transfer]` 前缀。
-- **样式**：`content/styles` 下的模块化 CSS 及 `styles.loader.ts` 动态注入器。
-- **测试**：`src/**/__tests__` 中的 Vitest 用例与 `tests/e2e/panel.spec.ts` Playwright 冒烟测试。
-
-### 日志与诊断
-
-- 一律通过 `@/shared/log` 暴露的 `chaosLogger` 记录日志，禁止直接调用 `console.*`。
-- Playwright 监控器会在发现未带 `[Chaospace Transfer]` 前缀的扩展错误时立即失败，便于追踪。
-
-### 测试流程
-
-1. `npm run test`：快速单元测试。
-2. `npm run e2e`：若缺少构建产物则自动执行 `npm run build`，随后运行 Playwright，并清理 `test-results/`。
-3. `npm run check`：本地 CI 全流程，自检必跑。
-
-提交 PR 时同步说明你的手动验证步骤（如在 Chrome DevTools 中确认百度 errno 重试逻辑）。
-
-### 目录概览
+### 仓库结构（节选）
 
 ```
-Tookit/
-├── src/
-│   ├── background/
-│   ├── content/
-│   ├── shared/
-│   └── ...
-├── tests/e2e/panel.spec.ts
-├── scripts/run-e2e.mjs
-├── chaospace-extension/   # 仅作对照的旧版 MV2 代码
-├── dist/
-├── AGENTS.md
+pan-transfer/
+├── src/background/      # Service worker 及百度网盘 API 交互
+├── src/content/         # Vue 面板、控制器、历史与样式
+├── src/shared/          # 类型、日志、工具函数
+├── docs/                # 截图与内部文档
+├── tests/e2e/           # Playwright 测试
+├── scripts/             # 辅助脚本
+├── .github/workflows/   # GitHub Action（release.yml）
 └── README.md
 ```
 
-### 贡献须知
+### 发布与注意事项
 
-- 遵守 `AGENTS.md` 中的开发规范与日志、质量闸门要求。
-- 每次提交前运行 `npm run check`，并避免提交任何个人凭据或 CHAOSPACE 受限内容。
+- 日志统一带有 `[Pan Transfer]` 前缀，便于排查。
+- 项目与 Chaospace、百度无官方关联，请遵守目标站点/服务的使用条款。

@@ -74,7 +74,7 @@ export function createSeasonLoader({
         poster = docPoster
       }
     } catch (error) {
-      chaosLogger.error('[Chaospace Transfer] Failed to load deferred season page', info.url, error)
+      chaosLogger.error('[Pan Transfer] Failed to load deferred season page', info.url, error)
     }
 
     const floatingPanel = getFloatingPanel()
@@ -180,7 +180,7 @@ export function createSeasonLoader({
         await hydrateDeferredSeason(info)
       }
     } catch (error) {
-      chaosLogger.error('[Chaospace Transfer] Deferred season loader error:', error)
+      chaosLogger.error('[Pan Transfer] Deferred season loader error:', error)
     } finally {
       loaderRunning = false
       if (!state.deferredSeasonInfos.length) {

@@ -139,7 +139,7 @@ export function createPanelPreferencesController({
       const normalizedRenames = normalizeFileRenameRules(settings.fileRenameRules)
       state.fileRenameRules = normalizedRenames.length ? normalizedRenames : []
     } catch (error) {
-      chaosLogger.error('[Chaospace Transfer] Failed to load settings', error)
+      chaosLogger.error('[Pan Transfer] Failed to load settings', error)
     }
   }
 

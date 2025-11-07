@@ -140,7 +140,7 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
   if (!panel) {
     vueApp.unmount()
     host.remove()
-    throw new Error('[Chaospace Transfer] Failed to mount floating panel')
+    throw new Error('[Pan Transfer] Failed to mount floating panel')
   }
   applyFontRenderingHints(panel, window)
 

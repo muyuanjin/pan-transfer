@@ -640,7 +640,7 @@ export function createRuntimeApp() {
       mountPoint.appendChild(link)
       return link
     } catch (error) {
-      chaosLogger.error('[Chaospace] Failed to inject styles:', error)
+      chaosLogger.error('[Pan Transfer] Failed to inject styles:', error)
       return null
     }
   }

@@ -153,7 +153,7 @@ export function createHistoryController(deps: HistoryControllerDeps) {
     if (typeof matched.useSeasonSubdir === 'boolean') {
       Promise.resolve(seasonPreference.applyHistorySelection(matched.useSeasonSubdir)).catch(
         (error) => {
-          chaosLogger.warn('[Chaospace Transfer] Failed to apply history season preference', error)
+          chaosLogger.warn('[Pan Transfer] Failed to apply history season preference', error)
         },
       )
     }
@@ -259,7 +259,7 @@ export function createHistoryController(deps: HistoryControllerDeps) {
       floatingPanel.classList.remove('is-leaving')
     }
     void ensureHistoryDetailStyles().catch((error) => {
-      chaosLogger.error('[Chaospace Transfer] Failed to load history detail styles:', error)
+      chaosLogger.error('[Pan Transfer] Failed to load history detail styles:', error)
     })
     ensureHistoryDetailOverlayMounted()
     const fallback = buildHistoryDetailFallback(group, overrides)
@@ -435,7 +435,7 @@ export function createHistoryController(deps: HistoryControllerDeps) {
       }
       return response
     } catch (error) {
-      chaosLogger.error('[Chaospace Transfer] Update check failed', error)
+      chaosLogger.error('[Pan Transfer] Update check failed', error)
       if (!silent) {
         const message = error instanceof Error ? error.message : '无法检测更新'
         showToast('error', '检测失败', message)
@@ -509,7 +509,7 @@ export function createHistoryController(deps: HistoryControllerDeps) {
           noUpdate += 1
         }
       } catch (error) {
-        chaosLogger.error('[Chaospace Transfer] Batch update failed', error)
+        chaosLogger.error('[Pan Transfer] Batch update failed', error)
         failed += 1
       }
     }

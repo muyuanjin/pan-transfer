@@ -33,7 +33,7 @@ import { useHistorySearch } from './useHistorySearch'
 const history = inject(historyContextKey)
 
 if (!history) {
-  throw new Error('[Chaospace Transfer] History context is missing')
+  throw new Error('[Pan Transfer] History context is missing')
 }
 
 const { inputRef, searchTerm, clearSearch, isClearVisible, isClearDisabled } =

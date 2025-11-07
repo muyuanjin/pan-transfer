@@ -113,7 +113,7 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
       try {
         dispose()
       } catch (error) {
-        chaosLogger.warn('[Chaospace Transfer] Failed to dispose binder', error)
+        chaosLogger.warn('[Pan Transfer] Failed to dispose binder', error)
       }
     })
     binderDisposers = []
@@ -318,14 +318,11 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
 
       if (state.deferredSeasonInfos.length) {
         void seasonLoader.ensureDeferredSeasonLoading().catch((error) => {
-          chaosLogger.error(
-            '[Chaospace Transfer] Failed to schedule deferred season loading:',
-            error,
-          )
+          chaosLogger.error('[Pan Transfer] Failed to schedule deferred season loading:', error)
         })
       }
     } catch (error) {
-      chaosLogger.error('[Chaospace Transfer] Failed to create floating panel:', error)
+      chaosLogger.error('[Pan Transfer] Failed to create floating panel:', error)
       const message = error instanceof Error ? error.message : '未知错误'
       showToast('error', '创建面板失败', message)
     } finally {
@@ -343,7 +340,7 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
       try {
         currentShell.destroy()
       } catch (error) {
-        chaosLogger.warn('[Chaospace Transfer] Failed to destroy panel shell', error)
+        chaosLogger.warn('[Pan Transfer] Failed to destroy panel shell', error)
       }
       currentShell = null
     }
