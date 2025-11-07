@@ -7,6 +7,7 @@ import type { ContentStore } from '../state'
 import { pinia } from '../state'
 import { normalizePageUrl } from '../services/page-analyzer'
 import { HISTORY_DISPLAY_LIMIT } from '../constants'
+import { historyContextKey, type HistoryController } from '../runtime/ui/history-context'
 
 export interface HistoryCardPanelDom {
   historyList?: HTMLElement | null
@@ -30,6 +31,7 @@ export interface HistoryCardRenderParams {
   getFilteredHistoryGroups: (() => HistoryGroup[]) | undefined
   updateHistoryExpansion: (() => void) | undefined
   isHistoryGroupCompleted: ((group: HistoryGroup) => boolean) | undefined
+  historyController?: HistoryController | null
 }
 
 let historyListApp: App<Element> | null = null
@@ -46,6 +48,7 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
     getFilteredHistoryGroups,
     updateHistoryExpansion,
     isHistoryGroupCompleted,
+    historyController,
   } = params
 
   const historyList = panelDom?.historyList ?? null
@@ -127,6 +130,9 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
         typeof isHistoryGroupCompleted === 'function' ? isHistoryGroupCompleted : undefined,
     })
     historyListApp.use(pinia)
+    if (historyController) {
+      historyListApp.provide(historyContextKey, historyController)
+    }
     historyListApp.mount(historyList)
   }
 
@@ -146,6 +152,9 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
     emptyMessage: summaryEntry ? undefined : hasEntries ? '暂无其他转存记录' : emptyMessage,
   })
   historySummaryApp.use(pinia)
+  if (historyController) {
+    historySummaryApp.provide(historyContextKey, historyController)
+  }
   historySummaryApp.mount(historySummaryBody)
 
   if (historySummary instanceof HTMLElement) {

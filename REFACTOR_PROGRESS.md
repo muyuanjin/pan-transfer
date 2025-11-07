@@ -1,95 +1,96 @@
 # Chaospace MV3 Refactor Plan
 
-_Last updated: 2025-11-06 04:28 (UTC-8)_
+_Last updated: 2025-11-06 10:20 (UTC-8)_
 
-## Mission & Guardrails
+## Agent Operating Instructions
 
-- Deliver the Manifest V3 extension with Vite 7 + TypeScript 5.9 + Vue 3 while matching or exceeding the frozen `chaospace-extension/` behaviour.
-- Confine all active code to `src/` and keep `[Chaospace Transfer]` as the unified runtime log prefix.
-- Treat `chaospace-extension/` as a read-only parity reference.
-- Keep `npm run check` green before sharing builds (format → typecheck → lint → build → Vitest → Playwright).
+### Immediate Orders (execute sequentially)
+
+1. ~~**Finish the history overlay Vue migration.** Remove `createHistoryListBinder` + related DOM wiring, provide a composable (via `history-context`) that exposes selection toggles, detail open, poster preview, open-pan, and retry actions, and inject it inside `HistoryListView.vue`, `HistorySummaryView.vue`, and the season rows. Delete any now-unused `panelDom` keys. Definition of done: Vue handles every `HISTORY_LIST_ACTION_EVENT` scenario, Vitest coverage proves the composable dispatches controller calls, and `npm run check` is green.~~ **Completed 2025-11-06 07:35 (UTC-8):** `useHistoryListActions` now wraps the history controller, Vue components call it directly, `history-card` provides the context, legacy binder/event files were deleted, and new Vitest coverage guards the action handlers with `npm run check` passing.
+2. **Tighten `PanelDomRefs`.** After the binder removal, drop the proxy catch-all/index signature in `src/content/types.ts`, expose explicit getters for the few remaining DOM hooks (edge/transfer/base-dir), and fail fast when a controller asks for an unregistered key. Update all controllers/binders accordingly. Definition of done: TypeScript errors whenever arbitrary keys are accessed, and `npm run check` still passes.
+3. **Backfill controller specs.** Add Vitest suites for `panel-edge-controller` and `runtime/transfer/transfer-controller` covering pointer hide/show, pin button sync, transfer state transitions, retries, and toast emission. Guard DOM references with test doubles so future refactors remain safe. Definition of done: new specs live under `src/content/controllers/__tests__` (or similar), run inside `npm run test`, and fail without the new behaviours.
+4. **Stand up messaging integration tests.** Build a lightweight harness that simulates Chrome runtime messages hitting `src/background/index.ts`, asserting that transfer progress + history detail/delete flows update the content store correctly. These tests unblock stricter host permissions and alarm retries. Definition of done: integration suite runs as part of `npm run test` (or a new npm script referenced in `npm run check`).
+5. **Re-verify on live CHAOSPACE pages.** After the above refactors land, load the MV3 build in Chrome, exercise panel mount, transfer, history detail, settings import/export, and re-run at least one real transfer focusing on `season-manager` sanitization. Capture findings for the next PR description.
+
+### If Blocked
+
+- Write down the blocker in this file under “Outstanding Work” with today’s date and what you tried.
+- If tooling causes failure, log the command + error in AGENT notes (not here) and move to the next highest priority task.
+
+### Definition of Done (per task)
+
+- `npm run check` must be green (format → vue-tsc → ESLint → Vite build → Vitest → Playwright) before handing off.
+- Update this file’s “Recent Progress” + “Verification History” entries when a task completes.
+- Note any new permissions in `src/manifest.json` and document manual verification steps in your PR notes.
+
+## Standing Guardrails
+
+- Mission: Ship a Manifest V3 Chrome extension built with Vite 7 + TypeScript 5.9 + Vue 3 that meets or exceeds the frozen `chaospace-extension/` behaviour.
+- Source of truth: keep all active code in `src/`; treat `chaospace-extension/` as read-only reference material.
+- Logging: prefix runtime logs with `[Chaospace Transfer]` across background, content, and UI contexts.
+- Never regress manual workflows—use the legacy MV2 bundle only for parity checks.
 
 ## Recent Progress (since 2025-11-05)
 
-- `npm run check` succeeded on 2025-11-06 03:45 (UTC-8), covering Prettier, vue-tsc, ESLint, Vite production build, 10 Vitest suites, and 3 Playwright scenarios; fresh `dist/` artifacts were produced.
-- Added Pinia-driven specs for `panel-preferences` (`src/content/controllers/panel-preferences.spec.ts`) and history orchestration (`src/content/history/controller.spec.ts`), reducing manual regressions in panel state hydration and batch deletes.
-- Page analyzer coverage now consumes real CHAOSPACE HTML fixtures under `src/content/services/__fixtures__/`, and the Playwright harness (`tests/e2e/panel.spec.ts`) proxies CHAOSPACE domains offline so we can stress multiple detail pages per run without external network.
-- The settings modal gained fully programmatic editors for file filters and rename rules (`src/content/components/settings/file-filter-editor.ts` and `file-rename-editor.ts`), backed by new sanitizers in `src/shared/settings.ts` and surfaced through the Pinia store (`src/content/state/index.ts`).
-- Migrated the resource toolbar (sorting + selection) from imperative binders to `PanelToolbar.vue` + `toolbar-context`, leveraging Pinia refs and VueUse keyboard listeners.
-- Trimmed `page-analyzer.spec.ts` runtime (~0.89s → ~0.81s) by caching fixture reads and resetting analyzer caches through a dedicated test hook, keeping fetch/document behaviour intact.
-- Replaced the history filter tabs and preset list binders with Vue components (`HistoryFilterTabs.vue`, `PresetList.vue`) wired through provide/inject contexts; removed the old binder modules and their `panelDom` hooks.
-- Ported the history search binder into `HistorySearchBar.vue` + `useHistorySearch` (debounced Pinia sync, clear-state, Escape handling) and replaced the imperative batch toolbar with `HistoryToolbar.vue`, making selection counts/actions reactive; removed associated `panelDom` refs/binders and refreshed controller/tests (`npm run typecheck`, `npm run test` green on 2025-11-06 04:24, UTC-8).
+- Finished the history overlay Vue migration (2025-11-06 07:35 UTC-8): removed `createHistoryListBinder`, introduced the `useHistoryListActions` composable under `history-context`, rewired `HistoryListView`/`HistorySummaryView` and season rows to call controller APIs directly, and updated `history-card` to provide the context plus Pinia-backed unit coverage.
+- `npm run check` passed on 2025-11-06 03:45 (UTC-8), producing fresh `dist/` artifacts after running Prettier, vue-tsc, ESLint, Vite build, 10 Vitest suites, and 3 Playwright scenarios.
+- Added Pinia-driven specs for `panel-preferences` and history orchestration, covering panel state hydration and batch deletes.
+- Page analyzer coverage now uses real CHAOSPACE fixtures under `src/content/services/__fixtures__/`, and Playwright proxies CHAOSPACE domains offline for multi-page runs.
+- Settings modal now includes programmatic file filter + rename editors backed by `src/shared/settings.ts` sanitizers and Pinia state wiring.
+- Resource toolbar, history filter tabs, presets list, search bar, and batch toolbar now live in Vue components with provide/inject contexts, replacing imperative binders and shrinking `panelDom` usage.
+- `page-analyzer.spec.ts` runtime reduced via cached fixtures and a cache reset test hook.
 
 ## Current Status Snapshot
 
 ### Tooling & Build
 
-- `vite.config.ts` bootstraps background (`src/background/index.ts`), content (`src/content/index.ts`), and shared style entrypoints via `@vitejs/plugin-vue`, PostCSS nesting/autoprefixer, and `vite-plugin-web-extension` targeting `src/manifest.json`.
-- TypeScript configs split runtime (`tsconfig.app.json`) and tooling (`tsconfig.node.json`); `.vue` typing lives in `src/env.d.ts`.
-- Scripts: `npm run dev`, `npm run build` (vue-tsc + Vite prod), `npm run test`, `npm run e2e`, and the aggregated `npm run check`. Formatting/linting rely on Prettier + ESLint Vue/TS presets.
+- `vite.config.ts` bundles background (`src/background/index.ts`), content (`src/content/index.ts`), and style entrypoints via `@vitejs/plugin-vue`, PostCSS nesting, autoprefixer, and `vite-plugin-web-extension` targeting `src/manifest.json`.
+- TypeScript configs: `tsconfig.app.json` for runtime (with `.vue` typing in `src/env.d.ts`) and `tsconfig.node.json` for tooling. Scripts: `npm run dev`, `npm run build`, `npm run test`, `npm run e2e`, and `npm run check`.
 
 ### Background Service Worker
 
-- Module worker entry `src/background/index.ts` wires message guards around history, transfer, and settings requests.
-- Transfer orchestration lives in `src/background/services/transfer-service.ts`, backed by API clients in `src/background/api/` and retry/error utilities in `src/background/common/`.
-- Persistent stores (`src/background/storage/{history-store.ts,cache-store.ts}`) encapsulate indexed data, while `src/background/services/history-service.ts` feeds content-side groups and detail overlays.
-- HTML parsing is centralized in `src/background/services/parser/parser-service.ts` with hardened helpers and fixtures ensuring `[Chaospace Transfer]` logs surface sanitization failures.
+- Entry `src/background/index.ts` registers typed message guards for history, transfer, and settings requests.
+- Transfer orchestration lives in `src/background/services/transfer-service.ts`, backed by API clients under `src/background/api/` and retry/error helpers in `src/background/common/`.
+- Persistent stores (`src/background/storage/history-store.ts`, `cache-store.ts`) feed `history-service.ts`, which supplies content-side groups and detail overlays.
+- Parser logic centralizes in `src/background/services/parser/parser-service.ts` with hardened helpers plus fixtures to surface `[Chaospace Transfer]` sanitization failures.
 
 ### Content Runtime & UI
 
-- `ContentRuntime` (`src/content/runtime/runtime.ts`) instantiates `createRuntimeApp` (`src/content/runtime/app.ts`), which coordinates the Pinia store (`src/content/state/index.ts`), panel runtime state (`src/content/runtime/panel-state.ts`), and DOM binders under `src/content/runtime/ui/binders/`.
-- Controllers include logging, panel edge, and panel preferences (`src/content/controllers/*.ts`), season aggregation (`src/content/services/season-manager.ts` + `season-loader.ts`), chrome-event lifecycle hooks, and the transfer controller (`src/content/runtime/transfer/transfer-controller.ts`).
-- Vue components render the floating panel shell (`src/content/components/PanelRoot.vue`), resource list (`ResourceListView.vue`), history overlays (`src/content/components/history/*.vue`), toasts, zoom preview, and the settings modal plus editors.
-- `panelDom` / `detailDom` refs remain defined in `src/content/types.ts` and back the remaining imperative binders (history list/search interactions, transfer, selection), while the history filters, presets, and resource toolbar now render via Vue components driven by injected contexts.
+- `ContentRuntime` (`src/content/runtime/runtime.ts`) spawns `createRuntimeApp` (`runtime/app.ts`), coordinating Pinia state (`src/content/state/index.ts`), panel runtime state (`runtime/panel-state.ts`), and the remaining DOM binders under `runtime/ui/binders/`.
+- Controllers manage logging, panel edge, panel preferences, season aggregation (`season-manager.ts` + `season-loader.ts`), Chrome lifecycle hooks, and transfer orchestration (`runtime/transfer/transfer-controller.ts`).
+- Vue components render the floating panel shell (`components/PanelRoot.vue`), resource list, history overlays (`components/history/*.vue`), toasts, zoom preview, and the settings modal editors.
+- `panelDom` / `detailDom` refs still back legacy binders (history list, item selection, transfer, etc.); the binder footprint is already reduced thanks to Vue-driven toolbar/filter/search flows.
 
 ### Shared Modules
 
-- Cross-context payloads sit in `src/shared/types/transfer.ts`.
-- Sanitizers, completion helpers, and Baidu-specific utilities live in `src/shared/utils/`.
-- File filter / rename rule parsing plus evaluation helpers are centralized in `src/shared/settings.ts` and exercised by `src/shared/__tests__/settings.spec.ts`.
+- Cross-context payloads live in `src/shared/types/transfer.ts`.
+- Sanitizers, completion helpers, and Baidu-specific utilities sit in `src/shared/utils/`.
+- File filter / rename rule parsing + evaluation resides in `src/shared/settings.ts` with tests under `src/shared/__tests__/settings.spec.ts`.
 
 ### Testing & QA
 
-- Vitest suites cover parser service, file rules, season manager, tab-season preferences, history services, panel renderers, and shared settings (10 spec files run in the latest `npm run check`).
-- `tests/e2e/panel.spec.ts` spins up Chromium with the built extension, intercepts CHAOSPACE domains, and loads three representative detail pages without emitting `[Chaospace Transfer]` console errors (movie + two TV shows).
-- Manual validation on live CHAOSPACE pages is still pending before shipping the next artifact.
+- Vitest suites cover parser service, file rules, season manager, tab-season preferences, history services, panel renderers, and shared settings (10 spec files in the latest `npm run check`).
+- `tests/e2e/panel.spec.ts` launches Chromium with the extension, intercepts CHAOSPACE domains, and loads three representative detail pages without `[Chaospace Transfer]` errors.
+- Manual validation on live CHAOSPACE pages remains outstanding before the next artifact ships.
 
-### Legacy Baseline
+## Action Backlog (maintain after completing Immediate Orders)
 
-- `chaospace-extension/` remains the Manifest V2 snapshot for parity checks only—do not edit.
-
-## Next Steps
-
-- Componentize the remaining history overlay affordances (selection checkboxes, detail triggers) so the runtime binder focuses purely on side-effects Vue cannot own.
-- Tighten `PanelDomRefs` by removing the catch-all index signature and exposing typed accessors per controller now that search/toolbar nodes are Vue-owned.
-- Run the full `npm run check` suite after the next binder extraction to confirm Playwright coverage stays green with the reactive overlay.
-
-## Completed Foundation
-
-- MV3 manifest, Vite 7 bundling, and Vue 3 SFC build flow are stable with reproducible `dist/` outputs.
-- Pinia-backed content state plus `panel-state` provide a single source of truth for transfer progress, selections, and persisted edge/pin settings.
-- Season loaders, history controllers, and parser services share fixtures to guarantee deterministic transformations across background/content boundaries.
-- Settings modal now exposes file filter/rename editors wired to shared sanitizers, ensuring user-configurable transfer processing is serializable.
-- Playwright smoke tests run as part of `npm run check`, enabling regression catches without relying on external network access.
-
-## Outstanding Work (Prioritized)
-
-| Priority | Status      | Area            | Task                                                                                                                                                                    | Notes                                                                                |
-| -------- | ----------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| P0       | Todo        | Verification    | Exercise the built MV3 extension on live CHAOSPACE pages (panel mount, history overlay, transfer actions, settings import/export) and capture findings for the next PR. | Fixture-backed Playwright runs do not cover production responses or auth edge cases. |
-| P0       | Todo        | Transfer        | Re-run a live transfer to validate `season-manager` sanitization (`getTargetPath`, `seasonDirMap`, `seasonResolvedPaths`) against real Baidu resources.                 | Needed before enabling new presets or exposing rename rules by default.              |
-| P1       | Todo        | Content Runtime | Remove catch-all index signatures from `PanelDomRefs` / `DetailDomRefs`, and require binders/controllers to enumerate the DOM hooks they need.                          | Surfaces missing data-role wiring and tightens compile-time safety.                  |
-| P1       | In Progress | Testing         | Extend controller specs to cover `panel-edge-controller` and `runtime/transfer/transfer-controller` (pinning, retries, status transitions).                             | `panel-preferences` tests landed; remaining controllers still only have manual QA.   |
-| P1       | Todo        | Messaging       | Introduce integration tests that simulate Chrome runtime messaging for transfer progress + history detail/delete flows.                                                 | Required before granting stricter host permissions and alarm-based retries.          |
-| P1       | Todo        | Settings        | Add DOM-level tests for the file filter & rename editors to verify parsing, validation, and serialization paths.                                                        | Shared sanitizers are covered, but the UI editors remain untested.                   |
-| P2       | Done        | UI Migration    | Migrated history filters and presets list to Vue components with injected controllers; toolbar already lives in `PanelToolbar.vue`.                                     | `HistoryFilterTabs.vue` + `PresetList.vue` replace the old binders (2025-11-06).     |
-| P2       | Planned     | UI Migration    | Port the history search input + toolbar counters off `history-search-binder.ts`, exposing debounced search + selection summary via Pinia/composables.                   | Completes the history overlay migration and enables removing more `panelDom` hooks.  |
-| P2       | Planned     | Parser Coverage | Expand CHAOSPACE HTML fixtures with malformed or partial markup (missing passcodes, nested season links) and assert graceful fallbacks.                                 | Focus in `src/background/services/parser/__tests__`.                                 |
-| P2       | Planned     | Documentation   | Publish developer notes covering ContentRuntime orchestration, edge/pin persistence, and how to run tests/e2e locally.                                                  | Can live alongside this document or under `/docs`.                                   |
+| Priority | Status      | Area            | Task                                                                                                                                               | Notes                                                                        |
+| -------- | ----------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| P0       | Todo        | Verification    | Exercise the built MV3 extension on live CHAOSPACE pages (panel mount, history overlay, transfer, settings import/export) and log findings.        | Fixture-backed Playwright runs miss production responses/auth edge cases.    |
+| P0       | Todo        | Transfer        | Re-run a live transfer to validate `season-manager` sanitization (`getTargetPath`, `seasonDirMap`, `seasonResolvedPaths`) against Baidu resources. | Required before enabling new presets or exposing rename rules by default.    |
+| P1       | Todo        | Content Runtime | Remove catch-all index signatures from `PanelDomRefs` / `DetailDomRefs` and require binders/controllers to enumerate DOM hooks.                    | Surfaces missing data-role wiring and tightens compile-time safety.          |
+| P1       | In Progress | Testing         | Extend controller specs to cover `panel-edge-controller` and `runtime/transfer/transfer-controller`.                                               | `panel-preferences` tests exist; others still manual.                        |
+| P1       | Todo        | Messaging       | Introduce integration tests simulating Chrome runtime messaging for transfer progress + history detail/delete flows.                               | Needed before stricter host permissions + alarm retries.                     |
+| P1       | Todo        | Settings        | Add DOM-level tests for file filter & rename editors to verify parsing, validation, and serialization paths.                                       | Shared sanitizers are covered; UI editors aren’t.                            |
+| P2       | Done        | UI Migration    | History filters + presets list live in Vue components; toolbar in `PanelToolbar.vue`.                                                              | `HistoryFilterTabs.vue` + `PresetList.vue` replace old binders (2025-11-06). |
+| P2       | Planned     | Parser Coverage | Expand CHAOSPACE HTML fixtures with malformed/partial markup to assert fallbacks in `src/background/services/parser/__tests__`.                    | Focus on missing passcodes, nested season links.                             |
+| P2       | Planned     | Documentation   | Publish developer notes covering ContentRuntime orchestration, edge/pin persistence, and how to run tests/e2e locally.                             | Live either alongside this document or under `/docs`.                        |
 
 ## Verification History
 
-- 2025-11-06 — `npm run check` — PASS (Prettier → vue-tsc → ESLint → Vite build → Vitest ×10 files → Playwright ×3 URLs).
+- 2025-11-06 07:33 (UTC-8) — `npm run check` — PASS (Prettier → vue-tsc → ESLint → Vite build → Vitest ×11 → Playwright ×3 URLs).
+- 2025-11-06 — `npm run check` — PASS (Prettier → vue-tsc → ESLint → Vite build → Vitest ×10 → Playwright ×3 URLs).
 
 ## Release Verification Checklist
 

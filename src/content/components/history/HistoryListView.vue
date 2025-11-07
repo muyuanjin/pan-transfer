@@ -1,5 +1,5 @@
 <template>
-  <div class="chaospace-history-list-root" ref="root" style="display: contents">
+  <div class="chaospace-history-list-root" style="display: contents">
     <template v-for="entry in derivedEntries" :key="entry.group.key">
       <div
         class="chaospace-history-item"
@@ -228,7 +228,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { buildHistoryGroupSeasonRows } from '../../services/history-service'
 import type { HistoryGroup, HistoryGroupSeasonRow } from '../../types'
 import {
@@ -237,7 +237,7 @@ import {
   resolveHistoryPanInfo,
   type HistoryStatusBadge,
 } from './history-card.helpers'
-import { HISTORY_LIST_ACTION_EVENT, type HistoryListAction } from './history-events'
+import { useHistoryListActions } from '../../runtime/ui/history-context'
 
 const props = defineProps<{
   entries: HistoryGroup[]
@@ -248,7 +248,7 @@ const props = defineProps<{
   isHistoryGroupCompleted?: ((group: HistoryGroup) => boolean) | undefined
 }>()
 
-const root = ref<HTMLElement | null>(null)
+const historyActions = useHistoryListActions()
 
 const selectedSet = computed(() => new Set(props.selectedKeys))
 const expandedSet = computed(() => new Set(props.seasonExpandedKeys))
@@ -369,44 +369,21 @@ const derivedEntries = computed<DerivedEntryView[]>(() => {
   })
 })
 
-function dispatchAction(action: HistoryListAction): void {
-  const el = root.value
-  if (!el) {
-    return
-  }
-  el.dispatchEvent(
-    new CustomEvent<HistoryListAction>(HISTORY_LIST_ACTION_EVENT, {
-      detail: action,
-      bubbles: true,
-      composed: true,
-    }),
-  )
-}
-
 function handleSelect(groupKey: string, event: Event): void {
   const checkbox = event.target as HTMLInputElement | null
   if (!checkbox) {
     return
   }
-  dispatchAction({
-    type: 'select',
-    groupKey,
-    selected: checkbox.checked,
-  })
+  historyActions.setHistorySelection(groupKey, checkbox.checked)
 }
 
 function handleToggleSeason(entry: DerivedEntryView): void {
-  dispatchAction({
-    type: 'toggle-season',
-    groupKey: entry.group.key,
-    expanded: !entry.seasonExpanded,
-  })
+  historyActions.setHistorySeasonExpanded(entry.group.key, !entry.seasonExpanded)
 }
 
 function handleGroupDetail(entry: DerivedEntryView, event?: Event): void {
   event?.preventDefault()
-  dispatchAction({
-    type: 'open-detail',
+  historyActions.openHistoryDetail({
     groupKey: entry.group.key,
     scope: 'group',
     pageUrl: entry.mainRecord.pageUrl || '',
@@ -421,8 +398,7 @@ function handleSeasonRowDetail(
   event?: Event,
 ): void {
   event?.preventDefault()
-  dispatchAction({
-    type: 'open-detail',
+  historyActions.openHistoryDetail({
     groupKey: entry.group.key,
     scope: 'season',
     pageUrl: season.row.url || '',
@@ -438,18 +414,11 @@ function handleOpenUrl(url: unknown): void {
   if (!normalized) {
     return
   }
-  dispatchAction({
-    type: 'open-url',
-    url: normalized,
-  })
+  historyActions.openHistoryUrl(normalized)
 }
 
 function handleOpenPan(panInfo: { url: string; path: string }): void {
-  dispatchAction({
-    type: 'open-pan',
-    url: panInfo.url,
-    path: panInfo.path,
-  })
+  historyActions.openHistoryPan({ url: panInfo.url, path: panInfo.path })
 }
 
 function handleTriggerUpdate(entry: DerivedEntryView, event: Event): void {
@@ -459,12 +428,7 @@ function handleTriggerUpdate(entry: DerivedEntryView, event: Event): void {
   if (!pageUrl) {
     return
   }
-  dispatchAction({
-    type: 'trigger-update',
-    pageUrl,
-    button,
-    scope: 'group',
-  })
+  historyActions.triggerHistoryUpdate({ pageUrl, button })
 }
 
 function handleSeasonTriggerUpdate(season: DerivedSeasonView, event: Event): void {
@@ -473,20 +437,14 @@ function handleSeasonTriggerUpdate(season: DerivedSeasonView, event: Event): voi
   if (!pageUrl) {
     return
   }
-  dispatchAction({
-    type: 'trigger-update',
-    pageUrl,
-    button,
-    scope: 'season',
-  })
+  historyActions.triggerHistoryUpdate({ pageUrl, button })
 }
 
 function handlePosterPreview(
   poster: { src: string; alt?: string | null },
   fallbackTitle: string,
 ): void {
-  dispatchAction({
-    type: 'preview-poster',
+  historyActions.previewHistoryPoster({
     src: poster.src,
     alt: poster.alt || fallbackTitle || '',
   })
@@ -496,8 +454,7 @@ function handleSeasonPosterPreview(season: DerivedSeasonView): void {
   if (!season.row.poster?.src) {
     return
   }
-  dispatchAction({
-    type: 'preview-poster',
+  historyActions.previewHistoryPoster({
     src: season.row.poster.src,
     alt: season.row.poster.alt || season.row.label || '',
   })

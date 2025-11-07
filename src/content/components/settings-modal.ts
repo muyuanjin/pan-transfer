@@ -18,6 +18,7 @@ import { normalizeDir } from '../services/page-analyzer'
 import type { PanelRuntimeState, PanelPositionSnapshot, PanelSizeSnapshot } from '../types'
 import { normalizePinState } from '../utils/panel-pin'
 import { normalizeEdgeState } from '../utils/panel-edge'
+import { safeStorageGet as readStorageSnapshot } from '../utils/storage'
 import type { ToastHandler } from './toast'
 import settingsCssHref from '../styles/overlays/settings.css?url'
 import { loadCss } from '../styles.loader'
@@ -606,7 +607,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
         PIN_STATE_KEY,
         EDGE_STATE_KEY,
       ]
-      const stored = await chrome.storage.local.get(keys)
+      const stored = await readStorageSnapshot<Record<string, unknown>>(keys, 'data export')
       const payload = {
         type: 'chaospace-transfer-backup',
         version: DATA_EXPORT_VERSION,

@@ -13,6 +13,18 @@ export type ToastHandler = (
 
 let currentToast: HTMLDivElement | null = null
 
+const TOAST_MARGIN = 12
+
+const clamp = (value: number, min: number, max: number): number => {
+  if (value < min) {
+    return min
+  }
+  if (value > max) {
+    return max
+  }
+  return value
+}
+
 export function showToast(
   type: string,
   title: string,
@@ -31,6 +43,21 @@ export function showToast(
 
     const toast = document.createElement('div')
     toast.className = `chaospace-toast ${type}`
+
+    const closeButton = document.createElement('button')
+    closeButton.type = 'button'
+    closeButton.className = 'chaospace-toast-close'
+    closeButton.setAttribute('aria-label', '关闭通知')
+    closeButton.textContent = '×'
+    closeButton.addEventListener('click', () => {
+      if (toast.parentNode) {
+        toast.remove()
+        if (currentToast === toast) {
+          currentToast = null
+        }
+      }
+    })
+    toast.appendChild(closeButton)
 
     const titleEl = document.createElement('div')
     titleEl.className = 'chaospace-toast-title'
@@ -74,6 +101,61 @@ export function showToast(
 
     document.body.appendChild(toast)
     currentToast = toast
+
+    let dragPointerId: number | null = null
+    let dragOffsetX = 0
+    let dragOffsetY = 0
+
+    const updatePosition = (clientX: number, clientY: number): void => {
+      const bounds = toast.getBoundingClientRect()
+      const width = bounds.width
+      const height = bounds.height
+      const maxLeft = window.innerWidth - width - TOAST_MARGIN
+      const maxTop = window.innerHeight - height - TOAST_MARGIN
+      const nextLeft = clamp(clientX - dragOffsetX, TOAST_MARGIN, maxLeft)
+      const nextTop = clamp(clientY - dragOffsetY, TOAST_MARGIN, maxTop)
+      toast.style.right = ''
+      toast.style.left = `${nextLeft}px`
+      toast.style.top = `${nextTop}px`
+    }
+
+    const handlePointerMove = (event: PointerEvent): void => {
+      if (dragPointerId === null || event.pointerId !== dragPointerId) {
+        return
+      }
+      updatePosition(event.clientX, event.clientY)
+    }
+
+    const endDrag = (event: PointerEvent): void => {
+      if (dragPointerId === null || event.pointerId !== dragPointerId) {
+        return
+      }
+      toast.releasePointerCapture(event.pointerId)
+      dragPointerId = null
+      toast.classList.remove('chaospace-toast-dragging')
+      document.removeEventListener('pointermove', handlePointerMove)
+      document.removeEventListener('pointerup', endDrag)
+      document.removeEventListener('pointercancel', endDrag)
+    }
+
+    const handlePointerDown = (event: PointerEvent): void => {
+      const target = event.target as HTMLElement | null
+      if (event.button !== 0 || !target || target.closest('.chaospace-toast-close')) {
+        return
+      }
+      const rect = toast.getBoundingClientRect()
+      dragPointerId = event.pointerId
+      dragOffsetX = event.clientX - rect.left
+      dragOffsetY = event.clientY - rect.top
+      toast.setPointerCapture(event.pointerId)
+      toast.classList.add('chaospace-toast-dragging')
+      document.addEventListener('pointermove', handlePointerMove)
+      document.addEventListener('pointerup', endDrag)
+      document.addEventListener('pointercancel', endDrag)
+      updatePosition(event.clientX, event.clientY)
+    }
+
+    toast.addEventListener('pointerdown', handlePointerDown)
 
     setTimeout(() => {
       if (currentToast === toast && toast.parentNode) {

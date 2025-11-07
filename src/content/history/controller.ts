@@ -92,6 +92,8 @@ export function createHistoryController(deps: HistoryControllerDeps) {
     seasonPreference,
   } = deps
 
+  let historyControllerRef: ReturnType<typeof createHistoryController> | null = null
+
   function getHistoryGroupByKey(key: string): HistoryGroup | null {
     if (!key) {
       return null
@@ -198,6 +200,7 @@ export function createHistoryController(deps: HistoryControllerDeps) {
       getFilteredHistoryGroups,
       updateHistoryExpansion,
       isHistoryGroupCompleted,
+      historyController: historyControllerRef ?? null,
     })
   }
 
@@ -670,7 +673,7 @@ export function createHistoryController(deps: HistoryControllerDeps) {
     state.historyRateLimitMs = clamped
   }
 
-  return {
+  const historyController = {
     applyHistoryToCurrentPage,
     loadHistory,
     handleHistoryDeleteSelected,
@@ -695,4 +698,8 @@ export function createHistoryController(deps: HistoryControllerDeps) {
     updateHistoryRateLimit,
     renderHistoryDetail,
   }
+
+  historyControllerRef = historyController
+
+  return historyController
 }

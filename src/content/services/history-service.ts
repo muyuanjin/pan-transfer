@@ -9,6 +9,7 @@ import type {
   HistoryGroupSeasonRow,
   HistoryRecordsPayload,
 } from '../types'
+import { safeStorageGet } from '../utils/storage'
 
 interface CompletionLike {
   label?: unknown
@@ -57,7 +58,7 @@ function coerceCompletionState(state: unknown): CompletionStatus['state'] {
 
 export async function readHistoryFromStorage(): Promise<StoredHistorySnapshot | null> {
   try {
-    const stored = await chrome.storage.local.get(HISTORY_KEY)
+    const stored = await safeStorageGet<Record<string, unknown>>([HISTORY_KEY], 'history')
     const payload = stored?.[HISTORY_KEY]
     if (payload && typeof payload === 'object') {
       return payload as StoredHistorySnapshot

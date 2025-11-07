@@ -4,6 +4,35 @@ import type { ResourceListPanelDom } from '../resource-list'
 import { renderHistoryCard, type HistoryCardRenderParams } from '../history-card'
 import type { HistoryGroup } from '../../types'
 import type { HistoryDetailDomRefs, RenderHistoryDetailParams } from '../history-detail'
+import type { HistoryController } from '../../runtime/ui/history-context'
+
+function createHistoryControllerStub(): HistoryController {
+  return {
+    applyHistoryToCurrentPage: vi.fn(),
+    loadHistory: vi.fn(),
+    handleHistoryDeleteSelected: vi.fn(),
+    handleHistoryClear: vi.fn(),
+    handleHistoryBatchCheck: vi.fn(),
+    renderHistoryCard: vi.fn(),
+    setHistorySelection: vi.fn(),
+    setHistorySelectAll: vi.fn(),
+    setHistoryFilter: vi.fn(),
+    setHistorySearchTerm: vi.fn(),
+    setHistoryExpanded: vi.fn(),
+    toggleHistoryExpanded: vi.fn(),
+    setHistorySeasonExpanded: vi.fn(),
+    toggleHistorySeasonExpanded: vi.fn(),
+    openHistoryDetail: vi.fn(),
+    closeHistoryDetail: vi.fn(),
+    triggerHistoryUpdate: vi.fn(),
+    selectNewItems: vi.fn(),
+    getFilteredHistoryGroups: vi.fn(() => []),
+    getHistoryGroupByKey: vi.fn(() => null),
+    updateHistoryExpansion: vi.fn(),
+    updateHistoryRateLimit: vi.fn(),
+    renderHistoryDetail: vi.fn(),
+  } as unknown as HistoryController
+}
 
 describe('ResourceList renderer summary', () => {
   it('reflects selection counts and badges in summary text', () => {
@@ -208,6 +237,7 @@ describe('HistoryCard renderer toggles', () => {
       getFilteredHistoryGroups: undefined,
       updateHistoryExpansion: undefined,
       isHistoryGroupCompleted: undefined,
+      historyController: createHistoryControllerStub(),
     })
 
     expect(historyEmpty.classList.contains('is-hidden')).toBe(true)

@@ -15,6 +15,8 @@
   flex-direction: column;
   gap: 8px;
   animation: chaospace-toast-in 0.25s ease;
+  cursor: grab;
+  padding-right: 40px;
 }
 
 .chaospace-toast::before {
@@ -41,6 +43,10 @@
 
 .chaospace-toast.error {
   border-color: rgba(248, 113, 113, 0.42);
+}
+
+.chaospace-toast-dragging {
+  cursor: grabbing;
 }
 
 /* 海报预览样式已移至 openZoomPreview 内联样式 */
@@ -78,4 +84,38 @@
 
 .chaospace-toast-stat.skipped {
   color: var(--cp-warning);
+}
+
+.chaospace-toast-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--cp-text-secondary);
+  font-size: 14px;
+  line-height: 20px;
+  text-align: center;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.2s ease,
+    background 0.2s ease,
+    color 0.2s ease;
+  pointer-events: none;
+}
+
+.chaospace-toast:hover .chaospace-toast-close,
+.chaospace-toast-close:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.chaospace-toast-close:hover,
+.chaospace-toast-close:focus-visible {
+  background: rgba(15, 23, 42, 0.18);
+  color: var(--cp-text-primary);
 }

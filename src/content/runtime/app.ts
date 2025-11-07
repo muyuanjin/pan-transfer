@@ -34,7 +34,6 @@ import { createDomLifecycle } from './lifecycle/dom-observer'
 import { createPanelFactory } from './panel/panel-factory'
 import { createSettingsCoordinator } from './panel/settings-coordinator'
 import { createBaseDirBinder } from './ui/binders/base-dir-binder'
-import { createHistoryListBinder } from './ui/binders/history-list-binder'
 import { createPosterPreviewBinder } from './ui/binders/poster-preview-binder'
 import { createItemSelectionBinder } from './ui/binders/item-selection-binder'
 import { createSeasonTabsBinder } from './ui/binders/season-tabs-binder'
@@ -449,12 +448,6 @@ export function createRuntimeApp() {
     seasonPreference: tabSeasonPreference!,
   })
 
-  const historyListBinder = createHistoryListBinder({
-    panelDom,
-    state,
-    history,
-  })
-
   const posterPreviewBinder = createPosterPreviewBinder({
     panelDom,
     state,
@@ -512,7 +505,6 @@ export function createRuntimeApp() {
       baseDirBinder,
       itemSelectionBinder,
       seasonTabsBinder,
-      historyListBinder,
       transferBinder,
     ],
     shellBinderFactories: [
