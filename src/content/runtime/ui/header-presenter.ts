@@ -1,7 +1,7 @@
 import { state, panelDom } from '../../state'
 import { disableElementDrag } from '../../utils/dom'
 import { formatOriginLabel, sanitizeCssUrl } from '../../utils/format'
-import { getPanelTransferDom } from '../../types'
+import { getPanelHeaderDom, getPanelTransferDom } from '../../types'
 
 export interface HeaderPresenter {
   updateHeader: () => void
@@ -9,17 +9,18 @@ export interface HeaderPresenter {
 }
 
 const transferDom = getPanelTransferDom(panelDom)
+const headerDom = getPanelHeaderDom(panelDom)
 
 export function createHeaderPresenter(): HeaderPresenter {
   const updateHeader = (): void => {
     const hasPoster = Boolean(state.poster?.src)
 
-    if (panelDom.showTitle) {
+    if (headerDom.showTitle) {
       const title = state.pageTitle || state.poster?.alt || '等待选择剧集'
-      panelDom.showTitle.textContent = title
+      headerDom.showTitle.textContent = title
     }
 
-    if (panelDom.showSubtitle) {
+    if (headerDom.showSubtitle) {
       const label = formatOriginLabel(state.origin)
       const hasItemsArray = Array.isArray(state.items)
       const itemCount = hasItemsArray ? state.items.length : 0
@@ -33,44 +34,44 @@ export function createHeaderPresenter(): HeaderPresenter {
       if (state.completion?.label) {
         infoParts.push(state.completion.label)
       }
-      panelDom.showSubtitle.textContent = infoParts.length
+      headerDom.showSubtitle.textContent = infoParts.length
         ? infoParts.join(' · ')
         : '未检测到页面来源'
     }
 
-    if (panelDom.header) {
-      panelDom.header.classList.toggle('has-poster', hasPoster)
+    if (headerDom.header) {
+      headerDom.header.classList.toggle('has-poster', hasPoster)
     }
 
-    if (panelDom.headerArt) {
+    if (headerDom.headerArt) {
       if (hasPoster && state.poster?.src) {
         const safeUrl = sanitizeCssUrl(state.poster.src)
-        panelDom.headerArt.style.backgroundImage = `url("${safeUrl}")`
-        panelDom.headerArt.classList.remove('is-empty')
+        headerDom.headerArt.style.backgroundImage = `url("${safeUrl}")`
+        headerDom.headerArt.classList.remove('is-empty')
       } else {
-        panelDom.headerArt.style.backgroundImage = ''
-        panelDom.headerArt.classList.add('is-empty')
+        headerDom.headerArt.style.backgroundImage = ''
+        headerDom.headerArt.classList.add('is-empty')
       }
     }
 
-    if (panelDom.headerPoster) {
-      disableElementDrag(panelDom.headerPoster)
+    if (headerDom.headerPoster) {
+      disableElementDrag(headerDom.headerPoster)
       if (hasPoster && state.poster?.src) {
-        panelDom.headerPoster.src = state.poster.src
-        panelDom.headerPoster.alt = state.poster.alt || ''
-        panelDom.headerPoster.style.display = 'block'
-        panelDom.headerPoster.dataset['action'] = 'preview-poster'
-        panelDom.headerPoster.dataset['src'] = state.poster.src
-        panelDom.headerPoster.dataset['alt'] = state.poster.alt || state.pageTitle || ''
-        panelDom.headerPoster.classList.add('is-clickable')
+        headerDom.headerPoster.src = state.poster.src
+        headerDom.headerPoster.alt = state.poster.alt || ''
+        headerDom.headerPoster.style.display = 'block'
+        headerDom.headerPoster.dataset['action'] = 'preview-poster'
+        headerDom.headerPoster.dataset['src'] = state.poster.src
+        headerDom.headerPoster.dataset['alt'] = state.poster.alt || state.pageTitle || ''
+        headerDom.headerPoster.classList.add('is-clickable')
       } else {
-        panelDom.headerPoster.removeAttribute('src')
-        panelDom.headerPoster.alt = ''
-        panelDom.headerPoster.style.display = 'none'
-        delete panelDom.headerPoster.dataset['action']
-        delete panelDom.headerPoster.dataset['src']
-        delete panelDom.headerPoster.dataset['alt']
-        panelDom.headerPoster.classList.remove('is-clickable')
+        headerDom.headerPoster.removeAttribute('src')
+        headerDom.headerPoster.alt = ''
+        headerDom.headerPoster.style.display = 'none'
+        delete headerDom.headerPoster.dataset['action']
+        delete headerDom.headerPoster.dataset['src']
+        delete headerDom.headerPoster.dataset['alt']
+        headerDom.headerPoster.classList.remove('is-clickable')
       }
     }
   }

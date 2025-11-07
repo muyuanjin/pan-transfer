@@ -44,6 +44,7 @@ describe('ResourceList renderer summary', () => {
       resourceSummary: summaryEl,
       resourceTitle: titleEl,
       itemsContainer,
+      seasonTabs: null,
     }
 
     const state = {

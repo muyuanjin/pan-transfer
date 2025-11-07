@@ -1,10 +1,10 @@
 import { MAX_LOG_ENTRIES } from '../constants'
-import type { LogEntry, LogLevel, PanelDomRefs, TransferStatus } from '../types'
+import type { LogEntry, LogLevel, PanelLoggingDomRefs, TransferStatus } from '../types'
 import type { ContentStore } from '../state'
 
 interface LoggingControllerDeps {
   state: ContentStore
-  panelDom: PanelDomRefs
+  panelDom: PanelLoggingDomRefs
   document: Document
 }
 

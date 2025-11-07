@@ -1,4 +1,4 @@
-import type { PanelDomRefs } from '../../../types'
+import type { PanelHeaderDomRefs } from '../../../types'
 import type { ContentStore } from '../../../state'
 import type { createHistoryController } from '../../../history/controller'
 import { closestElement } from '../../../utils/dom'
@@ -7,7 +7,7 @@ import type { Binder } from './types'
 type HistoryController = ReturnType<typeof createHistoryController>
 
 interface PosterPreviewBinderDeps {
-  panelDom: PanelDomRefs
+  panelDom: PanelHeaderDomRefs
   state: ContentStore
   history: HistoryController
   getFloatingPanel: () => HTMLElement | null

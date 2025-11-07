@@ -1,10 +1,10 @@
-import type { PanelDomRefs } from '../../../types'
+import type { PanelResourceDomRefs } from '../../../types'
 import type { ContentStore } from '../../../state'
 import { closestElement } from '../../../utils/dom'
 import type { Binder } from './types'
 
 interface ItemSelectionBinderDeps {
-  panelDom: PanelDomRefs
+  panelDom: PanelResourceDomRefs
   state: ContentStore
   renderResourceSummary: () => void
   updateTransferButton: () => void

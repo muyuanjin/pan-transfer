@@ -1,10 +1,10 @@
-import type { PanelDomRefs } from '../../../types'
+import type { PanelResourceDomRefs } from '../../../types'
 import type { ContentStore } from '../../../state'
 import { closestElement } from '../../../utils/dom'
 import type { Binder } from './types'
 
 interface SeasonTabsBinderDeps {
-  panelDom: PanelDomRefs
+  panelDom: PanelResourceDomRefs
   state: ContentStore
   renderResourceList: () => void
 }

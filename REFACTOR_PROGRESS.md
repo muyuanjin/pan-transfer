@@ -39,6 +39,7 @@ _Last updated: 2025-11-06 10:20 (UTC-8)_
 - Settings modal now includes programmatic file filter + rename editors backed by `src/shared/settings.ts` sanitizers and Pinia state wiring.
 - Resource toolbar, history filter tabs, presets list, search bar, and batch toolbar now live in Vue components with provide/inject contexts, replacing imperative binders and shrinking `panelDom` usage.
 - `page-analyzer.spec.ts` runtime reduced via cached fixtures and a cache reset test hook.
+- Scoped Panel DOM accessors added (2025-11-07 10:24 UTC-8): logging controller, header presenter, history controller, and season/item binders now consume `getPanelLoggingDom`/`getPanelHeaderDom`/`getPanelHistoryDom`/`getPanelResourceDom`, eliminating direct `panelDom.*` usage in those areas.
 
 ## Current Status Snapshot
 
@@ -89,6 +90,7 @@ _Last updated: 2025-11-06 10:20 (UTC-8)_
 
 ## Verification History
 
+- 2025-11-07 10:24 (UTC-8) — `npm run check` — PASS (Prettier → vue-tsc → ESLint → Vite build → Vitest ×11 → Playwright ×3 URLs).
 - 2025-11-06 07:33 (UTC-8) — `npm run check` — PASS (Prettier → vue-tsc → ESLint → Vite build → Vitest ×11 → Playwright ×3 URLs).
 - 2025-11-06 — `npm run check` — PASS (Prettier → vue-tsc → ESLint → Vite build → Vitest ×10 → Playwright ×3 URLs).
 

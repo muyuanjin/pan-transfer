@@ -3,16 +3,11 @@ import ResourceListView, {
   type ResourceListItemView,
   type ResourceBadgeView,
 } from './ResourceListView.vue'
-import type { ResourceItem, PanelDomRefs } from '../types'
+import type { ResourceItem, PanelResourceDomRefs } from '../types'
 import type { ContentStore } from '../state'
 import { pinia } from '../state'
 
-export type ResourceListPanelDom = Pick<
-  PanelDomRefs,
-  'resourceSummary' | 'resourceTitle' | 'itemsContainer'
-> & {
-  [key: string]: HTMLElement | null | undefined
-}
+export type ResourceListPanelDom = PanelResourceDomRefs
 
 export interface ResourceListRendererParams {
   state: ContentStore & {

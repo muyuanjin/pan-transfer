@@ -9,7 +9,14 @@ import {
 import { state, panelDom, detailDom } from '../state'
 import { createPanelRuntimeState } from './panel-state'
 import type { PanelEdgeSnapshot, PanelPositionSnapshot, PanelSizeSnapshot } from '../types'
-import { getPanelBaseDirDom, getPanelEdgeDom, getPanelTransferDom } from '../types'
+import {
+  getPanelBaseDirDom,
+  getPanelEdgeDom,
+  getPanelHeaderDom,
+  getPanelLoggingDom,
+  getPanelResourceDom,
+  getPanelTransferDom,
+} from '../types'
 import { createLoggingController } from '../controllers/logging-controller'
 import { createPanelPreferencesController } from '../controllers/panel-preferences'
 import { createPanelEdgeController } from '../controllers/panel-edge-controller'
@@ -60,6 +67,9 @@ export function createRuntimeApp() {
   const panelEdgeDom = getPanelEdgeDom(panelDom)
   const panelBaseDirDom = getPanelBaseDirDom(panelDom)
   const panelTransferDom = getPanelTransferDom(panelDom)
+  const panelHeaderDom = getPanelHeaderDom(panelDom)
+  const panelLoggingDom = getPanelLoggingDom(panelDom)
+  const panelResourceDom = getPanelResourceDom(panelDom)
 
   const handleSeasonDefaultChange = (value: boolean): void => {
     const normalized = Boolean(value)
@@ -357,7 +367,7 @@ export function createRuntimeApp() {
 
   const logging = createLoggingController({
     state,
-    panelDom,
+    panelDom: panelLoggingDom,
     document,
   })
 
@@ -385,7 +395,7 @@ export function createRuntimeApp() {
 
   const resourceRenderer = createResourceListRenderer({
     state,
-    panelDom: panelDom as unknown as ResourceListPanelDom,
+    panelDom: panelResourceDom as ResourceListPanelDom,
     renderSeasonTabs,
     filterItemsForActiveSeason,
     computeSeasonTabState,
@@ -454,21 +464,21 @@ export function createRuntimeApp() {
   })
 
   const posterPreviewBinder = createPosterPreviewBinder({
-    panelDom,
+    panelDom: panelHeaderDom,
     state,
     history,
     getFloatingPanel,
   })
 
   const itemSelectionBinder = createItemSelectionBinder({
-    panelDom,
+    panelDom: panelResourceDom,
     state,
     renderResourceSummary: () => resourceRenderer.renderResourceSummary(),
     updateTransferButton: () => headerPresenter.updateTransferButton(),
   })
 
   const seasonTabsBinder = createSeasonTabsBinder({
-    panelDom,
+    panelDom: panelResourceDom,
     state,
     renderResourceList: () => resourceRenderer.renderResourceList(),
   })

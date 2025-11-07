@@ -2,28 +2,19 @@ import { createApp, type App } from 'vue'
 import HistoryListView from './history/HistoryListView.vue'
 import HistorySummaryView from './history/HistorySummaryView.vue'
 import { formatHistoryTimestamp } from './history/history-card.helpers'
-import type { HistoryGroup } from '../types'
+import type { HistoryGroup, PanelHistoryDomRefs } from '../types'
 import type { ContentStore } from '../state'
 import { pinia } from '../state'
 import { normalizePageUrl } from '../services/page-analyzer'
 import { HISTORY_DISPLAY_LIMIT } from '../constants'
 import { historyContextKey, type HistoryController } from '../runtime/ui/history-context'
 
-export interface HistoryCardPanelDom {
-  historyList?: HTMLElement | null
-  historyEmpty?: HTMLElement | null
-  historySummaryBody?: HTMLElement | null
-  historySummary?: HTMLElement | null
-  historyOverlay?: HTMLElement | null
-  [key: string]: unknown
-}
-
 export interface HistoryCardRenderParams {
   state: ContentStore & {
     historyGroups: HistoryGroup[]
     historyDetail: ContentStore['historyDetail']
   }
-  panelDom: HistoryCardPanelDom
+  panelDom: PanelHistoryDomRefs
   floatingPanel: HTMLElement | null | undefined
   pruneHistorySelection: (() => void) | undefined
   getHistoryGroupByKey: ((key: string) => HistoryGroup | null | undefined) | undefined

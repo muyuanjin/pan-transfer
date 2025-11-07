@@ -23,6 +23,7 @@ import type { HistoryDetailOverrides as HistoryDetailOverridesInput } from '../c
 import { renderHistoryCard as renderHistoryCardComponent } from '../components/history-card'
 import { showToast } from '../components/toast'
 import type { PanelRuntimeState, HistoryGroup } from '../types'
+import { getPanelHistoryDom } from '../types'
 import { HISTORY_BATCH_RATE_LIMIT_MS, EDGE_HIDE_DELAY } from '../constants'
 import historyDetailCssHref from '../styles/overlays/history-detail.css?url'
 import { loadCss } from '../styles.loader'
@@ -30,6 +31,7 @@ import type { TabSeasonPreferenceController } from '../services/tab-season-prefe
 
 const historyDetailCssUrl = historyDetailCssHref
 let historyDetailCssPromise: Promise<void> | null = null
+const historyDom = getPanelHistoryDom(panelDom)
 
 function ensureHistoryDetailStyles(): Promise<void> {
   if (!historyDetailCssPromise) {
@@ -183,8 +185,8 @@ export function createHistoryController(deps: HistoryControllerDeps) {
     }
     const expanded = Boolean(state.historyExpanded && state.historyGroups.length)
     floatingPanel.classList.toggle('is-history-expanded', expanded)
-    if (panelDom.historyOverlay) {
-      panelDom.historyOverlay.setAttribute('aria-hidden', expanded ? 'false' : 'true')
+    if (historyDom.historyOverlay) {
+      historyDom.historyOverlay.setAttribute('aria-hidden', expanded ? 'false' : 'true')
     }
   }
 
@@ -192,7 +194,7 @@ export function createHistoryController(deps: HistoryControllerDeps) {
     pruneHistorySelection()
     renderHistoryCardComponent({
       state,
-      panelDom,
+      panelDom: historyDom,
       floatingPanel: getFloatingPanel(),
       pruneHistorySelection,
       getHistoryGroupByKey,

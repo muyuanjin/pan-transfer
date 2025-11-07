@@ -481,3 +481,107 @@ export function getPanelBaseDirDom(panelDom: PanelDomRefs): PanelBaseDirDomRefs 
     },
   }
 }
+
+export interface PanelHeaderDomRefs {
+  readonly header: HTMLElement | null
+  readonly headerArt: HTMLElement | null
+  readonly headerPoster: HTMLImageElement | null
+  readonly showTitle: HTMLElement | null
+  readonly showSubtitle: HTMLElement | null
+}
+
+export function getPanelHeaderDom(panelDom: PanelDomRefs): PanelHeaderDomRefs {
+  return {
+    get header() {
+      return panelDom.get('header')
+    },
+    get headerArt() {
+      return panelDom.get('headerArt')
+    },
+    get headerPoster() {
+      return panelDom.get('headerPoster')
+    },
+    get showTitle() {
+      return panelDom.get('showTitle')
+    },
+    get showSubtitle() {
+      return panelDom.get('showSubtitle')
+    },
+  }
+}
+
+export interface PanelLoggingDomRefs {
+  readonly logContainer: HTMLElement | null
+  readonly logList: HTMLUListElement | null
+  readonly statusText: HTMLElement | null
+  readonly resultSummary: HTMLElement | null
+}
+
+export function getPanelLoggingDom(panelDom: PanelDomRefs): PanelLoggingDomRefs {
+  return {
+    get logContainer() {
+      return panelDom.get('logContainer')
+    },
+    get logList() {
+      return panelDom.get('logList')
+    },
+    get statusText() {
+      return panelDom.get('statusText')
+    },
+    get resultSummary() {
+      return panelDom.get('resultSummary')
+    },
+  }
+}
+
+export interface PanelHistoryDomRefs {
+  readonly historyOverlay: HTMLElement | null
+  readonly historyList: HTMLElement | null
+  readonly historyEmpty: HTMLElement | null
+  readonly historySummary: HTMLElement | null
+  readonly historySummaryBody: HTMLElement | null
+}
+
+export function getPanelHistoryDom(panelDom: PanelDomRefs): PanelHistoryDomRefs {
+  return {
+    get historyOverlay() {
+      return panelDom.get('historyOverlay')
+    },
+    get historyList() {
+      return panelDom.get('historyList')
+    },
+    get historyEmpty() {
+      return panelDom.get('historyEmpty')
+    },
+    get historySummary() {
+      return panelDom.get('historySummary')
+    },
+    get historySummaryBody() {
+      return panelDom.get('historySummaryBody')
+    },
+  }
+}
+
+export interface PanelResourceDomRefs {
+  readonly itemsContainer: HTMLElement | null
+  readonly resourceSummary: HTMLElement | null
+  readonly resourceTitle: HTMLElement | null
+  readonly seasonTabs: HTMLElement | null
+}
+
+export function getPanelResourceDom(panelDom: PanelDomRefs): PanelResourceDomRefs {
+  return {
+    get itemsContainer() {
+      return panelDom.get('itemsContainer')
+    },
+    get resourceSummary() {
+      return panelDom.get('resourceSummary')
+    },
+    get resourceTitle() {
+      return panelDom.get('resourceTitle')
+    },
+    get seasonTabs() {
+      return panelDom.get('seasonTabs')
+    },
+  }
+}
