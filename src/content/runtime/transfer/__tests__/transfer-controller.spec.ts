@@ -129,10 +129,13 @@ describe('transfer-controller', () => {
       } as unknown as PanelPreferencesController)
     const historyLoadHistory =
       overrides.history?.loadHistory ?? vi.fn().mockResolvedValue(undefined)
+    const historySetHistoryExpanded =
+      overrides.history?.setHistoryExpanded ?? vi.fn().mockImplementation(() => {})
     const history =
       overrides.history ??
       ({
         loadHistory: historyLoadHistory,
+        setHistoryExpanded: historySetHistoryExpanded,
       } as unknown as HistoryController)
     const seasonPreference =
       overrides.seasonPreference ??
@@ -168,6 +171,7 @@ describe('transfer-controller', () => {
       updateTransferButton,
       renderPathPreview,
       historyLoadHistory,
+      historySetHistoryExpanded,
       getFloatingPanel,
     }
   }
@@ -257,6 +261,30 @@ describe('transfer-controller', () => {
       expect.stringContaining('/Volumes/transfer'),
       expect.objectContaining({ success: 1, failed: 0, skipped: 0 }),
     )
+  })
+
+  it('collapses the history overlay before dispatching a transfer', async () => {
+    const setHistoryExpanded = vi.fn((expanded: boolean) => {
+      state.historyExpanded = expanded
+    })
+    const historyStub = {
+      loadHistory: vi.fn().mockResolvedValue(undefined),
+      setHistoryExpanded,
+    } as unknown as HistoryController
+    const { controller } = setupController({ history: historyStub })
+    state.historyExpanded = true
+    const items: ResourceItem[] = [{ id: 'item-1', title: 'Episode 1', order: 1 }]
+    seedSelectedItems(items, ['item-1'])
+    chromeSendMessage.mockResolvedValue({
+      ok: true,
+      summary: 'done',
+      results: [{ status: 'success' }],
+    })
+
+    await controller.handleTransfer()
+
+    expect(setHistoryExpanded).toHaveBeenCalledWith(false)
+    expect(state.historyExpanded).toBe(false)
   })
 
   it('recovers from background errors so the user can retry transfers', async () => {

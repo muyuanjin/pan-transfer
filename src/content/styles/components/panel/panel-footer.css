@@ -76,6 +76,14 @@
   -webkit-backdrop-filter: blur(18px);
 }
 
+.chaospace-float-btn [data-role='transfer-label'] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 160px;
+  text-align: center;
+}
+
 .chaospace-float-btn::before {
   content: '';
   position: absolute;
@@ -95,6 +103,10 @@
   pointer-events: none;
   mix-blend-mode: screen;
   z-index: 1;
+}
+
+.chaospace-float-btn-compact.chaospace-float-btn {
+  width: 160px;
 }
 
 .chaospace-float-btn::after {

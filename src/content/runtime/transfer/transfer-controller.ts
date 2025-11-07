@@ -86,6 +86,10 @@ export function createTransferController(deps: {
       return
     }
 
+    if (state.historyExpanded) {
+      history.setHistoryExpanded(false)
+    }
+
     const selectedItems: ResourceItem[] = state.items.filter((item) =>
       state.selectedIds.has(item.id),
     )
