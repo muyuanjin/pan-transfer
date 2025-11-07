@@ -2,22 +2,27 @@ name: Release
 
 on:
   workflow_dispatch:
-    inputs:
-      release_tag:
-        description: 'Tag to publish (must already exist, e.g., v0.1.0)'
-        required: true
-        type: string
+  push:
+    tags:
+      - 'v*'
 
 jobs:
   build-and-package:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Ensure workflow runs on a tag
+        run: |
+          if [[ "${GITHUB_REF}" != refs/tags/* ]]; then
+            echo "::error::Please run this workflow from a tag (Run workflow ▶ select Tag)."
+            exit 1
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ inputs.release_tag }}
+          ref: ${{ github.ref }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -77,7 +82,7 @@ jobs:
       - name: Publish tag release asset
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ inputs.release_tag }}
+          tag_name: ${{ github.ref_name }}
           files: pan-transfer-extension.zip
           body_path: release-notes.md
         env:
