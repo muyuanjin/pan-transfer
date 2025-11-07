@@ -23,20 +23,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-
-export interface ResourceBadgeView {
-  label: string
-  className: string
-}
-
-export interface ResourceListItemView {
-  id: string | number
-  displayTitle: string
-  isSelected: boolean
-  isTransferred: boolean
-  isNew: boolean
-  badges: ResourceBadgeView[]
-}
+import type { ResourceListItemView } from './resource-list.view-types'
 
 const props = defineProps<{
   items: ResourceListItemView[]

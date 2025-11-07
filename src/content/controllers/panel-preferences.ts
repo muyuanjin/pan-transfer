@@ -114,7 +114,10 @@ export function createPanelPreferencesController({
       }
       onSeasonDefaultChange(seasonDefault)
       if (Array.isArray(settings.presets)) {
-        const merged = [...settings.presets, ...DEFAULT_PRESETS].map(sanitizePreset).filter(Boolean)
+        const presetValues = (settings.presets as unknown[]).filter(
+          (value): value is string => typeof value === 'string' && value.trim().length > 0,
+        )
+        const merged = [...presetValues, ...DEFAULT_PRESETS].map(sanitizePreset).filter(Boolean)
         const unique = Array.from(new Set(merged))
         state.presets = unique
       } else {

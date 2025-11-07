@@ -18,7 +18,7 @@ export async function getTabSeasonPreference(tabId: number): Promise<boolean | n
   const key = getSessionKey(tabId)
   try {
     const stored = await chrome.storage.session.get(key)
-    const record = stored[key]
+    const record: unknown = stored[key]
     if (
       record &&
       typeof record === 'object' &&

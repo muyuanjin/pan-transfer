@@ -8,7 +8,7 @@ export function formatOriginLabel(
   try {
     const url = new URL(origin, baseHref || undefined)
     return url.hostname.replace(/^www\./, '')
-  } catch (_error) {
+  } catch {
     return typeof origin === 'string' ? origin : ''
   }
 }

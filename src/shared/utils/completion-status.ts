@@ -39,6 +39,16 @@ export type SeasonEntryInput =
   | null
   | undefined
 
+function normalizeLabelText(value: unknown): string {
+  if (typeof value === 'string') {
+    return value.trim()
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value).trim()
+  }
+  return ''
+}
+
 export function isDateLikeLabel(text: unknown): boolean {
   if (typeof text !== 'string') {
     return false
@@ -47,10 +57,10 @@ export function isDateLikeLabel(text: unknown): boolean {
   if (!normalized) {
     return false
   }
-  if (/^\d{4}([\-\/年\.]|$)/.test(normalized)) {
+  if (/^\d{4}([-/年.]|$)/.test(normalized)) {
     return true
   }
-  if (/^\d{1,2}[\/\.-]\d{1,2}[\/\.-]\d{2,4}$/.test(normalized)) {
+  if (/^\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}$/.test(normalized)) {
     return true
   }
   return false
@@ -58,7 +68,7 @@ export function isDateLikeLabel(text: unknown): boolean {
 
 export function classifyCompletionState(label: unknown): CompletionState {
   if (label == null) return 'unknown'
-  const text = String(label || '').trim()
+  const text = normalizeLabelText(label)
   if (!text) return 'unknown'
 
   const completedRegex = /^(完结|收官|全集|已完)$|^全\d+[集话]$|已完结|全集完结/
@@ -79,7 +89,7 @@ export function classifyCompletionState(label: unknown): CompletionState {
 }
 
 export function createCompletionStatus(label: unknown, source = ''): CompletionStatus | null {
-  const text = typeof label === 'string' ? label.trim() : String(label || '').trim()
+  const text = normalizeLabelText(label)
   if (!text) {
     return null
   }
@@ -97,7 +107,7 @@ export function normalizeHistoryCompletion(entry: CompletionStatusInput): Comple
   if (!entry || typeof entry !== 'object') {
     return null
   }
-  const label = typeof entry.label === 'string' ? entry.label.trim() : ''
+  const label = normalizeLabelText(entry.label)
   const state =
     typeof entry.state === 'string' && entry.state ? entry.state : classifyCompletionState(label)
   const normalized: CompletionStatus = {
@@ -200,7 +210,7 @@ export function normalizeSeasonDirectoryMap(
     if (!trimmed) {
       return
     }
-    const safe = trimmed.replace(/[\/\\]+/g, '/')
+    const safe = trimmed.replace(/[/\\]+/g, '/')
     result[key] = safe
   })
   return result

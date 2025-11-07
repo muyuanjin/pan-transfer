@@ -1,8 +1,7 @@
 import { createApp, type App } from 'vue'
-import ResourceListView, {
-  type ResourceListItemView,
-  type ResourceBadgeView,
-} from './ResourceListView.vue'
+import ResourceListView from './ResourceListView.vue'
+import type { ResourceListItemView, ResourceBadgeView } from './resource-list.view-types'
+import type { SeasonTabState } from '../services/season-manager'
 import type { ResourceItem, PanelResourceDomRefs } from '../types'
 import type { ContentStore } from '../state'
 import { pinia } from '../state'
@@ -14,20 +13,16 @@ export interface ResourceListRendererParams {
     items: Array<ResourceItem & { id: string | number } & Record<string, unknown>>
   }
   panelDom: ResourceListPanelDom
-  renderSeasonTabs: () => { tabItems: unknown[]; activeId: string | null; activeTab?: any }
+  renderSeasonTabs: () => SeasonTabState
   filterItemsForActiveSeason: (items: ResourceItem[], activeId: string | null) => ResourceItem[]
-  computeSeasonTabState: (options?: { syncState?: boolean }) => {
-    tabItems: unknown[]
-    activeId: string | null
-    activeTab?: any
-  }
+  computeSeasonTabState: (options?: { syncState?: boolean }) => SeasonTabState
   renderSeasonControls: () => void
   updateTransferButton: () => void
   updatePanelHeader: () => void
 }
 
 export interface ResourceSummaryContext {
-  tabState?: ReturnType<ResourceListRendererParams['computeSeasonTabState']>
+  tabState?: SeasonTabState
   visibleCount?: number
   visibleSelected?: number
 }
@@ -125,7 +120,7 @@ export function createResourceListRenderer(
 
     const tabState = renderSeasonTabs()
     const hasAnyItems = state.items.length > 0
-    const filteredItems =
+    const filteredItems: ResourceItem[] =
       Array.isArray(tabState.tabItems) && tabState.tabItems.length > 0
         ? filterItemsForActiveSeason(state.items, tabState.activeId)
         : [...state.items]
@@ -140,6 +135,7 @@ export function createResourceListRenderer(
 
     if (!filteredItems.length) {
       const emptyMessage = buildEmptyMessage({ hasAnyItems, tabState, state })
+      // eslint-disable-next-line vue/one-component-per-file
       listApp = createApp(ResourceListView, {
         items: [],
         emptyMessage,
@@ -154,7 +150,7 @@ export function createResourceListRenderer(
     }
 
     const sortedItems = sortItems(filteredItems, state.sortKey, state.sortOrder)
-    const viewItems = sortedItems.map((item) => {
+    const viewItems: ResourceListItemView[] = sortedItems.map((item) => {
       const isSelected = state.selectedIds.has(item.id)
       const isTransferred = state.transferredIds.has(item.id)
       const isNew = Boolean(state.currentHistory && state.newItemIds.has(item.id))
@@ -169,6 +165,7 @@ export function createResourceListRenderer(
       })
     })
 
+    // eslint-disable-next-line vue/one-component-per-file
     listApp = createApp(ResourceListView, {
       items: viewItems,
       emptyMessage: '',
@@ -194,7 +191,7 @@ function buildEmptyMessage({
   state,
 }: {
   hasAnyItems: boolean
-  tabState: ReturnType<ResourceListRendererParams['renderSeasonTabs']>
+  tabState: SeasonTabState
   state: ResourceListRendererParams['state']
 }): string {
   if (!hasAnyItems) {

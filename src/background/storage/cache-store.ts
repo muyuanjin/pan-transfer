@@ -281,7 +281,7 @@ function collectNormalizedPaths(paths: Iterable<string | null | undefined>): str
       if (normalized && normalized !== '/') {
         unique.add(normalized)
       }
-    } catch (_error) {
+    } catch {
       /* ignore invalid paths */
     }
   }

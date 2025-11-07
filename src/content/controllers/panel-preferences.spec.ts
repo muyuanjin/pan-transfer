@@ -42,7 +42,7 @@ describe('panel preferences controller', () => {
   it('loads global default without overriding tab scope', async () => {
     state.useSeasonSubdir = false
     state.seasonPreferenceScope = 'tab'
-    ;(safeStorageGet as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    vi.mocked(safeStorageGet).mockResolvedValueOnce({
       [STORAGE_KEY]: {
         useSeasonSubdir: true,
       },
@@ -84,18 +84,15 @@ describe('panel preferences controller', () => {
       onSeasonDefaultChange,
     })
 
-    ;(safeStorageSet as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(undefined)
+    vi.mocked(safeStorageSet).mockResolvedValueOnce(undefined)
 
     controller.saveSettings()
     await vi.runOnlyPendingTimersAsync()
 
-    expect(safeStorageSet).toHaveBeenCalledWith(
-      {
-        [STORAGE_KEY]: expect.objectContaining({
-          useSeasonSubdir: true,
-        }),
-      },
-      'settings',
-    )
+    const firstCall = vi.mocked(safeStorageSet).mock.calls[0]
+    expect(firstCall?.[0]).toMatchObject({
+      [STORAGE_KEY]: { useSeasonSubdir: true },
+    })
+    expect(firstCall?.[1]).toBe('settings')
   })
 })

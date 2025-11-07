@@ -161,7 +161,7 @@ function createEmptyDebug(): ClassificationDebug {
 }
 
 const SEASON_TRAILING_NOISE_PATTERNS: readonly RegExp[] = [
-  /\s*(?:N[\/-]?A|暂无(?:评分|评价)?|未评分|评分\s*[:：]?\s*待定|豆瓣\s*\d+(?:\.\d+)?|IMDb\s*\d+(?:\.\d+)?|烂番茄\s*\d+(?:\.\d+)?%?|\d+\.\d+(?:\s*分)?|\d+(?:\.\d+)?\s*\/\s*10|\d+(?:\.\d+)?\s*分)\s*$/iu,
+  /\s*(?:N[/-]?A|暂无(?:评分|评价)?|未评分|评分\s*[:：]?\s*待定|豆瓣\s*\d+(?:\.\d+)?|IMDb\s*\d+(?:\.\d+)?|烂番茄\s*\d+(?:\.\d+)?%?|\d+\.\d+(?:\s*分)?|\d+(?:\.\d+)?\s*\/\s*10|\d+(?:\.\d+)?\s*分)\s*$/iu,
   /\s*(?:已完结\d*|已完结|完结|全集|连载(?:中)?|更新(?:至[^，。；]*)?|更新中|播出中|定档[^，。；]*|收官|暂停(?:更新)?|未播|待播|待定|上映中|首播|即将播出|即将上线)\s*$/u,
   /\s*(?:\d{4}[./-]\d{1,2}(?:[./-]\d{1,2})?)\s*$/u,
   /\s*(?:[-–—·•|／]+)\s*$/u,
@@ -314,7 +314,7 @@ function resolveSeasonParentTvShowUrl(
     try {
       const origin = new URL(baseHref).origin
       return `${origin}/tvshows/${fallbackSeasonId}.html`
-    } catch (_error) {
+    } catch {
       return `${window.location.origin}/tvshows/${fallbackSeasonId}.html`
     }
   }
@@ -702,12 +702,11 @@ export function __resetPageAnalyzerForTests(): void {
   pageClassificationUrl = null
 }
 
-export async function getPageClassification(options: {
+/* eslint-disable no-redeclare */
+export function getPageClassification(options: {
   detailed: true
 }): Promise<DetailedClassificationResult>
-export async function getPageClassification(options?: {
-  detailed?: false
-}): Promise<MediaClassification>
+export function getPageClassification(options?: { detailed?: false }): Promise<MediaClassification>
 export async function getPageClassification({
   detailed = false,
 }: { detailed?: boolean } = {}): Promise<MediaClassification | DetailedClassificationResult> {
@@ -736,6 +735,7 @@ export async function getPageClassification({
   }
   return result.classification ?? 'unknown'
 }
+/* eslint-enable no-redeclare */
 
 export function suggestDirectoryFromClassification(
   classification: string | { classification?: string; type?: string } | null | undefined,
@@ -795,7 +795,7 @@ export function sanitizeSeasonDirSegment(value: string | null | undefined): stri
 
   // 第五步：替换文件系统非法字符
   normalized = normalized.replace(/[<>:"|?*]+/g, '-')
-  normalized = normalized.replace(/[\/\\]+/g, '-')
+  normalized = normalized.replace(/[/\\]+/g, '-')
   normalized = normalized.replace(/-+/g, '-')
   normalized = normalized.replace(/^-+|-+$/g, '')
   normalized = normalized.replace(/\s+/g, ' ').trim()
@@ -827,9 +827,9 @@ export function sanitizeSeasonDirSegment(value: string | null | undefined): stri
         '上映',
       ]
       const looksDate = /\d{4}[./-]\d{1,2}/.test(cleanedSuffix)
-      const looksNumeric = /^[\d\s./%-]+$/.test(cleanedSuffix)
+      const looksNumeric = /^[-\d\s./%]+$/.test(cleanedSuffix)
       const looksRating =
-        /^(?:N[\/-]?A|暂无(?:评分|评价)?|未评分|评分\s*[:：]?\s*待定|豆瓣\s*\d+(?:\.\d+)?|IMDb\s*\d+(?:\.\d+)?|烂番茄\s*\d+(?:\.\d+)?%?|\d+\.\d+(?:\s*分)?|\d+(?:\.\d+)?\s*\/\s*10|\d+(?:\.\d+)?\s*分)$/iu.test(
+        /^(?:N[/-]?A|暂无(?:评分|评价)?|未评分|评分\s*[:：]?\s*待定|豆瓣\s*\d+(?:\.\d+)?|IMDb\s*\d+(?:\.\d+)?|烂番茄\s*\d+(?:\.\d+)?%?|\d+\.\d+(?:\s*分)?|\d+(?:\.\d+)?\s*\/\s*10|\d+(?:\.\d+)?\s*分)$/iu.test(
           cleanedSuffix,
         )
       const hasKeywords = keywords.some((keyword) => cleanedSuffix.includes(keyword))
@@ -901,7 +901,7 @@ export function normalizePageUrl(url: string | null | undefined): string {
     const normalized = new URL(url, window.location.href)
     normalized.hash = ''
     return normalized.toString()
-  } catch (_error) {
+  } catch {
     return window.location.href
   }
 }
@@ -986,15 +986,15 @@ async function collectLinks(options: AnalyzePageOptions = {}): Promise<PageAnaly
     classificationDetail: null,
   }
 
-  try {
-    let completion: CompletionStatus | null = null
-    let seasonCompletion: Record<string, CompletionStatus> = {}
-    let deferredSeasons: DeferredSeasonInfo[] = []
-    let totalSeasons = 0
-    let loadedSeasons = 0
-    let seasonEntries: SeasonEntry[] = []
-    let items: ResourceItem[] = extractItemsFromDocument(document)
+  let completion: CompletionStatus | null = null
+  let seasonCompletion: Record<string, CompletionStatus> = {}
+  let deferredSeasons: DeferredSeasonInfo[] = []
+  let totalSeasons = 0
+  let loadedSeasons = 0
+  let seasonEntries: SeasonEntry[] = []
+  let items: ResourceItem[] = extractItemsFromDocument(document)
 
+  try {
     if (seasonContext) {
       completion = extractSeasonPageCompletion(document)
     }
@@ -1092,7 +1092,7 @@ async function collectLinks(options: AnalyzePageOptions = {}): Promise<PageAnaly
     if (seasonContext?.parentUrl) {
       try {
         finalOrigin = new URL(seasonContext.parentUrl).origin
-      } catch (_error) {
+      } catch {
         finalOrigin = baseResult.origin
       }
     }
@@ -1107,8 +1107,8 @@ async function collectLinks(options: AnalyzePageOptions = {}): Promise<PageAnaly
       completion,
       seasonCompletion,
       deferredSeasons: normalizedDeferredSeasons,
-      totalSeasons,
-      loadedSeasons,
+      totalSeasons: totalSeasons,
+      loadedSeasons: loadedSeasons,
       seasonEntries: normalizedSeasonEntries,
       classification: classificationDetail.classification,
       classificationDetail,
@@ -1118,7 +1118,7 @@ async function collectLinks(options: AnalyzePageOptions = {}): Promise<PageAnaly
     let classificationDetail: DetailedClassificationResult | null = null
     try {
       classificationDetail = await getPageClassification({ detailed: true })
-    } catch (_error) {
+    } catch {
       classificationDetail = null
     }
     const finalUrl = seasonContext?.parentUrl || baseResult.url
@@ -1126,19 +1126,33 @@ async function collectLinks(options: AnalyzePageOptions = {}): Promise<PageAnaly
     if (seasonContext?.parentUrl) {
       try {
         finalOrigin = new URL(seasonContext.parentUrl).origin
-      } catch (_error) {
+      } catch {
         finalOrigin = baseResult.origin
       }
     }
     const finalTitle = seasonContext?.showTitle ? seasonContext.showTitle : baseResult.title
+    const fallbackDetail: DetailedClassificationResult = classificationDetail ?? {
+      url: finalUrl,
+      classification: 'unknown',
+      confidence: 0,
+      reasons: ['收集资源失败'],
+      debug: createEmptyDebug(),
+    }
 
     return {
       ...baseResult,
       url: finalUrl,
       origin: finalOrigin,
       title: finalTitle,
-      classification: classificationDetail?.classification ?? 'unknown',
-      classificationDetail,
+      items: [],
+      completion: null,
+      seasonCompletion: {},
+      deferredSeasons: [],
+      totalSeasons: totalSeasons,
+      loadedSeasons: loadedSeasons,
+      seasonEntries: [],
+      classification: fallbackDetail.classification,
+      classificationDetail: fallbackDetail,
     }
   }
 }
@@ -1657,7 +1671,7 @@ function resolveAbsoluteUrl(
   }
   try {
     return new URL(trimmed, baseUrl).href
-  } catch (_error) {
+  } catch {
     return ''
   }
 }

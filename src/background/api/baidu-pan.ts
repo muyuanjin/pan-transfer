@@ -150,7 +150,7 @@ function delay(ms: number): Promise<void> {
   return new Promise<void>((resolve) => setTimeout(resolve, ms))
 }
 
-async function fetchJson<T = any>(
+async function fetchJson<T = unknown>(
   url: string,
   options: FetchJsonOptions = {},
   referer = 'https://pan.baidu.com/',
@@ -195,10 +195,10 @@ async function getSeKeyFromCookie(): Promise<string | undefined> {
     }
     try {
       return decodeURIComponent(cookie.value)
-    } catch (_error) {
+    } catch {
       return cookie.value
     }
-  } catch (_error) {
+  } catch {
     return undefined
   }
 }
@@ -363,7 +363,7 @@ export async function fetchShareMetadata(
     if (verifyResult.randsk) {
       try {
         seKey = decodeURIComponent(verifyResult.randsk)
-      } catch (_error) {
+      } catch {
         seKey = verifyResult.randsk
       }
     }
@@ -377,7 +377,7 @@ export async function fetchShareMetadata(
       shareUrl.searchParams.set('pwd', passCode)
     }
     linkToFetch = shareUrl.toString()
-  } catch (_error) {
+  } catch {
     linkToFetch = linkUrl
   }
 
@@ -773,33 +773,33 @@ export async function ensureDirectoryExists(
       block_list: '[]',
     })
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: withPanHeaders(
-        {
+    logStage?.(jobId, 'list', `创建目录：${current}${contextLabel}`)
+    const data = await fetchJson<{ errno?: number | string }>(
+      url,
+      {
+        method: 'POST',
+        headers: {
           'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         },
-        'https://pan.baidu.com/disk/home',
-      ),
-      credentials: 'include',
-      body: body.toString(),
-    })
-
-    logStage?.(jobId, 'list', `创建目录：${current}${contextLabel}`)
-    const data = await response.json()
-    if (maybeHandleLoginRequired(data.errno, 'create-directory')) {
+        body: body.toString(),
+      },
+      'https://pan.baidu.com/disk/home',
+    )
+    const errno =
+      typeof data.errno === 'number' ? data.errno : Number(data.errno ?? Number.NaN) || -1
+    if (maybeHandleLoginRequired(errno, 'create-directory')) {
       throw createLoginRequiredError()
     }
-    if (data.errno !== 0 && data.errno !== -8 && data.errno !== 31039) {
-      logStage?.(jobId, 'list', `创建目录失败：${current}${contextLabel}（errno ${data.errno}）`, {
+    if (errno !== 0 && errno !== -8 && errno !== 31039) {
+      logStage?.(jobId, 'list', `创建目录失败：${current}${contextLabel}（errno ${errno}）`, {
         level: 'error',
       })
-      throw new Error(`创建目录失败(${current})：${data.errno}`)
+      throw new Error(`创建目录失败(${current})：${errno}`)
     }
     logStage?.(
       jobId,
       'list',
-      `目录创建完成：${current}${contextLabel}${data.errno === -8 || data.errno === 31039 ? '（已存在）' : ''}`,
+      `目录创建完成：${current}${contextLabel}${errno === -8 || errno === 31039 ? '（已存在）' : ''}`,
       {
         level: 'success',
       },

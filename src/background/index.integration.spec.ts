@@ -191,13 +191,17 @@ class ChromeTestHarness {
         optionsOrCallback?: unknown,
         callback?: (response?: unknown) => void,
       ) => {
-        const responseCallback =
-          typeof optionsOrCallback === 'function' ? optionsOrCallback : callback
+        const responseCallback: ((response?: unknown) => void) | undefined =
+          typeof optionsOrCallback === 'function'
+            ? (optionsOrCallback as (response?: unknown) => void)
+            : callback
         harness.dispatchToListeners(
           harness.contentListeners,
           message,
           harness.createMessageSender(tabId),
-          (response) => responseCallback?.(response),
+          (response) => {
+            responseCallback?.(response)
+          },
         )
       },
       onRemoved: {
@@ -228,7 +232,6 @@ class ChromeTestHarness {
   }
 
   restore(): void {
-    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
     delete (globalThis as { chrome?: typeof chrome }).chrome
     this.backgroundListeners.clear()
     this.contentListeners.clear()
@@ -552,7 +555,6 @@ describe('background/content messaging integration', () => {
   let transferController: ReturnType<
     (typeof import('@/content/runtime/transfer/transfer-controller'))['createTransferController']
   >
-  let deleteHistoryRecords: (typeof import('@/content/services/history-service'))['deleteHistoryRecords']
   let reloadHistoryFromStorage: (typeof import('./storage/history-store'))['reloadHistoryFromStorage']
   let floatingPanel: HTMLElement
 
@@ -584,13 +586,16 @@ describe('background/content messaging integration', () => {
     panelDom.clear()
     resetDetailDomRefs(detailDom)
 
-    const historyModule = await import('@/content/history/controller')
-    const transferModule = await import('@/content/runtime/transfer/transfer-controller')
-    const chromeEventsModule = await import('@/content/runtime/lifecycle/chrome-events')
-    const typesModule = await import('@/content/types')
-    const historyServiceModule = await import('@/content/services/history-service')
-
-    deleteHistoryRecords = historyServiceModule.deleteHistoryRecords
+    const historyModule = (await import(
+      '@/content/history/controller'
+    )) as typeof import('@/content/history/controller')
+    const transferModule = (await import(
+      '@/content/runtime/transfer/transfer-controller'
+    )) as typeof import('@/content/runtime/transfer/transfer-controller')
+    const chromeEventsModule = (await import(
+      '@/content/runtime/lifecycle/chrome-events'
+    )) as typeof import('@/content/runtime/lifecycle/chrome-events')
+    const typesModule = (await import('@/content/types')) as typeof import('@/content/types')
 
     floatingPanel = document.createElement('div')
     document.body.innerHTML = ''
@@ -760,7 +765,18 @@ describe('background/content messaging integration', () => {
     expect(state.historyRecords).toHaveLength(2)
 
     harness.setContext('content')
-    await deleteHistoryRecords([first.pageUrl])
+    await new Promise<void>((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        { type: 'chaospace:history-delete', payload: { urls: [first.pageUrl] } },
+        (response: { ok?: boolean; error?: string } | undefined) => {
+          if (!response || response.ok === false) {
+            reject(new Error(response?.error ?? '删除历史记录失败'))
+            return
+          }
+          resolve()
+        },
+      )
+    })
     await flushTasks()
 
     expect(state.historyRecords).toHaveLength(1)

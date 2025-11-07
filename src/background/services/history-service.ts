@@ -240,7 +240,7 @@ export async function handleCheckUpdates(
     try {
       const url = new URL(pageUrl)
       origin = `${url.protocol}//${url.host}`
-    } catch (_error) {
+    } catch {
       origin = record.origin || ''
     }
   }

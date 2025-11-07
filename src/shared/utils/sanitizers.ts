@@ -21,11 +21,11 @@ export function decodeHtmlEntities(input: string | null | undefined): string {
     .replace(/&#39;/gi, "'")
     .replace(/&#x27;/gi, "'")
     .replace(/&#x2F;/gi, '/')
-    .replace(/&#(\d+);/g, (_m, code) => {
+    .replace(/&#(\d+);/g, (_m, code: string) => {
       const num = parseInt(code, 10)
       return Number.isFinite(num) ? String.fromCharCode(num) : ''
     })
-    .replace(/&#x([0-9a-fA-F]+);/g, (_m, hex) => {
+    .replace(/&#x([0-9a-fA-F]+);/g, (_m, hex: string) => {
       const num = parseInt(hex, 16)
       return Number.isFinite(num) ? String.fromCharCode(num) : ''
     })

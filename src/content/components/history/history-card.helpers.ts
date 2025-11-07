@@ -39,7 +39,7 @@ export function formatHistoryTimestamp(timestamp: number | null | undefined): st
       minute: '2-digit',
     })
     return formatter.format(new Date(timestamp))
-  } catch (_error) {
+  } catch {
     return ''
   }
 }

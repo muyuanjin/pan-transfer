@@ -46,7 +46,7 @@ export interface HistoryDetailData {
 
 export type HistoryDetailFallback = HistoryDetailData
 
-export interface HistoryDetailOverrides extends Partial<HistoryDetailData> {}
+export type HistoryDetailOverrides = Partial<HistoryDetailData>
 
 export interface HistoryDetailOverlayOptions {
   onClose?: () => void

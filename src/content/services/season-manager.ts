@@ -31,7 +31,7 @@ function getSeasonDomRefs(): SeasonManagerDomRefs {
   return seasonDomRefs
 }
 
-interface SeasonTabItem {
+export interface SeasonTabItem {
   id: string
   name: string
   count: number
@@ -39,7 +39,7 @@ interface SeasonTabItem {
   index: number
 }
 
-interface SeasonTabState {
+export interface SeasonTabState {
   tabItems: SeasonTabItem[]
   activeId: string | null
   activeTab: SeasonTabItem | null

@@ -109,7 +109,7 @@ export function normalizeSeasonLabel(label: string | null | undefined): string {
   }
 
   const seasonPattern = /第([\d一二三四五六七八九十百零两]+)季/g
-  const normalized = text.replace(seasonPattern, (match, ordinal) => {
+  const normalized = text.replace(seasonPattern, (match: string, ordinal: string) => {
     const value = resolveSeasonOrdinalValue(ordinal)
     if (Number.isFinite(value) && value > 0) {
       return `第${value}季`

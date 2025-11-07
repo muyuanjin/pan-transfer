@@ -179,7 +179,6 @@ describe('history controller', () => {
     if (originalChrome) {
       globalThis.chrome = originalChrome
     } else {
-      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
       delete (globalThis as { chrome?: typeof chrome }).chrome
     }
   })

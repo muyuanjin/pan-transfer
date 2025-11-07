@@ -15,11 +15,16 @@ export function isExtensionContextInvalidated(error: unknown): boolean {
   if (!error) {
     return false
   }
-  const message = typeof error === 'string' ? error : (error as { message?: unknown })?.message
+  const message =
+    typeof error === 'string'
+      ? error
+      : typeof (error as { message?: unknown }).message === 'string'
+        ? (error as { message: string }).message
+        : ''
   if (!message) {
     return false
   }
-  return String(message).toLowerCase().includes('context invalidated')
+  return message.toLowerCase().includes('context invalidated')
 }
 
 export function warnStorageInvalidation(

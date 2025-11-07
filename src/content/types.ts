@@ -18,9 +18,9 @@ export type TransferStatus = 'idle' | 'running' | 'success' | 'error'
 
 export type HistoryFilter = HistoryFilterOption
 
-export interface HistoryCompletion extends CompletionStatus {}
+export type HistoryCompletion = CompletionStatus
 
-export interface HistoryPoster extends PosterInfo {}
+export type HistoryPoster = PosterInfo
 
 export type ContentHistoryRecord = SharedHistoryRecord & {
   children?: ContentHistoryRecord[]

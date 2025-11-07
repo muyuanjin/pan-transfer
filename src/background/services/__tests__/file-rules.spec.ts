@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
 
-import { applyFileFilters, buildRenamePlan } from '../file-rules'
+import * as fileRuleModule from '../file-rules'
+import type { FileFilterResult, RenamePlanEntry } from '../file-rules'
 import type { ShareFileEntry } from '../../api/baidu-pan'
-import type { FileFilterRule, FileRenameRule } from '@/shared/settings'
+import type { FileFilterRule, FileRenameRule, FileFilterEvaluationMode } from '@/shared/settings'
 
 function createEntry(
   fsId: number,
@@ -16,6 +17,23 @@ function createEntry(
     size,
     isDir: options.isDir ?? false,
     path: options.path ?? `/mock/${name}`,
+  }
+}
+
+function assertIsFileFilterResult(value: unknown): asserts value is FileFilterResult {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    !Array.isArray((value as FileFilterResult).entries) ||
+    !Array.isArray((value as FileFilterResult).skipped)
+  ) {
+    throw new Error('Unexpected file filter result')
+  }
+}
+
+function assertIsRenamePlan(value: unknown): asserts value is RenamePlanEntry[] {
+  if (!Array.isArray(value)) {
+    throw new Error('Unexpected rename plan result')
   }
 }
 
@@ -37,7 +55,8 @@ describe('applyFileFilters', () => {
       },
     ]
 
-    const result = applyFileFilters(entries, rules, 'deny-first')
+    const result = applyFileFiltersSafe(entries, rules, 'deny-first')
+    assertIsFileFilterResult(result)
 
     expect(result.entries).toHaveLength(1)
     expect(result.entries[0]?.serverFilename).toBe('Movie.1080p.mkv')
@@ -62,7 +81,8 @@ describe('applyFileFilters', () => {
       },
     ]
 
-    const result = applyFileFilters(entries, rules, 'allow-first')
+    const result = applyFileFiltersSafe(entries, rules, 'allow-first')
+    assertIsFileFilterResult(result)
 
     expect(result.entries.map((entry) => entry?.serverFilename)).toEqual(['trailer.mov'])
     expect(result.skipped).toHaveLength(1)
@@ -87,7 +107,8 @@ describe('applyFileFilters', () => {
       },
     ]
 
-    const result = applyFileFilters(entries, rules, 'ordered')
+    const result = applyFileFiltersSafe(entries, rules, 'ordered')
+    assertIsFileFilterResult(result)
 
     expect(result.skipped).toHaveLength(2)
     expect(result.skipped[0]).toMatchObject({ name: 'empty.bin', ruleName: '空文件' })
@@ -117,7 +138,8 @@ describe('applyFileFilters', () => {
       },
     ]
 
-    const result = applyFileFilters(entries, rules, 'deny-first')
+    const result = applyFileFiltersSafe(entries, rules, 'deny-first')
+    assertIsFileFilterResult(result)
 
     expect(result.entries.map((entry) => entry.serverFilename)).toEqual([
       'Somnium.2025.1080p.WEBRip.CHS&ENG-HAN.CHAOSPACE.mp4',
@@ -160,7 +182,9 @@ describe('buildRenamePlan', () => {
       },
     ]
 
-    const plan = buildRenamePlan(entries, renameRules, new Set(['movie 1080p web-dl.mkv']))
+    const planInput = buildRenamePlanSafe(entries, renameRules, new Set(['movie 1080p web-dl.mkv']))
+    assertIsRenamePlan(planInput)
+    const plan = planInput
 
     expect(plan).toHaveLength(2)
     expect(plan[0]).toMatchObject({
@@ -190,7 +214,9 @@ describe('buildRenamePlan', () => {
       },
     ]
 
-    const plan = buildRenamePlan(entries, renameRules)
+    const planInput = buildRenamePlanSafe(entries, renameRules)
+    assertIsRenamePlan(planInput)
+    const plan = planInput
 
     expect(plan).toHaveLength(1)
     expect(plan[0]).toMatchObject({
@@ -218,7 +244,9 @@ describe('buildRenamePlan', () => {
       },
     ]
 
-    const plan = buildRenamePlan(entries, renameRules)
+    const planInput = buildRenamePlanSafe(entries, renameRules)
+    assertIsRenamePlan(planInput)
+    const plan = planInput
 
     expect(plan.map((entry) => entry.finalName)).toEqual([
       'normalized.pkg.tar.zst',
@@ -230,3 +258,17 @@ describe('buildRenamePlan', () => {
     ])
   })
 })
+type ApplyFileFiltersFn = (
+  entries: ShareFileEntry[],
+  rules: FileFilterRule[],
+  mode: FileFilterEvaluationMode,
+) => FileFilterResult
+
+type BuildRenamePlanFn = (
+  entries: ShareFileEntry[],
+  renameRules: FileRenameRule[],
+  existingNames?: Set<string>,
+) => RenamePlanEntry[]
+
+const applyFileFiltersSafe = fileRuleModule.applyFileFilters as unknown as ApplyFileFiltersFn
+const buildRenamePlanSafe = fileRuleModule.buildRenamePlan as unknown as BuildRenamePlanFn

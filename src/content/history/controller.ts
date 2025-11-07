@@ -28,6 +28,19 @@ import historyDetailCssHref from '../styles/overlays/history-detail.css?url'
 import { loadCss } from '../styles.loader'
 import type { TabSeasonPreferenceController } from '../services/tab-season-preference'
 
+interface HistoryDetailResponsePayload {
+  ok: boolean
+  error?: string
+  detail?: unknown
+}
+
+function isHistoryDetailResponsePayload(value: unknown): value is HistoryDetailResponsePayload {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+  return 'ok' in value && typeof (value as { ok?: unknown }).ok === 'boolean'
+}
+
 const historyDetailCssUrl = historyDetailCssHref
 let historyDetailCssPromise: Promise<void> | null = null
 function ensureHistoryDetailStyles(): Promise<void> {
@@ -269,14 +282,22 @@ export function createHistoryController(deps: HistoryControllerDeps) {
       return
     }
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = (await chrome.runtime.sendMessage({
         type: 'chaospace:history-detail',
         payload: { pageUrl: cacheKey },
-      })
-      if (!response || response.ok === false) {
-        throw new Error(response?.error || '加载详情失败')
+      })) as unknown
+      if (!isHistoryDetailResponsePayload(response)) {
+        throw new Error('加载详情失败')
       }
-      const normalized = normalizeHistoryDetailResponse(response.detail || {}, fallback)
+      if (!response.ok) {
+        const message = typeof response.error === 'string' ? response.error : '加载详情失败'
+        throw new Error(message)
+      }
+      const detailSource =
+        response.detail && typeof response.detail === 'object'
+          ? (response.detail as Record<string, unknown>)
+          : {}
+      const normalized = normalizeHistoryDetailResponse(detailSource, fallback)
       state.historyDetailCache.set(cacheKey, normalized)
       state.historyDetail.data = normalized
       state.historyDetail.loading = false

@@ -9,7 +9,7 @@ export function disableElementDrag(element: HTMLElement | null | undefined): voi
   try {
     element.setAttribute('draggable', 'false')
     element.addEventListener('dragstart', handleSuppressDrag, { passive: false })
-  } catch (_error) {
+  } catch {
     // Ignore unsupported nodes.
   }
 }

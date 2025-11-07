@@ -115,7 +115,7 @@ export const resolveSeasonUrl = (href: string | null | undefined, baseUrl: strin
     const url = new URL(normalizedHref, baseUrl || undefined)
     url.hash = ''
     return url.toString()
-  } catch (_error) {
+  } catch {
     return ''
   }
 }

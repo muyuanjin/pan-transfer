@@ -164,7 +164,10 @@ function readFileAsText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onerror = () => reject(new Error('读取文件失败'))
-    reader.onload = () => resolve(String(reader.result ?? ''))
+    reader.onload = () => {
+      const result = reader.result
+      resolve(typeof result === 'string' ? result : '')
+    }
     reader.readAsText(file, 'utf-8')
   })
 }
@@ -973,8 +976,13 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
           }
           try {
             const text = await readFileAsText(file)
-            const parsed = JSON.parse(text)
-            if (parsed.type && parsed.type !== 'chaospace-settings-export') {
+            const parsed: unknown = JSON.parse(text)
+            if (
+              parsed &&
+              typeof parsed === 'object' &&
+              'type' in parsed &&
+              (parsed as { type?: unknown }).type !== 'chaospace-settings-export'
+            ) {
               throw new Error('请选择通过“导出设置”生成的 JSON 文件')
             }
             await importSettingsSnapshot(parsed)
@@ -1004,8 +1012,13 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
           }
           try {
             const text = await readFileAsText(file)
-            const parsed = JSON.parse(text)
-            if (parsed.type && parsed.type !== 'chaospace-transfer-backup') {
+            const parsed: unknown = JSON.parse(text)
+            if (
+              parsed &&
+              typeof parsed === 'object' &&
+              'type' in parsed &&
+              (parsed as { type?: unknown }).type !== 'chaospace-transfer-backup'
+            ) {
               throw new Error('请选择通过“导出全部数据”生成的 JSON 文件')
             }
             await importFullBackup(parsed)

@@ -118,6 +118,16 @@ const isSeasonPreferenceClearMessage = (
 ): message is SeasonPreferenceClearMessage => message?.type === 'chaospace:season-pref:clear'
 const jobContexts = new Map<string, JobContext>()
 
+const resolveErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error && typeof error.message === 'string' && error.message.trim()) {
+    return error.message
+  }
+  if (typeof error === 'string' && error.trim()) {
+    return error.trim()
+  }
+  return fallback
+}
+
 function isIgnorableMessageError(error: unknown): boolean {
   if (!error) {
     return true
@@ -230,9 +240,9 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
     })()
     reloadPromise
       .then(() => sendResponse({ ok: true }))
-      .catch((error) => {
+      .catch((error: unknown) => {
         console.warn('[Chaospace Transfer] Failed to reload storage state', error)
-        sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) })
+        sendResponse({ ok: false, error: resolveErrorMessage(error, String(error)) })
       })
     return true
   }
@@ -244,7 +254,7 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
     }
     getTabSeasonPreference(tabId)
       .then((value) => sendResponse({ ok: true, tabId, value }))
-      .catch((error) => {
+      .catch((error: unknown) => {
         console.warn('[Chaospace Transfer] Failed to read tab season preference', {
           tabId,
           error,
@@ -253,7 +263,7 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
           ok: false,
           tabId,
           value: null,
-          error: error instanceof Error ? error.message : '无法读取按季偏好',
+          error: resolveErrorMessage(error, '无法读取按季偏好'),
         })
       })
     return true
@@ -268,14 +278,14 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
     }
     setTabSeasonPreference(tabId, rawValue)
       .then(() => sendResponse({ ok: true }))
-      .catch((error) => {
+      .catch((error: unknown) => {
         console.warn('[Chaospace Transfer] Failed to persist tab season preference', {
           tabId,
           error,
         })
         sendResponse({
           ok: false,
-          error: error instanceof Error ? error.message : '无法保存按季偏好',
+          error: resolveErrorMessage(error, '无法保存按季偏好'),
         })
       })
     return true
@@ -289,14 +299,14 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
     }
     clearTabSeasonPreference(tabId)
       .then(() => sendResponse({ ok: true }))
-      .catch((error) => {
+      .catch((error: unknown) => {
         console.warn('[Chaospace Transfer] Failed to clear tab season preference', {
           tabId,
           error,
         })
         sendResponse({
           ok: false,
-          error: error instanceof Error ? error.message : '无法清理按季偏好',
+          error: resolveErrorMessage(error, '无法清理按季偏好'),
         })
       })
     return true
@@ -309,14 +319,18 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
       : []
     deleteHistoryRecords(urls)
       .then((result) => sendResponse(result))
-      .catch((error) => sendResponse({ ok: false, error: error.message || '删除历史记录失败' }))
+      .catch((error: unknown) =>
+        sendResponse({ ok: false, error: resolveErrorMessage(error, '删除历史记录失败') }),
+      )
     return true
   }
 
   if (isHistoryClearMessage(message)) {
     clearHistoryRecords()
       .then((result) => sendResponse(result))
-      .catch((error) => sendResponse({ ok: false, error: error.message || '清空历史失败' }))
+      .catch((error: unknown) =>
+        sendResponse({ ok: false, error: resolveErrorMessage(error, '清空历史失败') }),
+      )
     return true
   }
 
@@ -324,7 +338,9 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
     const pageUrl = typeof message.payload?.pageUrl === 'string' ? message.payload.pageUrl : ''
     handleHistoryDetail({ pageUrl })
       .then((result) => sendResponse(result))
-      .catch((error) => sendResponse({ ok: false, error: error.message || '获取详情失败' }))
+      .catch((error: unknown) =>
+        sendResponse({ ok: false, error: resolveErrorMessage(error, '获取详情失败') }),
+      )
     return true
   }
 
@@ -337,7 +353,9 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
     }
     handleCheckUpdates(updatesPayload)
       .then((result) => sendResponse(result))
-      .catch((error) => sendResponse({ ok: false, error: error.message || '检测更新失败' }))
+      .catch((error: unknown) =>
+        sendResponse({ ok: false, error: resolveErrorMessage(error, '检测更新失败') }),
+      )
     return true
   }
 
@@ -359,7 +377,9 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
     }
     handleTransfer(payload)
       .then((result) => sendResponse({ ok: true, ...result }))
-      .catch((error) => sendResponse({ ok: false, error: error.message || '转存失败' }))
+      .catch((error: unknown) =>
+        sendResponse({ ok: false, error: resolveErrorMessage(error, '转存失败') }),
+      )
       .finally(() => {
         if (payload.jobId) {
           jobContexts.delete(payload.jobId)

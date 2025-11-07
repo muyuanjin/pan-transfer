@@ -142,7 +142,7 @@ async function setupOfflineRoutes(context: BrowserContext): Promise<void> {
         headers: CHAOSPACE_STUB_HEADERS,
         body: '',
       })
-    } catch (_error) {
+    } catch {
       await route.fulfill({
         status: 204,
         headers: CHAOSPACE_STUB_HEADERS,
@@ -297,7 +297,7 @@ test.describe('Chaospace panel overlay', () => {
             await expect(panelLocator, 'Chaospace panel should render on the page').toBeVisible({
               timeout: PANEL_RENDER_TIMEOUT,
             })
-          } catch (error) {
+          } catch {
             throw new Error(
               errorTracker.formatCollectedErrors(
                 'Chaospace panel failed to render before timing out',

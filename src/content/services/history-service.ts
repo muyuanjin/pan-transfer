@@ -204,7 +204,7 @@ export function deriveHistoryGroupKey(record: ContentHistoryRecord | null | unde
     try {
       const url = new URL(record.pageUrl)
       origin = `${url.protocol}//${url.host}`
-    } catch (_error) {
+    } catch {
       origin = ''
     }
   }
@@ -672,17 +672,28 @@ export interface HistoryMutationResponse {
   [key: string]: unknown
 }
 
+function isHistoryMutationResponse(value: unknown): value is HistoryMutationResponse {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+  return 'ok' in value && typeof (value as { ok?: unknown }).ok === 'boolean'
+}
+
 export async function deleteHistoryRecords(urls: string[] = []): Promise<HistoryMutationResponse> {
   if (!Array.isArray(urls) || urls.length === 0) {
     return { ok: true, removed: 0 }
   }
   try {
-    const response = await chrome.runtime.sendMessage({
+    const response = (await chrome.runtime.sendMessage({
       type: 'chaospace:history-delete',
       payload: { urls },
-    })
-    if (!response || response.ok === false) {
-      throw new Error(response?.error || '删除历史记录失败')
+    })) as unknown
+    if (!isHistoryMutationResponse(response) || !response.ok) {
+      const message =
+        isHistoryMutationResponse(response) && typeof response.error === 'string'
+          ? response.error
+          : '删除历史记录失败'
+      throw new Error(message)
     }
     return response
   } catch (error) {
@@ -693,9 +704,15 @@ export async function deleteHistoryRecords(urls: string[] = []): Promise<History
 
 export async function clearAllHistoryRecords(): Promise<HistoryMutationResponse> {
   try {
-    const response = await chrome.runtime.sendMessage({ type: 'chaospace:history-clear' })
-    if (!response || response.ok === false) {
-      throw new Error(response?.error || '清空历史记录失败')
+    const response = (await chrome.runtime.sendMessage({
+      type: 'chaospace:history-clear',
+    })) as unknown
+    if (!isHistoryMutationResponse(response) || !response.ok) {
+      const message =
+        isHistoryMutationResponse(response) && typeof response.error === 'string'
+          ? response.error
+          : '清空历史记录失败'
+      throw new Error(message)
     }
     return response
   } catch (error) {
@@ -710,17 +727,27 @@ export interface HistoryUpdateResponse {
   [key: string]: unknown
 }
 
+function isHistoryUpdateResponsePayload(value: unknown): value is HistoryUpdateResponse {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+  return 'ok' in value && typeof (value as { ok?: unknown }).ok === 'boolean'
+}
+
 export async function requestHistoryUpdate(pageUrl: string): Promise<HistoryUpdateResponse> {
   if (!pageUrl) {
     return { ok: false, error: new Error('缺少页面地址') }
   }
   try {
-    const response = await chrome.runtime.sendMessage({
+    const response = (await chrome.runtime.sendMessage({
       type: 'chaospace:check-updates',
       payload: { pageUrl },
-    })
-    if (!response || response.ok === false) {
-      const errorValue = response?.error
+    })) as unknown
+    if (!isHistoryUpdateResponsePayload(response)) {
+      return { ok: false, error: new Error('检测失败') }
+    }
+    if (!response.ok) {
+      const errorValue = response.error
       const errorMessage =
         typeof errorValue === 'string'
           ? errorValue

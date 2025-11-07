@@ -111,6 +111,7 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
   if (hasEntries) {
     const selectedKeys = Array.from(state.historySelectedKeys || [])
     const seasonExpandedKeys = Array.from(state.historySeasonExpanded || [])
+    // eslint-disable-next-line vue/one-component-per-file
     historyListApp = createApp(HistoryListView, {
       entries,
       currentUrl,
@@ -137,6 +138,7 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
   }
   historySummaryBody.innerHTML = ''
 
+  // eslint-disable-next-line vue/one-component-per-file
   historySummaryApp = createApp(HistorySummaryView, {
     summary: summaryData,
     historyExpanded: Boolean(state.historyExpanded),

@@ -67,24 +67,33 @@ export function registerChromeEvents(deps: {
 
     const settingsChange = changes[STORAGE_KEY]
     if (settingsChange?.newValue) {
-      const nextTheme = settingsChange.newValue.theme
-      if ((nextTheme === 'light' || nextTheme === 'dark') && nextTheme !== state.theme) {
-        state.theme = nextTheme
-        applyTheme()
-      }
-      if (typeof settingsChange.newValue.historyRateLimitMs === 'number') {
-        const nextRate = clampHistoryRateLimit(settingsChange.newValue.historyRateLimitMs)
-        if (nextRate !== state.historyRateLimitMs) {
-          state.historyRateLimitMs = nextRate
-          rerenderSettingsIfOpen()
+      const nextSettings: unknown = settingsChange.newValue
+      const prevSettings: unknown = settingsChange.oldValue
+      if (nextSettings && typeof nextSettings === 'object') {
+        const themeValue = (nextSettings as { theme?: unknown }).theme
+        if ((themeValue === 'light' || themeValue === 'dark') && themeValue !== state.theme) {
+          state.theme = themeValue
+          applyTheme()
         }
-      }
-      const nextSeasonPref = settingsChange.newValue.useSeasonSubdir
-      const prevSeasonPref = settingsChange.oldValue?.useSeasonSubdir
-      if (typeof nextSeasonPref === 'boolean') {
-        syncSeasonPreference(nextSeasonPref)
-      } else if (typeof prevSeasonPref === 'boolean' && typeof nextSeasonPref !== 'boolean') {
-        syncSeasonPreference(null)
+        const rateLimitValue = (nextSettings as { historyRateLimitMs?: unknown }).historyRateLimitMs
+        if (typeof rateLimitValue === 'number') {
+          const nextRate = clampHistoryRateLimit(rateLimitValue)
+          if (nextRate !== state.historyRateLimitMs) {
+            state.historyRateLimitMs = nextRate
+            rerenderSettingsIfOpen()
+          }
+        }
+        const nextSeasonPref = (nextSettings as { useSeasonSubdir?: unknown }).useSeasonSubdir
+        if (typeof nextSeasonPref === 'boolean') {
+          syncSeasonPreference(nextSeasonPref)
+        }
+        const prevSeasonPref =
+          prevSettings && typeof prevSettings === 'object'
+            ? (prevSettings as { useSeasonSubdir?: unknown }).useSeasonSubdir
+            : undefined
+        if (typeof prevSeasonPref === 'boolean' && typeof nextSeasonPref !== 'boolean') {
+          syncSeasonPreference(null)
+        }
       }
     }
 

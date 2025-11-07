@@ -18,6 +18,20 @@ type HistoryController = ReturnType<typeof createHistoryController>
 type PanelPreferencesController = ReturnType<typeof createPanelPreferencesController>
 type LoggingController = ReturnType<typeof createLoggingController>
 
+interface TransferResponsePayload {
+  ok: boolean
+  error?: string
+  results?: Array<{ status?: string }>
+  summary?: string
+}
+
+function isTransferResponsePayload(value: unknown): value is TransferResponsePayload {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+  return 'ok' in value && typeof (value as { ok?: unknown }).ok === 'boolean'
+}
+
 export function createTransferController(deps: {
   panelDom: PanelBaseDirDomRefs
   logging: LoggingController
@@ -158,22 +172,21 @@ export function createTransferController(deps: {
         stage: 'dispatch',
       })
 
-      const response = await chrome.runtime.sendMessage({
+      const response = (await chrome.runtime.sendMessage({
         type: 'chaospace:transfer',
         payload,
-      })
+      })) as unknown
 
-      if (!response) {
+      if (!isTransferResponsePayload(response)) {
         throw new Error('未收到后台响应')
       }
       if (!response.ok) {
-        throw new Error(response.error || '后台执行失败')
+        const message = typeof response.error === 'string' ? response.error : '后台执行失败'
+        throw new Error(message)
       }
 
-      const { results = [], summary = '' } = response as {
-        results: Array<{ status?: string }>
-        summary?: string
-      }
+      const results = Array.isArray(response.results) ? response.results : []
+      const summary = typeof response.summary === 'string' ? response.summary : ''
       const success = results.filter((r) => r.status === 'success').length
       const failed = results.filter((r) => r.status === 'failed').length
       const skipped = results.filter((r) => r.status === 'skipped').length

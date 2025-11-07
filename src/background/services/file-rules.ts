@@ -248,7 +248,7 @@ function getRegex(pattern: string, flags: string, cache: Map<string, RegExp>): R
     const regex = new RegExp(pattern, flags)
     cache.set(key, regex)
     return regex
-  } catch (_error) {
+  } catch {
     return null
   }
 }
@@ -426,7 +426,7 @@ export async function loadProcessingSettings(): Promise<ProcessingSettings> {
       filterRules,
       renameRules,
     }
-  } catch (_error) {
+  } catch {
     return {
       mode: DEFAULT_FILE_FILTER_MODE,
       filterRules: [],

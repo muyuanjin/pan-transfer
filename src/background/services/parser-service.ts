@@ -321,7 +321,7 @@ export function parseLinkPage(html: string | null | undefined): LinkParseResult 
   try {
     const url = new URL(href)
     passCode = url.searchParams.get('pwd') || url.searchParams.get('password') || ''
-  } catch (_error) {
+  } catch {
     passCode = ''
   }
 
