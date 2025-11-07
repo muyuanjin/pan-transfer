@@ -32,6 +32,8 @@ _Last updated: 2025-11-06 10:20 (UTC-8)_
 
 ## Recent Progress (since 2025-11-05)
 
+- Controller specs backfilled (2025-11-07 08:42 UTC-8): added `panel-edge-controller.spec.ts` to cover pointer hide/show + pin sync, created `runtime/transfer/transfer-controller.spec.ts` to exercise transfer state transitions, retries, and toast emission (binding season DOM refs in tests to satisfy `computeItemTargetPath`), and reran `npm run check` to keep the suite green.
+- Cache reload after data import (2025-11-07 08:06 UTC-8): added `reloadCacheFromStorage`, hydrated the completed-share cache whenever history refreshes, documented the workflow with new Vitest coverage in `src/background/storage/cache-store.spec.ts`, and reran `npm run check` (including Playwright) to prove import/export skips behave again.
 - Panel DOM accessors hardened (2025-11-07 07:08 UTC-8): removed the legacy property bag from `panelDom`, updated the panel shell + specs to register refs via `assignAll`/`set`, and ensured remaining controllers rely on accessor factories before running `npm run check`.
 - History detail header clicks widened (2025-11-07 06:00 UTC-8): the entire history entry header now delegates clicks to the detail handler (ignoring interactive controls), and the overlay visibility flag flips synchronously so a single click reliably opens the sheet; added renderer specs to guard both behaviours.
 - History detail overlay opens immediately (2025-11-07 21:16 UTC-8): stopped awaiting the CSS preload before mounting the Vue overlay so a single click shows the detail fallback instantly, and added a regression test that stubs the stylesheet loader to ensure the panel renders even while styles are pending.
@@ -81,20 +83,22 @@ _Last updated: 2025-11-06 10:20 (UTC-8)_
 
 ## Action Backlog (maintain after completing Immediate Orders)
 
-| Priority | Status      | Area            | Task                                                                                                                                               | Notes                                                                        |
-| -------- | ----------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| P0       | Todo        | Verification    | Exercise the built MV3 extension on live CHAOSPACE pages (panel mount, history overlay, transfer, settings import/export) and log findings.        | Fixture-backed Playwright runs miss production responses/auth edge cases.    |
-| P0       | Todo        | Transfer        | Re-run a live transfer to validate `season-manager` sanitization (`getTargetPath`, `seasonDirMap`, `seasonResolvedPaths`) against Baidu resources. | Required before enabling new presets or exposing rename rules by default.    |
-| P1       | Todo        | Content Runtime | Remove catch-all index signatures from `PanelDomRefs` / `DetailDomRefs` and require binders/controllers to enumerate DOM hooks.                    | Surfaces missing data-role wiring and tightens compile-time safety.          |
-| P1       | In Progress | Testing         | Extend controller specs to cover `panel-edge-controller` and `runtime/transfer/transfer-controller`.                                               | `panel-preferences` tests exist; others still manual.                        |
-| P1       | Todo        | Messaging       | Introduce integration tests simulating Chrome runtime messaging for transfer progress + history detail/delete flows.                               | Needed before stricter host permissions + alarm retries.                     |
-| P1       | Todo        | Settings        | Add DOM-level tests for file filter & rename editors to verify parsing, validation, and serialization paths.                                       | Shared sanitizers are covered; UI editors aren’t.                            |
-| P2       | Done        | UI Migration    | History filters + presets list live in Vue components; toolbar in `PanelToolbar.vue`.                                                              | `HistoryFilterTabs.vue` + `PresetList.vue` replace old binders (2025-11-06). |
-| P2       | Planned     | Parser Coverage | Expand CHAOSPACE HTML fixtures with malformed/partial markup to assert fallbacks in `src/background/services/parser/__tests__`.                    | Focus on missing passcodes, nested season links.                             |
-| P2       | Planned     | Documentation   | Publish developer notes covering ContentRuntime orchestration, edge/pin persistence, and how to run tests/e2e locally.                             | Live either alongside this document or under `/docs`.                        |
+| Priority | Status  | Area            | Task                                                                                                                                               | Notes                                                                        |
+| -------- | ------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| P0       | Todo    | Verification    | Exercise the built MV3 extension on live CHAOSPACE pages (panel mount, history overlay, transfer, settings import/export) and log findings.        | Fixture-backed Playwright runs miss production responses/auth edge cases.    |
+| P0       | Todo    | Transfer        | Re-run a live transfer to validate `season-manager` sanitization (`getTargetPath`, `seasonDirMap`, `seasonResolvedPaths`) against Baidu resources. | Required before enabling new presets or exposing rename rules by default.    |
+| P1       | Todo    | Content Runtime | Remove catch-all index signatures from `PanelDomRefs` / `DetailDomRefs` and require binders/controllers to enumerate DOM hooks.                    | Surfaces missing data-role wiring and tightens compile-time safety.          |
+| P1       | Todo    | Testing         | Extend controller specs to cover `panel-edge-controller` and `runtime/transfer/transfer-controller`.                                               | `panel-preferences` tests exist; others still manual.                        |
+| P1       | Todo    | Messaging       | Introduce integration tests simulating Chrome runtime messaging for transfer progress + history detail/delete flows.                               | Needed before stricter host permissions + alarm retries.                     |
+| P1       | Todo    | Settings        | Add DOM-level tests for file filter & rename editors to verify parsing, validation, and serialization paths.                                       | Shared sanitizers are covered; UI editors aren’t.                            |
+| P2       | Done    | UI Migration    | History filters + presets list live in Vue components; toolbar in `PanelToolbar.vue`.                                                              | `HistoryFilterTabs.vue` + `PresetList.vue` replace old binders (2025-11-06). |
+| P2       | Planned | Parser Coverage | Expand CHAOSPACE HTML fixtures with malformed/partial markup to assert fallbacks in `src/background/services/parser/__tests__`.                    | Focus on missing passcodes, nested season links.                             |
+| P2       | Planned | Documentation   | Publish developer notes covering ContentRuntime orchestration, edge/pin persistence, and how to run tests/e2e locally.                             | Live either alongside this document or under `/docs`.                        |
 
 ## Verification History
 
+- 2025-11-07 08:42 (UTC-8) — `npm run check` — PASS (Prettier → vue-tsc → ESLint → Vite build → Vitest ×14 → Playwright ×3 URLs).
+- 2025-11-07 08:06 (UTC-8) — `npm run check` — PASS (Prettier → vue-tsc → ESLint → Vite build → Vitest ×12 → Playwright ×3 URLs).
 - 2025-11-07 07:08 (UTC-8) — `npm run check` — PASS (Prettier → vue-tsc → ESLint → Vite build → Vitest ×11 → Playwright ×3 URLs).
 - 2025-11-07 06:00 (UTC-8) — `npm run check` — PASS (Prettier → vue-tsc → ESLint → Vite build → Vitest ×11 → Playwright ×3 URLs).
 - 2025-11-07 21:16 (UTC-8) — `npm run check` — PASS (Prettier → vue-tsc → ESLint → Vite build → Vitest ×11 → Playwright ×3 URLs).
