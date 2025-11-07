@@ -24,6 +24,11 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.ref }}
 
+      - name: Disable man-db auto-update
+        run: |
+          sudo rm -f /var/lib/man-db/auto-update || true
+          sudo ln --symbolic --force "$(command -v true)" /usr/bin/mandb || true
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
