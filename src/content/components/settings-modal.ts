@@ -733,6 +733,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
       await loadSettings()
     }
     applySettingsUpdate(buildSettingsSnapshot(), { persist: false })
+    await notifyHistoryStoreReload()
     if (loadHistory) {
       await loadHistory()
     }
@@ -743,6 +744,17 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
       ? '备份内容已写入，面板布局、历史记录与缓存已更新'
       : '备份内容已写入，历史记录与缓存已更新'
     showToast('success', '数据已导入', detail)
+  }
+
+  async function notifyHistoryStoreReload(): Promise<void> {
+    if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
+      return
+    }
+    try {
+      await chrome.runtime.sendMessage({ type: 'chaospace:history-refresh' })
+    } catch (error) {
+      console.warn('[Chaospace Transfer] Failed to notify background history reload', error)
+    }
   }
 
   const handleSettingsKeydown = (event: KeyboardEvent) => {

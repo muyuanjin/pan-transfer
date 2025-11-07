@@ -2,6 +2,9 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 
 import { createTabSeasonPreferenceController } from './tab-season-preference'
 import { state, panelDom } from '../state'
+import { getPanelBaseDirDom } from '../types'
+
+const panelBaseDirDom = getPanelBaseDirDom(panelDom)
 
 describe('tab-season-preference controller', () => {
   let originalChrome: typeof chrome | undefined
@@ -49,6 +52,7 @@ describe('tab-season-preference controller', () => {
       getFloatingPanel: () => document.createElement('div'),
       renderResourceList,
       renderPathPreview,
+      panelDom: panelBaseDirDom,
     })
 
     await controller.initialize()
@@ -76,6 +80,7 @@ describe('tab-season-preference controller', () => {
       getFloatingPanel: () => document.createElement('div'),
       renderResourceList: vi.fn(),
       renderPathPreview: vi.fn(),
+      panelDom: panelBaseDirDom,
     })
 
     await controller.applyUserSelection(true)
@@ -105,6 +110,7 @@ describe('tab-season-preference controller', () => {
       getFloatingPanel: () => document.createElement('div'),
       renderResourceList: vi.fn(),
       renderPathPreview: vi.fn(),
+      panelDom: panelBaseDirDom,
     })
 
     await controller.initialize()

@@ -6,12 +6,14 @@ import {
   updateSeasonExampleDir,
 } from './season-manager'
 import type { SeasonPreferenceScope } from '../types'
+import type { PanelBaseDirDomRefs } from '../types'
 import { getPanelBaseDirDom } from '../types'
 
 interface TabSeasonPreferenceDeps {
   getFloatingPanel: () => HTMLElement | null
   renderResourceList: () => void
   renderPathPreview: () => void
+  panelDom?: PanelBaseDirDomRefs
 }
 
 type SeasonPreferenceMessageResponse = {
@@ -38,19 +40,6 @@ async function runtimeSendMessage<T = SeasonPreferenceMessageResponse>(
   }
 }
 
-const panelBaseDirDom = getPanelBaseDirDom(panelDom)
-
-function syncCheckboxes(): void {
-  const useSeasonCheckbox = panelBaseDirDom.useSeasonCheckbox
-  if (useSeasonCheckbox instanceof HTMLInputElement) {
-    useSeasonCheckbox.checked = state.useSeasonSubdir
-  }
-  const settingsUseSeason = panelBaseDirDom.settingsUseSeason
-  if (settingsUseSeason instanceof HTMLInputElement) {
-    settingsUseSeason.checked = state.seasonSubdirDefault
-  }
-}
-
 function applySeasonPreference(
   value: boolean,
   scope: SeasonPreferenceScope,
@@ -59,11 +48,13 @@ function applySeasonPreference(
     getFloatingPanel,
     renderResourceList,
     renderPathPreview,
+    syncCheckboxes,
   }: {
     forceRender?: boolean
     getFloatingPanel: () => HTMLElement | null
     renderResourceList: () => void
     renderPathPreview: () => void
+    syncCheckboxes: () => void
   },
 ): void {
   const previousValue = state.useSeasonSubdir
@@ -122,13 +113,27 @@ export interface TabSeasonPreferenceController {
   syncCheckboxes: () => void
 }
 
+const defaultBaseDirDom = getPanelBaseDirDom(panelDom)
+
 export function createTabSeasonPreferenceController({
   getFloatingPanel,
   renderResourceList,
   renderPathPreview,
+  panelDom = defaultBaseDirDom,
 }: TabSeasonPreferenceDeps): TabSeasonPreferenceController {
   let initialized = false
   let pendingInit: Promise<void> | null = null
+
+  const syncCheckboxes = (): void => {
+    const useSeasonCheckbox = panelDom.useSeasonCheckbox
+    if (useSeasonCheckbox instanceof HTMLInputElement) {
+      useSeasonCheckbox.checked = state.useSeasonSubdir
+    }
+    const settingsUseSeason = panelDom.settingsUseSeason
+    if (settingsUseSeason instanceof HTMLInputElement) {
+      settingsUseSeason.checked = state.seasonSubdirDefault
+    }
+  }
 
   const ensureInitialized = async (): Promise<void> => {
     if (initialized) {
@@ -154,6 +159,7 @@ export function createTabSeasonPreferenceController({
         getFloatingPanel,
         renderResourceList,
         renderPathPreview,
+        syncCheckboxes,
       })
       initialized = true
     })()
@@ -166,6 +172,7 @@ export function createTabSeasonPreferenceController({
         getFloatingPanel,
         renderResourceList,
         renderPathPreview,
+        syncCheckboxes,
       })
     } finally {
       pendingInit = null
@@ -181,6 +188,7 @@ export function createTabSeasonPreferenceController({
       getFloatingPanel,
       renderResourceList,
       renderPathPreview,
+      syncCheckboxes,
     })
   }
 
@@ -192,6 +200,7 @@ export function createTabSeasonPreferenceController({
       getFloatingPanel,
       renderResourceList,
       renderPathPreview,
+      syncCheckboxes,
     })
   }
 
@@ -209,6 +218,7 @@ export function createTabSeasonPreferenceController({
         getFloatingPanel,
         renderResourceList,
         renderPathPreview,
+        syncCheckboxes,
       })
     } else {
       syncCheckboxes()

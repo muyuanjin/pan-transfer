@@ -2,9 +2,41 @@ import { ALL_SEASON_TAB_ID, NO_SEASON_TAB_ID } from '../constants'
 import { state, panelDom } from '../state'
 import { normalizeDir, sanitizeSeasonDirSegment, deriveSeasonDirectory } from './page-analyzer'
 import { extractCleanTitle } from '../utils/title'
-import type { ResourceItem, SeasonResolvedPath } from '../types'
+import type {
+  PanelBaseDirDomRefs,
+  PanelResourceDomRefs,
+  PanelSeasonDomRefs,
+  ResourceItem,
+  SeasonResolvedPath,
+} from '../types'
+import { getPanelBaseDirDom, getPanelResourceDom, getPanelSeasonDom } from '../types'
 
 type SeasonTabType = 'all' | 'season' | 'misc'
+
+interface SeasonManagerDomRefs {
+  baseDir: PanelBaseDirDomRefs
+  resource: PanelResourceDomRefs
+  season: PanelSeasonDomRefs
+}
+
+const defaultSeasonDomRefs: SeasonManagerDomRefs = {
+  baseDir: getPanelBaseDirDom(panelDom),
+  resource: getPanelResourceDom(panelDom),
+  season: getPanelSeasonDom(panelDom),
+}
+
+let seasonDomRefs: SeasonManagerDomRefs = defaultSeasonDomRefs
+
+export function bindSeasonManagerDomRefs(refs?: SeasonManagerDomRefs): void {
+  seasonDomRefs = refs ?? defaultSeasonDomRefs
+}
+
+function getSeasonDomRefs(): SeasonManagerDomRefs {
+  if (!seasonDomRefs) {
+    return defaultSeasonDomRefs
+  }
+  return seasonDomRefs
+}
 
 interface SeasonTabItem {
   id: string
@@ -313,7 +345,8 @@ function rebuildSeasonDirMap({
 }
 
 function renderSeasonHint(): void {
-  const seasonPathHint = panelDom['seasonPathHint']
+  const { season } = getSeasonDomRefs()
+  const seasonPathHint = season.seasonPathHint
   if (!seasonPathHint) {
     return
   }
@@ -352,8 +385,9 @@ function renderSeasonHint(): void {
 }
 
 function renderSeasonControls(): void {
-  const seasonRow = panelDom['seasonRow']
-  const useSeasonCheckbox = panelDom['useSeasonCheckbox']
+  const refs = getSeasonDomRefs()
+  const seasonRow = refs.season.seasonRow
+  const useSeasonCheckbox = refs.baseDir.useSeasonCheckbox
   const seasonCount = getSeasonCount()
   const shouldShow = isTvShowPage() && seasonCount > 0
   if (seasonRow) {
@@ -370,7 +404,7 @@ function renderSeasonControls(): void {
 }
 
 function renderSeasonTabs(): SeasonTabState {
-  const seasonTabs = panelDom['seasonTabs']
+  const seasonTabs = getSeasonDomRefs().resource.seasonTabs
   if (!seasonTabs) {
     return computeSeasonTabState({ syncState: true })
   }

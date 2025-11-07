@@ -12,9 +12,11 @@ import type { PanelEdgeSnapshot, PanelPositionSnapshot, PanelSizeSnapshot } from
 import {
   getPanelBaseDirDom,
   getPanelEdgeDom,
+  getPanelHistoryDom,
   getPanelHeaderDom,
   getPanelLoggingDom,
   getPanelResourceDom,
+  getPanelSeasonDom,
   getPanelSettingsDom,
   getPanelTransferDom,
 } from '../types'
@@ -28,6 +30,7 @@ import {
   renderSeasonControls,
   renderSeasonHint,
   renderSeasonTabs,
+  bindSeasonManagerDomRefs,
   updateSeasonExampleDir,
 } from '../services/season-manager'
 import { createResourceListRenderer, type ResourceListPanelDom } from '../components/resource-list'
@@ -71,7 +74,15 @@ export function createRuntimeApp() {
   const panelHeaderDom = getPanelHeaderDom(panelDom)
   const panelLoggingDom = getPanelLoggingDom(panelDom)
   const panelResourceDom = getPanelResourceDom(panelDom)
+  const panelSeasonDom = getPanelSeasonDom(panelDom)
+  const panelHistoryDom = getPanelHistoryDom(panelDom)
   const panelSettingsDom = getPanelSettingsDom(panelDom)
+
+  bindSeasonManagerDomRefs({
+    baseDir: panelBaseDirDom,
+    resource: panelResourceDom,
+    season: panelSeasonDom,
+  })
 
   const handleSeasonDefaultChange = (value: boolean): void => {
     const normalized = Boolean(value)
@@ -413,6 +424,7 @@ export function createRuntimeApp() {
     getFloatingPanel,
     renderResourceList: () => resourceRenderer.renderResourceList(),
     renderPathPreview: () => preferences.renderPathPreview(),
+    panelDom: panelBaseDirDom,
   })
   tabSeasonPreference.handleGlobalDefaultChange(state.seasonSubdirDefault)
 
@@ -435,6 +447,7 @@ export function createRuntimeApp() {
     renderPathPreview: () => preferences.renderPathPreview(),
     renderSeasonHint,
     seasonPreference: tabSeasonPreference!,
+    panelDom: panelHistoryDom,
   })
 
   const selectionController = createSelectionController({

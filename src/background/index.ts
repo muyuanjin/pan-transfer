@@ -4,6 +4,7 @@ import {
   deleteHistoryRecords,
   clearHistoryRecords,
   ensureHistoryLoaded,
+  reloadHistoryFromStorage,
 } from './storage/history-store'
 import { ensureCacheLoaded } from './storage/cache-store'
 import {
@@ -30,6 +31,10 @@ interface HistoryDeleteMessage {
 interface HistoryClearMessage {
   type: 'chaospace:history-clear'
   payload?: undefined
+}
+
+interface HistoryRefreshMessage {
+  type: 'chaospace:history-refresh'
 }
 
 interface HistoryDetailMessage {
@@ -70,6 +75,7 @@ interface SeasonPreferenceClearMessage {
 type BackgroundMessage =
   | HistoryDeleteMessage
   | HistoryClearMessage
+  | HistoryRefreshMessage
   | HistoryDetailMessage
   | CheckUpdatesMessage
   | TransferMessage
@@ -86,6 +92,9 @@ const isHistoryDeleteMessage = (message: BackgroundMessage): message is HistoryD
 
 const isHistoryClearMessage = (message: BackgroundMessage): message is HistoryClearMessage =>
   message?.type === 'chaospace:history-clear'
+
+const isHistoryRefreshMessage = (message: BackgroundMessage): message is HistoryRefreshMessage =>
+  message?.type === 'chaospace:history-refresh'
 
 const isHistoryDetailMessage = (message: BackgroundMessage): message is HistoryDetailMessage =>
   message?.type === 'chaospace:history-detail'
@@ -214,6 +223,15 @@ async function bootstrapStores(): Promise<void> {
 bootstrapStores()
 
 chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendResponse) => {
+  if (isHistoryRefreshMessage(message)) {
+    void reloadHistoryFromStorage()
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => {
+        console.warn('[Chaospace Transfer] Failed to reload history state', error)
+        sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) })
+      })
+    return true
+  }
   if (isSeasonPreferenceInitMessage(message)) {
     const tabId = sender?.tab?.id
     if (typeof tabId !== 'number') {

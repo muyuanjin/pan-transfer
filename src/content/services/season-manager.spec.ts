@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { renderSeasonControls } from './season-manager'
+import { bindSeasonManagerDomRefs, renderSeasonControls } from './season-manager'
 import { state, panelDom } from '../state'
+import { getPanelBaseDirDom, getPanelResourceDom, getPanelSeasonDom } from '../types'
+
+bindSeasonManagerDomRefs({
+  baseDir: getPanelBaseDirDom(panelDom),
+  resource: getPanelResourceDom(panelDom),
+  season: getPanelSeasonDom(panelDom),
+})
 
 function resetLocation(pathname = '/'): void {
   const url = new URL(`https://www.chaospace.cc${pathname}`)

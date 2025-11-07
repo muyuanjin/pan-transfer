@@ -3,6 +3,7 @@ import { createHistoryController } from './controller'
 import { createPanelRuntimeState } from '../runtime/panel-state'
 import { state, panelDom } from '../state'
 import type { ContentHistoryRecord } from '../types'
+import { getPanelHistoryDom } from '../types'
 import type { TabSeasonPreferenceController } from '../services/tab-season-preference'
 
 function buildHistoryRecord(overrides: Partial<ContentHistoryRecord> = {}): ContentHistoryRecord {
@@ -30,6 +31,8 @@ function buildHistoryRecord(overrides: Partial<ContentHistoryRecord> = {}): Cont
     ...overrides,
   }
 }
+
+const panelHistoryDom = getPanelHistoryDom(panelDom)
 
 describe('history controller', () => {
   beforeEach(() => {
@@ -66,6 +69,7 @@ describe('history controller', () => {
       renderPathPreview,
       renderSeasonHint,
       seasonPreference,
+      panelDom: panelHistoryDom,
     })
 
     const targetUrl = 'https://www.chaospace.cc/tvshows/123.html'

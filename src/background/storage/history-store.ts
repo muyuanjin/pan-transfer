@@ -439,6 +439,13 @@ export async function ensureHistoryLoaded(): Promise<void> {
   await historyLoadPromise
 }
 
+export async function reloadHistoryFromStorage(): Promise<void> {
+  historyState = null
+  historyLoadPromise = null
+  historyIndexByUrl.clear()
+  await ensureHistoryLoaded()
+}
+
 export async function persistHistoryNow(): Promise<void> {
   await ensureHistoryLoaded()
   if (!historyState) {

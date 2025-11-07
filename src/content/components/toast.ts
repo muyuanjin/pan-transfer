@@ -49,13 +49,18 @@ export function showToast(
     closeButton.className = 'chaospace-toast-close'
     closeButton.setAttribute('aria-label', '关闭通知')
     closeButton.textContent = '×'
-    closeButton.addEventListener('click', () => {
+    const removeToast = (): void => {
+      cleanupDragState()
       if (toast.parentNode) {
         toast.remove()
         if (currentToast === toast) {
           currentToast = null
         }
       }
+    }
+
+    closeButton.addEventListener('click', () => {
+      removeToast()
     })
     toast.appendChild(closeButton)
 
@@ -105,6 +110,19 @@ export function showToast(
     let dragPointerId: number | null = null
     let dragOffsetX = 0
     let dragOffsetY = 0
+    let sizeLocked = false
+
+    const lockToastSize = (rect?: DOMRect): void => {
+      if (sizeLocked) {
+        return
+      }
+      const bounds = rect ?? toast.getBoundingClientRect()
+      toast.style.width = `${bounds.width}px`
+      toast.style.minWidth = `${bounds.width}px`
+      toast.style.maxWidth = `${bounds.width}px`
+      toast.style.height = `${bounds.height}px`
+      sizeLocked = true
+    }
 
     const updatePosition = (clientX: number, clientY: number): void => {
       const bounds = toast.getBoundingClientRect()
@@ -126,16 +144,27 @@ export function showToast(
       updatePosition(event.clientX, event.clientY)
     }
 
-    const endDrag = (event: PointerEvent): void => {
-      if (dragPointerId === null || event.pointerId !== dragPointerId) {
-        return
+    const cleanupDragState = (pointerId?: number): void => {
+      if (dragPointerId !== null) {
+        const activeId = pointerId ?? dragPointerId
+        try {
+          toast.releasePointerCapture(activeId)
+        } catch {
+          // ignore release errors
+        }
       }
-      toast.releasePointerCapture(event.pointerId)
       dragPointerId = null
       toast.classList.remove('chaospace-toast-dragging')
       document.removeEventListener('pointermove', handlePointerMove)
       document.removeEventListener('pointerup', endDrag)
       document.removeEventListener('pointercancel', endDrag)
+    }
+
+    const endDrag = (event: PointerEvent): void => {
+      if (dragPointerId === null || event.pointerId !== dragPointerId) {
+        return
+      }
+      cleanupDragState(event.pointerId)
     }
 
     const handlePointerDown = (event: PointerEvent): void => {
@@ -144,11 +173,13 @@ export function showToast(
         return
       }
       const rect = toast.getBoundingClientRect()
+      lockToastSize(rect)
       dragPointerId = event.pointerId
       dragOffsetX = event.clientX - rect.left
       dragOffsetY = event.clientY - rect.top
       toast.setPointerCapture(event.pointerId)
       toast.classList.add('chaospace-toast-dragging')
+      event.preventDefault()
       document.addEventListener('pointermove', handlePointerMove)
       document.addEventListener('pointerup', endDrag)
       document.addEventListener('pointercancel', endDrag)
@@ -159,8 +190,7 @@ export function showToast(
 
     setTimeout(() => {
       if (currentToast === toast && toast.parentNode) {
-        toast.remove()
-        currentToast = null
+        removeToast()
       }
     }, 5000)
   } catch (error) {

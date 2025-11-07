@@ -47,6 +47,11 @@
 
 .chaospace-toast-dragging {
   cursor: grabbing;
+  user-select: none;
+}
+
+.chaospace-toast-dragging * {
+  user-select: none;
 }
 
 /* 海报预览样式已移至 openZoomPreview 内联样式 */

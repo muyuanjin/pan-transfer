@@ -586,6 +586,22 @@ export function getPanelResourceDom(panelDom: PanelDomRefs): PanelResourceDomRef
   }
 }
 
+export interface PanelSeasonDomRefs {
+  readonly seasonRow: HTMLElement | null
+  readonly seasonPathHint: HTMLElement | null
+}
+
+export function getPanelSeasonDom(panelDom: PanelDomRefs): PanelSeasonDomRefs {
+  return {
+    get seasonRow() {
+      return panelDom.get('seasonRow')
+    },
+    get seasonPathHint() {
+      return panelDom.get('seasonPathHint')
+    },
+  }
+}
+
 export interface PanelSettingsDomRefs {
   readonly overlay: HTMLElement
   readonly form: HTMLFormElement

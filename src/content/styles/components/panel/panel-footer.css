@@ -18,7 +18,7 @@
 }
 
 .chaospace-float-btn-compact {
-  width: 156px;
+  min-width: 160px;
   height: 40px;
   font-size: 12px;
 }
@@ -183,6 +183,10 @@
 
 .chaospace-btn-icon {
   font-size: 18px;
+  flex: 0 0 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition:
     opacity 0.2s ease,
     transform 0.2s ease;
@@ -199,22 +203,24 @@
   transition:
     opacity 0.2s ease,
     transform 0.2s ease;
-  display: none;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  visibility: hidden;
+  flex: 0 0 16px;
 }
 
 .chaospace-btn-spinner.is-visible {
-  display: inline-flex;
   opacity: 1;
   transform: scale(1);
   animation: chaospace-spin 0.75s linear infinite;
+  visibility: visible;
 }
 
 .chaospace-float-btn.is-loading .chaospace-btn-icon {
   opacity: 0;
   transform: scale(0.6);
-  display: none;
+  visibility: hidden;
 }
 
 .chaospace-float-panel.is-narrow .chaospace-float-footer {
@@ -230,4 +236,5 @@
 
 .chaospace-float-panel.is-narrow .chaospace-float-btn-compact {
   width: 100%;
+  min-width: 0;
 }
