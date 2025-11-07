@@ -34,6 +34,28 @@ function createHistoryControllerStub(): HistoryController {
   } as unknown as HistoryController
 }
 
+function createHistoryDetailDomRefs(): HistoryDetailDomRefs {
+  return {
+    hideTimer: null,
+    backdrop: null,
+    modal: null,
+    close: null,
+    poster: null,
+    title: null,
+    date: null,
+    country: null,
+    runtime: null,
+    rating: null,
+    genres: null,
+    info: null,
+    synopsis: null,
+    stills: null,
+    body: null,
+    loading: null,
+    error: null,
+  }
+}
+
 describe('ResourceList renderer summary', () => {
   it('reflects selection counts and badges in summary text', () => {
     const summaryEl = document.createElement('div')
@@ -391,7 +413,7 @@ describe('History detail transitions', () => {
   })
 
   it('toggles overlay visibility when history detail opens and closes', () => {
-    const detailDom: HistoryDetailDomRefs = {}
+    const detailDom = createHistoryDetailDomRefs()
     const state = {
       historyDetail: {
         isOpen: true,

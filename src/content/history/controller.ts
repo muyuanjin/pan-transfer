@@ -211,7 +211,7 @@ export function createHistoryController(deps: HistoryControllerDeps) {
   }
 
   function renderHistoryDetail(): void {
-    const overlayExists = Boolean(detailDom['backdrop'])
+    const overlayExists = Boolean(detailDom.backdrop)
     if (!state.historyDetail.isOpen && !overlayExists) {
       document.body.classList.remove('chaospace-history-detail-active')
       return

@@ -18,11 +18,11 @@ function isHistoryOverlayTarget(target: Node | null, detailDom: DetailDomRefs): 
   if (!target) {
     return false
   }
-  const modal = detailDom['modal']
+  const modal = detailDom.modal
   if (modal && modal.contains(target)) {
     return true
   }
-  const backdrop = detailDom['backdrop']
+  const backdrop = detailDom.backdrop
   if (backdrop && backdrop.contains(target)) {
     return true
   }

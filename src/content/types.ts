@@ -157,6 +157,26 @@ export interface HistoryDetailState {
   fallback: unknown
 }
 
+export interface HistoryDetailDomRefs {
+  hideTimer: number | null
+  backdrop: HTMLElement | null
+  modal: HTMLElement | null
+  close: HTMLElement | null
+  poster: HTMLElement | null
+  title: HTMLElement | null
+  date: HTMLElement | null
+  country: HTMLElement | null
+  runtime: HTMLElement | null
+  rating: HTMLElement | null
+  genres: HTMLElement | null
+  info: HTMLElement | null
+  synopsis: HTMLElement | null
+  stills: HTMLElement | null
+  body: HTMLElement | null
+  loading: HTMLElement | null
+  error: HTMLElement | null
+}
+
 export interface SeasonResolvedPath {
   id: string
   label: string
@@ -402,7 +422,7 @@ export function createPanelDomRefs(): PanelDomRefs {
   return accessors
 }
 
-export type DetailDomRefs = Record<string, HTMLElement | null>
+export type DetailDomRefs = HistoryDetailDomRefs
 
 export interface PanelEdgeDomRefs {
   readonly pinButton: HTMLButtonElement | null

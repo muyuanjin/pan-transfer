@@ -520,6 +520,26 @@ function createSeasonPreferenceStub(): TabSeasonPreferenceController {
   }
 }
 
+function resetDetailDomRefs(detailDom: DetailDomRefs): void {
+  detailDom.hideTimer = null
+  detailDom.backdrop = null
+  detailDom.modal = null
+  detailDom.close = null
+  detailDom.poster = null
+  detailDom.title = null
+  detailDom.date = null
+  detailDom.country = null
+  detailDom.runtime = null
+  detailDom.rating = null
+  detailDom.genres = null
+  detailDom.info = null
+  detailDom.synopsis = null
+  detailDom.stills = null
+  detailDom.body = null
+  detailDom.loading = null
+  detailDom.error = null
+}
+
 describe('background/content messaging integration', () => {
   let harness: ChromeTestHarness
   let unregisterChromeEvents: (() => void) | null
@@ -562,10 +582,7 @@ describe('background/content messaging integration', () => {
     detailDom = stateModule.detailDom
     state.$reset()
     panelDom.clear()
-    Object.keys(detailDom).forEach((key) => {
-      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-      delete (detailDom as Record<string, HTMLElement | null>)[key]
-    })
+    resetDetailDomRefs(detailDom)
 
     const historyModule = await import('@/content/history/controller')
     const transferModule = await import('@/content/runtime/transfer/transfer-controller')

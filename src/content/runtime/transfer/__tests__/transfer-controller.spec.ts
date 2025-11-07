@@ -310,4 +310,70 @@ describe('transfer-controller', () => {
       expect.objectContaining({ success: 1 }),
     )
   })
+
+  it('ignores progress payloads that do not match the active job', () => {
+    const { controller, logging } = setupController()
+    state.jobId = 'job-123'
+
+    controller.handleProgressEvent({ jobId: 'other-job', message: 'skip me' })
+
+    expect(logging.pushLog).not.toHaveBeenCalled()
+    expect(logging.renderStatus).not.toHaveBeenCalled()
+  })
+
+  it('logs and renders status updates for matching progress events', () => {
+    const { controller, logging } = setupController()
+    state.jobId = 'job-abc'
+
+    controller.handleProgressEvent({
+      jobId: 'job-abc',
+      message: 'Processing chunk',
+      level: 'success',
+      detail: 'chunk 1',
+      stage: 'progress',
+      statusMessage: 'Running…',
+    })
+
+    expect(logging.pushLog).toHaveBeenCalledWith(
+      'Processing chunk',
+      expect.objectContaining({ level: 'success', detail: 'chunk 1', stage: 'progress' }),
+    )
+    expect(state.statusMessage).toBe('Running…')
+    expect(logging.renderStatus).toHaveBeenCalledTimes(1)
+
+    controller.handleProgressEvent({
+      jobId: 'job-abc',
+      current: 2,
+      total: 5,
+    })
+
+    expect(state.statusMessage).toBe('正在处理 2/5')
+    expect(logging.renderStatus).toHaveBeenCalledTimes(2)
+  })
+
+  it('toggles base directory controls and toolbar state', () => {
+    const { controller, panelDom } = setupController()
+    expect(panelDom.baseDirInput?.disabled).toBe(false)
+    expect(panelDom.useTitleCheckbox?.disabled).toBe(false)
+    expect(panelDom.useSeasonCheckbox?.disabled).toBe(false)
+    expect(panelDom.addPresetButton?.disabled).toBe(false)
+
+    controller.setControlsDisabled(true)
+
+    expect(panelDom.baseDirInput?.disabled).toBe(true)
+    expect(panelDom.useTitleCheckbox?.disabled).toBe(true)
+    expect(panelDom.useSeasonCheckbox?.disabled).toBe(true)
+    expect(panelDom.addPresetButton?.disabled).toBe(true)
+    expect(state.toolbarDisabled).toBe(true)
+    expect(state.presetsDisabled).toBe(true)
+
+    controller.setControlsDisabled(false)
+
+    expect(panelDom.baseDirInput?.disabled).toBe(false)
+    expect(panelDom.useTitleCheckbox?.disabled).toBe(false)
+    expect(panelDom.useSeasonCheckbox?.disabled).toBe(false)
+    expect(panelDom.addPresetButton?.disabled).toBe(false)
+    expect(state.toolbarDisabled).toBe(false)
+    expect(state.presetsDisabled).toBe(false)
+  })
 })

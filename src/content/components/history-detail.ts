@@ -1,8 +1,10 @@
 import { createApp, reactive, type App } from 'vue'
 import HistoryDetailOverlay from './HistoryDetailOverlay.vue'
-import type { HistoryGroup, ContentHistoryRecord } from '../types'
+import type { HistoryGroup, ContentHistoryRecord, HistoryDetailDomRefs } from '../types'
 import type { ContentStore } from '../state'
 import { pinia } from '../state'
+
+export type { HistoryDetailDomRefs } from '../types'
 
 export interface HistoryDetailPoster {
   src: string
@@ -45,26 +47,6 @@ export interface HistoryDetailData {
 export type HistoryDetailFallback = HistoryDetailData
 
 export interface HistoryDetailOverrides extends Partial<HistoryDetailData> {}
-
-export interface HistoryDetailDomRefs {
-  hideTimer?: number | null
-  backdrop?: HTMLElement | null
-  modal?: HTMLElement | null
-  close?: HTMLElement | null
-  poster?: HTMLElement | null
-  title?: HTMLElement | null
-  date?: HTMLElement | null
-  country?: HTMLElement | null
-  runtime?: HTMLElement | null
-  rating?: HTMLElement | null
-  genres?: HTMLElement | null
-  info?: HTMLElement | null
-  synopsis?: HTMLElement | null
-  stills?: HTMLElement | null
-  body?: HTMLElement | null
-  loading?: HTMLElement | null
-  error?: HTMLElement | null
-}
 
 export interface HistoryDetailOverlayOptions {
   onClose?: () => void

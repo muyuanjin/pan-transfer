@@ -89,7 +89,25 @@ export const contentStore = useContentStore(pinia)
 export const state: ContentStore = contentStore
 
 export const panelDom: PanelDomRefs = createPanelDomRefs()
-export const detailDom: DetailDomRefs = {} as DetailDomRefs
+export const detailDom: DetailDomRefs = {
+  hideTimer: null,
+  backdrop: null,
+  modal: null,
+  close: null,
+  poster: null,
+  title: null,
+  date: null,
+  country: null,
+  runtime: null,
+  rating: null,
+  genres: null,
+  info: null,
+  synopsis: null,
+  stills: null,
+  body: null,
+  loading: null,
+  error: null,
+}
 
 export function overwriteState(nextState: Partial<ContentState>): void {
   contentStore.$patch((draft) => {
