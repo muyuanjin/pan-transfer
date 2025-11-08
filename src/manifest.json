@@ -42,12 +42,8 @@
         "*://chaospace.xyz/*",
         "*://*.chaospace.xyz/*"
       ],
-      "js": [
-        "content/index.ts"
-      ],
-      "css": [
-        "content/styles/index.css"
-      ]
+      "js": ["content/index.ts"],
+      "css": ["content/styles/index.css"]
     }
   ],
   "web_accessible_resources": [
