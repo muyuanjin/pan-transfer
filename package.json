@@ -32,6 +32,7 @@
   },
   "homepage": "https://github.com/muyuanjin/pan-transfer#readme",
   "devDependencies": {
+    "@napi-rs/canvas": "^0.1.81",
     "@playwright/test": "^1.56.1",
     "@tsconfig/strictest": "^2.0.7",
     "@types/chrome": "^0.1.27",

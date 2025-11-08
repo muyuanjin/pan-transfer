@@ -61,6 +61,7 @@ Key standalone scripts:
 - `npm run test` – Vitest suites covering parsers, renderers, and history logic.
 - `npm run e2e` – Builds (if needed) then launches Playwright tests against Chaospace fixtures.
 - `npm run lint` / `npm run lint:ci` – ESLint with/without the zero-warning gate.
+- `node scripts/generate-icons.mjs` – re-generates the extension icons (`src/public/icon-48.png`, `src/public/icon-128.png`) using the canvas-based artwork.
 
 ### Repository Layout (excerpt)
 
@@ -125,6 +126,7 @@ Pan Transfer 是一个基于 Vite 7、TypeScript 5.9 与 Vue 3 的 Manifest V3 C
 - `npm run test`：运行 Vitest 单元测试。
 - `npm run e2e`：若缺少 `dist/manifest.json` 则会先构建，再执行 Playwright 测试。
 - `npm run lint` / `npm run lint:ci`：ESLint（后者警告即失败）。
+- `node scripts/generate-icons.mjs`：通过画布脚本重新生成 `src/public/icon-48.png` 与 `src/public/icon-128.png`。
 
 ### 仓库结构（节选）
 
