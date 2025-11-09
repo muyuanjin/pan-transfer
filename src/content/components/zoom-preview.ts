@@ -100,7 +100,8 @@ export function openZoomPreview(opts: ZoomPreviewOptions = {}): { close: () => v
   img.alt = alt
   img.draggable = false
   img.decoding = 'async'
-  img.referrerPolicy = 'no-referrer'
+  // Keep referer so CHAOSPACE poster CDN does not 404 the request.
+  img.referrerPolicy = 'unsafe-url'
   img.src = src
 
   const spinner = document.createElement('div')
