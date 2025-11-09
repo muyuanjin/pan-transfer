@@ -229,6 +229,16 @@ export function createTabSeasonPreferenceController({
     }
 
     if (state.seasonPreferenceScope === 'tab') {
+      const previousTabValue = state.useSeasonSubdir
+      const revertToTabPreference = (): void => {
+        applySeasonPreference(previousTabValue, 'tab', {
+          forceRender: true,
+          getFloatingPanel,
+          renderResourceList,
+          renderPathPreview,
+          syncCheckboxes,
+        })
+      }
       applySeasonPreference(normalized, 'default', {
         forceRender: true,
         getFloatingPanel,
@@ -236,7 +246,19 @@ export function createTabSeasonPreferenceController({
         renderPathPreview,
         syncCheckboxes,
       })
-      void runtimeSendMessage({ type: 'chaospace:season-pref:clear' })
+      runtimeSendMessage({ type: 'chaospace:season-pref:clear' })
+        .then((response) => {
+          if (!response || response.ok === false) {
+            chaosLogger.warn('[Pan Transfer] Failed to clear tab season preference override', {
+              error: response?.error,
+            })
+            revertToTabPreference()
+          }
+        })
+        .catch((error) => {
+          chaosLogger.warn('[Pan Transfer] Failed to clear tab season preference override', error)
+          revertToTabPreference()
+        })
       return
     }
 

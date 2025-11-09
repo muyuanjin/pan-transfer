@@ -51,6 +51,8 @@ function createDefaultHistoryRecord(pageUrl: string): HistoryRecord {
     pageTitle: '',
     pageType: 'unknown',
     origin: '',
+    siteProviderId: null,
+    siteProviderLabel: null,
     poster: null,
     targetDirectory: '/',
     baseDir: '/',
@@ -238,6 +240,14 @@ export function ensureHistoryRecordStructure(
       ? record.pageType
       : 'unknown'
   normalized.origin = typeof record?.origin === 'string' ? record.origin : normalized.origin
+  normalized.siteProviderId =
+    typeof record?.siteProviderId === 'string' && record.siteProviderId
+      ? record.siteProviderId
+      : null
+  normalized.siteProviderLabel =
+    typeof record?.siteProviderLabel === 'string' && record.siteProviderLabel
+      ? record.siteProviderLabel
+      : null
   normalized.poster = record?.poster
     ? sanitizePosterInfo(record.poster as PosterInput) || null
     : null
@@ -490,6 +500,20 @@ export async function recordTransferHistory(
   record.pageTitle =
     typeof meta.pageTitle === 'string' && meta.pageTitle ? meta.pageTitle : record.pageTitle || ''
   record.origin = origin
+  const providerId =
+    typeof meta.siteProviderId === 'string' && meta.siteProviderId ? meta.siteProviderId : null
+  const providerLabel =
+    typeof meta.siteProviderLabel === 'string' && meta.siteProviderLabel
+      ? meta.siteProviderLabel
+      : null
+  if (providerId) {
+    record.siteProviderId = providerId
+  }
+  if (providerLabel) {
+    record.siteProviderLabel = providerLabel
+  } else if (providerId && !record.siteProviderLabel) {
+    record.siteProviderLabel = providerId
+  }
   record.pageType =
     typeof meta.pageType === 'string' && meta.pageType
       ? meta.pageType

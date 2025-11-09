@@ -654,6 +654,8 @@ function toContentHistoryRecord(record: unknown): ContentHistoryRecord {
     pageTitle: '',
     pageType: 'unknown',
     origin: '',
+    siteProviderId: null,
+    siteProviderLabel: null,
     poster: null,
     targetDirectory: '/',
     baseDir: '/',
@@ -675,6 +677,12 @@ function toContentHistoryRecord(record: unknown): ContentHistoryRecord {
   if (!base.items || typeof base.items !== 'object') {
     base.items = {}
   }
+  base.siteProviderId =
+    typeof base.siteProviderId === 'string' && base.siteProviderId ? base.siteProviderId : null
+  base.siteProviderLabel =
+    typeof base.siteProviderLabel === 'string' && base.siteProviderLabel
+      ? base.siteProviderLabel
+      : null
   base.completion = normalizeHistoryCompletion(base.completion || null)
   base.seasonCompletion = normalizeSeasonCompletionMap(base.seasonCompletion || null)
   base.seasonDirectory = normalizeSeasonDirectory(base.seasonDirectory || null)

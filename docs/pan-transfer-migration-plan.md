@@ -76,6 +76,16 @@ src/
 - Update README with contributor docs on building site providers, plus a checklist for parity testing.
 - Exit criteria: pipeline automatically routes between CHAOSPACE provider and the sample provider based on detection; Playwright exercises the CHAOSPACE path.
 
+#### Phase 2b – Provider-Driven Snapshots & History Refresh (new)
+
+- Extend the `SiteProvider` contract with snapshot-oriented hooks (e.g., `collectSnapshot`, `collectHistoryDetail`, `resolveSeasonEntries`) so the background refresh pipeline no longer hard-codes Chaospace HTML parsing.
+- Move `collectPageSnapshot`, history-detail parsing, season entry normalization, and completion summarization behind those provider hooks; keep the existing Chaospace parser as the reference implementation.
+- Allow providers to define item identity/deduping, completion heuristics, and “deferred season” loaders so history reconciliation respects provider-specific semantics.
+- Wire `history-service` to resolve the provider via `ProviderRegistry` and dispatch to its snapshot implementation; when a provider lacks refresh support, skip gracefully with telemetry.
+- Update shared history types to persist `siteProviderId/Label` (✅ done) and surface provider labels throughout the UI so users can tell cross-provider records apart.
+- Add Vitest fixtures per provider to cover snapshot + history-detail parsing without hitting the network; ensure Playwright can validate that history lists reflect provider labels.
+- Exit criteria: background history refresh works for any provider that implements the snapshot hooks, and Chaospace uses the new interface without regressing existing behaviour.
+
 ### Phase 3 – Storage Provider Modularization
 
 - Encapsulate Baidu Netdisk flows (`background/services/baidu`) into `providers/storage/baidu-netdisk` with typed capabilities (quota, link status, retry policy).

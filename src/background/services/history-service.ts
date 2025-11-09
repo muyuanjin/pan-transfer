@@ -1,3 +1,4 @@
+import { chaosLogger } from '@/shared/log'
 import {
   ensureHistoryLoaded,
   ensureHistoryRecordStructure,
@@ -26,7 +27,10 @@ import {
   type CompletionStatus,
 } from '@/shared/utils/completion-status'
 import { dispatchTransferPayload } from '../providers/pipeline'
+import { getBackgroundProviderRegistry } from '../providers/registry'
+import { CHAOSPACE_SITE_PROVIDER_ID } from '@/providers/sites/chaospace/chaospace-site-provider'
 import type {
+  HistoryRecord,
   TransferRequestPayload,
   TransferResultEntry,
   TransferJobMeta,
@@ -45,9 +49,33 @@ interface PageSnapshot {
   providerLabel?: string
 }
 
+interface SnapshotOptions {
+  providerId?: string | null
+  providerLabel?: string | null
+}
+
+interface HistoryProviderDescriptor {
+  providerId: string | null
+  providerLabel: string | null
+}
+
 const nowTs = (): number => Date.now()
 
-export async function collectPageSnapshot(pageUrl: string): Promise<PageSnapshot> {
+export async function collectPageSnapshot(
+  pageUrl: string,
+  options: SnapshotOptions = {},
+): Promise<PageSnapshot> {
+  const providerId =
+    typeof options.providerId === 'string' && options.providerId
+      ? options.providerId
+      : CHAOSPACE_SITE_PROVIDER_ID
+  if (providerId && providerId !== CHAOSPACE_SITE_PROVIDER_ID) {
+    throw new Error('暂不支持该站点的历史检测')
+  }
+  const providerLabel =
+    typeof options.providerLabel === 'string' && options.providerLabel
+      ? options.providerLabel
+      : 'CHAOSPACE'
   const response = await fetch(pageUrl, { credentials: 'include' })
   if (!response.ok) {
     throw new Error(`获取页面失败：${response.status}`)
@@ -107,8 +135,8 @@ export async function collectPageSnapshot(pageUrl: string): Promise<PageSnapshot
     completion,
     seasonCompletion,
     seasonEntries,
-    providerId: 'chaospace',
-    providerLabel: 'CHAOSPACE',
+    providerId,
+    providerLabel,
   }
 }
 
@@ -164,6 +192,72 @@ export interface CheckUpdatesResult {
   jobId?: string
 }
 
+const normalizeProviderField = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null
+  }
+  const trimmed = value.trim()
+  return trimmed || null
+}
+
+async function detectProviderForUrl(
+  pageUrl: string,
+  registry = getBackgroundProviderRegistry(),
+): Promise<HistoryProviderDescriptor | null> {
+  if (!pageUrl) {
+    return null
+  }
+  for (const provider of registry.listSiteProviders()) {
+    try {
+      const detected = await provider.detect({ url: pageUrl })
+      if (detected) {
+        return {
+          providerId: provider.id,
+          providerLabel: provider.metadata.displayName || provider.id,
+        }
+      }
+    } catch (error) {
+      chaosLogger.warn('[Pan Transfer] Site provider detection failed for history update', {
+        providerId: provider.id,
+        pageUrl,
+        error,
+      })
+    }
+  }
+  return null
+}
+
+async function resolveHistoryRecordProvider(
+  record: HistoryRecord,
+  pageUrl: string,
+): Promise<HistoryProviderDescriptor> {
+  const declaredId = normalizeProviderField(record?.siteProviderId)
+  const declaredLabel = normalizeProviderField(record?.siteProviderLabel)
+  const registry = getBackgroundProviderRegistry()
+
+  if (declaredId && declaredLabel) {
+    return { providerId: declaredId, providerLabel: declaredLabel }
+  }
+
+  if (declaredId) {
+    const provider = registry.getSiteProvider(declaredId)
+    return {
+      providerId: declaredId,
+      providerLabel: declaredLabel || provider?.metadata.displayName || declaredId,
+    }
+  }
+
+  const detected = await detectProviderForUrl(pageUrl, registry)
+  if (detected) {
+    return detected
+  }
+
+  return {
+    providerId: declaredId,
+    providerLabel: declaredLabel,
+  }
+}
+
 export async function handleCheckUpdates(
   payload: CheckUpdatesPayload = {},
 ): Promise<CheckUpdatesResult> {
@@ -178,9 +272,44 @@ export async function handleCheckUpdates(
     throw new Error('未找到该页面的历史记录')
   }
   const record = ensureHistoryRecordStructure(entry.record)
-  const snapshot = await collectPageSnapshot(pageUrl)
   const knownIds = new Set(Object.keys(record.items || {}))
   const timestamp = nowTs()
+  const providerInfo = await resolveHistoryRecordProvider(record, pageUrl)
+  const normalizedProviderId = providerInfo.providerId || CHAOSPACE_SITE_PROVIDER_ID
+  const normalizedProviderLabel =
+    providerInfo.providerLabel ||
+    (normalizedProviderId === CHAOSPACE_SITE_PROVIDER_ID ? 'CHAOSPACE' : null)
+
+  if (!record.siteProviderId && normalizedProviderId) {
+    record.siteProviderId = normalizedProviderId
+  }
+  if (!record.siteProviderLabel && normalizedProviderLabel) {
+    record.siteProviderLabel = normalizedProviderLabel
+  }
+
+  if (providerInfo.providerId && providerInfo.providerId !== CHAOSPACE_SITE_PROVIDER_ID) {
+    chaosLogger.info('[Pan Transfer] Skipping history update for unsupported provider', {
+      pageUrl,
+      providerId: providerInfo.providerId,
+    })
+    record.lastCheckedAt = timestamp
+    await persistHistoryNow()
+    return {
+      ok: true,
+      hasUpdates: false,
+      pageUrl,
+      pageTitle: record.pageTitle || '',
+      totalKnown: knownIds.size,
+      latestCount: knownIds.size,
+      reason: 'unsupported-provider',
+      completion: record.completion,
+    }
+  }
+
+  const snapshot = await collectPageSnapshot(pageUrl, {
+    providerId: normalizedProviderId,
+    providerLabel: normalizedProviderLabel,
+  })
 
   if (snapshot.completion) {
     record.completion = mergeCompletionStatus(
@@ -263,11 +392,13 @@ export async function handleCheckUpdates(
     trigger: 'history-update',
     total: newItems.length,
   }
-  if (snapshot.providerId) {
-    meta.siteProviderId = snapshot.providerId
+  const providerIdForMeta = snapshot.providerId || normalizedProviderId
+  const providerLabelForMeta = snapshot.providerLabel || normalizedProviderLabel
+  if (providerIdForMeta) {
+    meta.siteProviderId = providerIdForMeta
   }
-  if (snapshot.providerLabel) {
-    meta.siteProviderLabel = snapshot.providerLabel
+  if (providerLabelForMeta) {
+    meta.siteProviderLabel = providerLabelForMeta
   }
 
   const transferPayload: TransferRequestPayload = {

@@ -82,6 +82,8 @@ export interface HistoryRecord {
   pageTitle: string
   pageType: 'series' | 'movie' | 'anime' | 'unknown'
   origin: string
+  siteProviderId?: string | null
+  siteProviderLabel?: string | null
   poster: PosterInfo | null
   targetDirectory: string
   baseDir: string
