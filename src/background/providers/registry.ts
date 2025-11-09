@@ -1,5 +1,6 @@
 import { createProviderRegistry, type ProviderRegistry } from '@/platform/registry'
 import { createChaospaceSiteProvider } from '@/providers/sites/chaospace'
+import { createGenericForumSiteProvider } from '@/providers/sites/generic-forum'
 import { createMockStorageProvider } from '@/providers/storage'
 import { createBaiduNetdiskProvider } from '@/providers/storage/baidu-netdisk'
 import {
@@ -20,7 +21,7 @@ export function getBackgroundProviderRegistry(
     return cached
   }
   const nextRegistry = createProviderRegistry({
-    siteProviders: [createChaospaceSiteProvider()],
+    siteProviders: [createChaospaceSiteProvider(), createGenericForumSiteProvider()],
   })
   if (storageMode === 'mock') {
     nextRegistry.registerStorageProvider(createMockStorageProvider())

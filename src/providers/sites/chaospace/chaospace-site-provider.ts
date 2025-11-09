@@ -6,7 +6,6 @@ import type {
   SiteResourceItem,
   TransferContext,
 } from '@/platform/registry'
-import type { TransferRequestPayload } from '@/shared/types/transfer'
 import { summarizeSeasonCompletion, type CompletionStatus } from '@/shared/utils/completion-status'
 import type { HistoryDetail, SiteHistorySnapshot } from '@/shared/types/history'
 import {
@@ -26,6 +25,7 @@ import {
   parseHistoryDetailFromHtml,
 } from './parser-service'
 import type { ResourceItem } from '@/content/types'
+import { buildTransferPayloadFromSelection } from '../provider-utils'
 
 export const CHAOSPACE_SITE_PROVIDER_ID = 'chaospace'
 export const ANALYSIS_SNAPSHOT_KEY = 'analysisSnapshot'
@@ -78,7 +78,9 @@ export function createChaospaceSiteProvider(
       return collection
     },
     buildTransferPayload(input) {
-      return buildTransferPayloadFromSelection(input)
+      return buildTransferPayloadFromSelection(input, {
+        resolvePageUrl: (context, fallbackUrl) => normalizePageUrl(context.url || fallbackUrl),
+      })
     },
     async collectHistorySnapshot(input: SiteHistorySnapshotInput) {
       const normalizedUrl = normalizeBackgroundPageUrl(input.pageUrl)
@@ -204,52 +206,6 @@ function mapResourceItem(item: ResourceItem): SiteResourceItem {
     resource.passCode = item.passCode
   }
   return resource
-}
-
-function buildTransferPayloadFromSelection(input: {
-  context: TransferContext
-  selection: SiteResourceItem[]
-}): TransferRequestPayload {
-  const fallbackUrl =
-    typeof window !== 'undefined' && typeof window.location?.href === 'string'
-      ? window.location.href
-      : ''
-  const pageUrl = normalizePageUrl(input.context.url || fallbackUrl)
-  const items = input.selection.map((item) => {
-    const payload: TransferRequestPayload['items'][number] = {
-      id: item.id,
-      title: item.title,
-    }
-    if (typeof item.linkUrl === 'string' && item.linkUrl.trim()) {
-      payload.linkUrl = item.linkUrl
-    }
-    if (typeof item.passCode === 'string' && item.passCode.trim()) {
-      payload.passCode = item.passCode
-    }
-    return payload
-  })
-  const extras = input.context.extras ?? {}
-  const resolvedPageTitle =
-    typeof extras['pageTitle'] === 'string' ? (extras['pageTitle'] as string) : undefined
-  const resolvedOrigin =
-    typeof extras['origin'] === 'string' ? (extras['origin'] as string) : undefined
-  const meta: TransferRequestPayload['meta'] = {
-    total: items.length,
-  }
-  if (pageUrl) {
-    meta.pageUrl = pageUrl
-  }
-  if (resolvedPageTitle) {
-    meta.pageTitle = resolvedPageTitle
-  }
-  const payload: TransferRequestPayload = {
-    items,
-    meta,
-  }
-  if (resolvedOrigin) {
-    payload.origin = resolvedOrigin
-  }
-  return payload
 }
 
 async function collectChaospaceHistorySnapshot(

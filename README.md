@@ -79,6 +79,21 @@ pan-transfer/
 └── README.md
 ```
 
+### Adding Site Providers
+
+- Provider contracts (`SiteProvider`, `StorageProvider`, etc.) live in `src/platform/registry/types.ts`. When building a new integration, start from the sample `createGenericForumSiteProvider` under `src/providers/sites/generic-forum/`.
+- Every site provider should live under `src/providers/sites/<provider-id>/` and export a factory. Keep DOM analyzers, parsers, and helpers scoped to that directory so changes stay localized.
+- Register the provider in both registries: `src/content/providers/registry.ts` (content runtime) and `src/background/providers/registry.ts` (background/service worker). This keeps detection, history refresh, and background transfers in sync.
+- Add Vitest coverage in `src/providers/sites/<provider-id>/__tests__/` that exercises detection plus `collectResources`. Use HTML fixtures to avoid hitting live sites.
+- Reference `docs/pan-transfer-migration-plan.md` for the current rollout expectations and document any manual verification steps in your PR description.
+
+#### Provider Parity Checklist
+
+- `npm run check` stays green (includes `format:check → typecheck → lint:ci → build → vitest → playwright`). Run `npm run e2e` locally to confirm the Chaospace baseline still passes after adding a provider.
+- Provider-specific Vitest suites cover detection/resource parsing, and Playwright (or manual Chrome devtools) confirms the floating panel shows the provider badge plus resources on the target site.
+- Background hooks (`collectHistorySnapshot`, `collectHistoryDetail`) are implemented or intentionally skipped with `[Pan Transfer]` logs so history refreshes remain predictable.
+- README/docs note any new permissions, toggles, or manual QA steps introduced by the provider.
+
 ### Release Automation
 
 The `.github/workflows/release.yml` workflow can be triggered manually (`workflow_dispatch`) or by pushing a tag such as `v1.0.0`. It performs `npm ci`, runs `npm run check`, builds the extension, zips the `dist/` output, and uploads `pan-transfer-extension.zip` both as a workflow artifact and as a GitHub Release asset (for tagged runs). Review the workflow logs before distributing any build.
@@ -141,6 +156,21 @@ pan-transfer/
 ├── .github/workflows/   # GitHub Action（release.yml）
 └── README.md
 ```
+
+### 扩展站点 Provider
+
+- Provider 协议（`SiteProvider`、`StorageProvider` 等）定义在 `src/platform/registry/types.ts`，可以参考 `src/providers/sites/generic-forum/` 下的示例 `createGenericForumSiteProvider` 来实现新的站点。
+- 每个站点 Provider 都应放在 `src/providers/sites/<provider-id>/` 目录中，导出一个工厂方法，并把解析 DOM 的辅助函数保留在同一目录，避免影响其他站点。
+- 记得同时在 `src/content/providers/registry.ts`（内容脚本）与 `src/background/providers/registry.ts`（后台 Service Worker）注册 Provider，这样检测、历史刷新与后台任务才能复用相同的配置。
+- 在 `src/providers/sites/<provider-id>/__tests__/` 下补充 Vitest 测试，使用 HTML 固定样本覆盖 detect 与 `collectResources`，避免依赖线上站点。
+- 变更时请同步查阅 `docs/pan-transfer-migration-plan.md`，并在 PR 中记录手动验证步骤或额外权限需求。
+
+#### Provider 验证清单
+
+- `npm run check` 必须保持通过（包含 `format:check → typecheck → lint:ci → build → vitest → playwright`）；本地执行 `npm run e2e`，确认 Chaospace 基线仍可通过。
+- Provider 对应的 Vitest 套件覆盖检测/解析逻辑，并通过 Playwright 或人工在 Chrome DevTools 中确认页面浮窗显示正确的站点徽标与资源列表。
+- 如实现了历史刷新，确保 `collectHistorySnapshot` / `collectHistoryDetail` 可用；若暂不支持，也要输出 `[Pan Transfer]` 日志说明跳过原因。
+- README / 文档需补充 Provider 引入的新权限、开关或 QA 流程。
 
 ### 发布与注意事项
 

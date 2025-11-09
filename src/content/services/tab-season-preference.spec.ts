@@ -75,6 +75,29 @@ describe('tab-season-preference controller', () => {
     expect(renderPathPreview).toHaveBeenCalled()
   })
 
+  it('defers forced season renders until items hydrate', async () => {
+    state.items = []
+    state.seasonSubdirDefault = true
+    sendMessageMock.mockResolvedValueOnce({ ok: true, tabId: 22, value: null })
+
+    const renderResourceList = vi.fn()
+    const renderPathPreview = vi.fn()
+
+    const controller = createTabSeasonPreferenceController({
+      getFloatingPanel: () => document.createElement('div'),
+      renderResourceList,
+      renderPathPreview,
+      panelDom: panelBaseDirDom,
+    })
+
+    await controller.initialize()
+
+    expect(state.useSeasonSubdir).toBe(true)
+    expect(renderResourceList).not.toHaveBeenCalled()
+    expect(renderPathPreview).toHaveBeenCalled()
+    expect(panelDom.get('useSeasonCheckbox')?.checked).toBe(true)
+  })
+
   it('persists user override to session storage', async () => {
     sendMessageMock.mockImplementation((message) => {
       if ((message as { type?: string }).type === 'chaospace:season-pref:init') {

@@ -50,6 +50,9 @@ export function createPageAnalysisRunner(options: PageAnalysisRunnerOptions): Pa
     try {
       const provider = await getPipeline().detectSiteProvider(context)
       if (!provider) {
+        chaosLogger.debug('[Pan Transfer] 未匹配到站点 Provider，回退到 CHAOSPACE 解析', {
+          url: context.url ?? options.window.location?.href,
+        })
         return ensureProviderMetadata(await analyzeChaospacePage(analysisOptions))
       }
       const collection = await provider.collectResources(context)

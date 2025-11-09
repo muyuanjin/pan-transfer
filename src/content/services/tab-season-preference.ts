@@ -79,7 +79,11 @@ function applySeasonPreference(
     renderPathPreview()
   }
   const panelExists = typeof getFloatingPanel === 'function' && Boolean(getFloatingPanel())
-  if (panelExists) {
+  const hasHydratedItems = Array.isArray(state.items) && state.items.length > 0
+  const canRenderSeasonUi = panelExists && hasHydratedItems
+  if (canRenderSeasonUi) {
+    // Wait until resource items hydrate before touching season controls;
+    // rendering too early zeroes out the checkbox state on multi-season pages.
     renderSeasonControls()
     if (valueChanged && typeof renderResourceList === 'function') {
       renderResourceList()
