@@ -206,11 +206,29 @@ export function createTabSeasonPreferenceController({
     const normalized = Boolean(nextDefault)
     const previousDefault = state.seasonSubdirDefault
     state.seasonSubdirDefault = normalized
-    if (previousDefault === normalized && state.seasonPreferenceScope !== 'default') {
+    const defaultChanged = previousDefault !== normalized
+
+    if (!defaultChanged && state.seasonPreferenceScope === 'default') {
+      if (state.useSeasonSubdir !== normalized) {
+        applySeasonPreference(normalized, 'default', {
+          forceRender: true,
+          getFloatingPanel,
+          renderResourceList,
+          renderPathPreview,
+          syncCheckboxes,
+        })
+      } else {
+        syncCheckboxes()
+      }
+      return
+    }
+
+    if (!defaultChanged) {
       syncCheckboxes()
       return
     }
-    if (state.seasonPreferenceScope === 'default') {
+
+    if (state.seasonPreferenceScope === 'tab') {
       applySeasonPreference(normalized, 'default', {
         forceRender: true,
         getFloatingPanel,
@@ -218,9 +236,17 @@ export function createTabSeasonPreferenceController({
         renderPathPreview,
         syncCheckboxes,
       })
-    } else {
-      syncCheckboxes()
+      void runtimeSendMessage({ type: 'chaospace:season-pref:clear' })
+      return
     }
+
+    applySeasonPreference(normalized, 'default', {
+      forceRender: true,
+      getFloatingPanel,
+      renderResourceList,
+      renderPathPreview,
+      syncCheckboxes,
+    })
   }
 
   return {

@@ -28,6 +28,7 @@ describe('tab-season-preference controller', () => {
     state.seasonPreferenceScope = 'default'
     state.seasonPreferenceTabId = null
     state.items = [{ id: 'item-1', title: 'Episode 1', order: 0, seasonId: 's-1', seasonIndex: 0 }]
+    window.history.replaceState({}, '', '/tvshows/123.html')
     const useSeasonCheckbox = document.createElement('input')
     useSeasonCheckbox.type = 'checkbox'
     panelDom.set('useSeasonCheckbox', useSeasonCheckbox)
@@ -129,5 +130,40 @@ describe('tab-season-preference controller', () => {
     expect(sendMessageMock).toHaveBeenCalledWith({ type: 'chaospace:season-pref:clear' })
     expect(state.useSeasonSubdir).toBe(false)
     expect(state.seasonPreferenceScope).toBe('default')
+  })
+
+  it('drops tab overrides when the global default changes', async () => {
+    sendMessageMock.mockImplementation((message) => {
+      if ((message as { type?: string }).type === 'chaospace:season-pref:init') {
+        return Promise.resolve({ ok: true, tabId: 10, value: null })
+      }
+      if ((message as { type?: string }).type === 'chaospace:season-pref:update') {
+        return Promise.resolve({ ok: true })
+      }
+      if ((message as { type?: string }).type === 'chaospace:season-pref:clear') {
+        return Promise.resolve({ ok: true })
+      }
+      return Promise.resolve({ ok: true })
+    })
+
+    const controller = createTabSeasonPreferenceController({
+      getFloatingPanel: () => document.createElement('div'),
+      renderResourceList: vi.fn(),
+      renderPathPreview: vi.fn(),
+      panelDom: panelBaseDirDom,
+    })
+
+    await controller.applyUserSelection(true)
+    expect(state.useSeasonSubdir).toBe(true)
+    expect(state.seasonPreferenceScope).toBe('tab')
+
+    controller.handleGlobalDefaultChange(true)
+
+    expect(sendMessageMock).toHaveBeenCalledWith({ type: 'chaospace:season-pref:clear' })
+    expect(state.useSeasonSubdir).toBe(true)
+    expect(state.seasonSubdirDefault).toBe(true)
+    expect(state.seasonPreferenceScope).toBe('default')
+    expect(panelDom.get('useSeasonCheckbox')?.checked).toBe(true)
+    expect(panelDom.get('settingsUseSeason')?.checked).toBe(true)
   })
 })
