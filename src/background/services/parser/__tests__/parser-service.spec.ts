@@ -6,7 +6,7 @@ import {
   parseLinkPage,
   parseTvShowSeasonCompletionFromHtml,
   parseTvShowSeasonEntriesFromHtml,
-} from '../../parser-service'
+} from '@/providers/sites/chaospace/parser-service'
 
 const detailHtml = `
   <div class="sheader">

@@ -1,4 +1,4 @@
-import { parseLinkPage } from '../services/parser-service'
+import { parseLinkPage } from '@/providers/sites/chaospace/parser-service'
 import type { TransferRuntimeOptions } from '../types'
 
 export interface LinkDetailResult {

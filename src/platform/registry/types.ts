@@ -1,4 +1,5 @@
-import type { TransferRequestPayload } from '@/shared/types/transfer'
+import type { HistoryDetail, SiteHistorySnapshot } from '@/shared/types/history'
+import type { HistoryRecord, TransferRequestPayload } from '@/shared/types/transfer'
 
 export type ProviderStage = 'alpha' | 'beta' | 'stable'
 
@@ -74,6 +75,8 @@ export interface SiteProvider {
     input: SiteTransferBuildInput,
   ): Promise<TransferRequestPayload> | TransferRequestPayload
   authAssist?(context: TransferContext): Promise<void> | void
+  collectHistorySnapshot?(input: SiteHistorySnapshotInput): Promise<SiteHistorySnapshot>
+  collectHistoryDetail?(input: SiteHistoryDetailInput): Promise<HistoryDetail>
 }
 
 export interface StorageQuotaSnapshot {
@@ -115,6 +118,15 @@ export interface StorageProvider {
 export interface ProviderRegistrySnapshot {
   siteProviders: ReadonlyArray<SiteProvider>
   storageProviders: ReadonlyArray<StorageProvider>
+}
+
+export interface SiteHistorySnapshotInput {
+  pageUrl: string
+  historyRecord?: HistoryRecord | null
+}
+
+export interface SiteHistoryDetailInput {
+  pageUrl: string
 }
 
 export interface ProviderRegistryEventMap {

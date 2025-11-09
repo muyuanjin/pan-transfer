@@ -384,7 +384,7 @@ npm run check
 相关文件:
 
 - `src/providers/sites/chaospace/page-analyzer.ts` - 页面解析逻辑(剧集资源列表提取)
-- `src/background/services/parser-service.ts` - 链接详情解析(HTML 解析)
+- `src/providers/sites/chaospace/parser-service.ts` - 链接详情解析(HTML 解析)
 
 ### 缓存不生效
 

@@ -10,60 +10,25 @@ import {
   isDateLikeLabel,
   type CompletionStatus,
 } from '@/shared/utils/completion-status'
+import type {
+  HistoryDetail,
+  HistoryDetailInfoEntry,
+  HistoryDetailRating,
+  HistoryDetailStillEntry,
+  HistorySeasonEntrySummary,
+  HistorySnapshotItem,
+} from '@/shared/types/history'
 import {
   extractPosterFromBlockHtml,
   extractSectionByClass,
   extractSectionById,
   resolveSeasonUrl,
   safeGroup,
-} from './parser/html-helpers'
+} from '@/background/services/parser/html-helpers'
 
 export interface LinkParseResult {
   linkUrl: string
   passCode: string
-}
-
-export interface RatingInfo {
-  value: string
-  votes: string
-  label: string
-  scale: number
-}
-
-export interface HistoryInfoEntry {
-  label: string
-  value: string
-}
-
-export interface HistoryStillEntry {
-  url: string
-  full: string
-  thumb: string
-  alt: string
-}
-
-export interface HistoryDetail {
-  pageUrl: string
-  title: string
-  poster: PosterInfo | null
-  releaseDate: string
-  country: string
-  runtime: string
-  rating: RatingInfo | null
-  genres: string[]
-  info: HistoryInfoEntry[]
-  synopsis: string
-  stills: HistoryStillEntry[]
-  completion: CompletionStatus | null
-}
-
-export interface SeasonEntrySummary {
-  seasonId: string
-  url: string
-  label: string
-  seasonIndex: number
-  poster: PosterInfo | null
-  completion?: CompletionStatus | null
 }
 
 const cleanText = (value: unknown): string =>
@@ -79,7 +44,7 @@ interface HistoryHeaderData {
   releaseDate: string
   country: string
   runtime: string
-  rating: RatingInfo | null
+  rating: HistoryDetailRating | null
   genres: string[]
 }
 
@@ -183,7 +148,7 @@ const parseHistoryHeader = (headerHtml: string, baseUrl: string): HistoryHeaderD
 
 interface SynopsisParseResult {
   synopsis: string
-  stills: HistoryStillEntry[]
+  stills: HistoryDetailStillEntry[]
 }
 
 const parseSynopsisSection = (
@@ -270,11 +235,11 @@ const parseSynopsisSection = (
   return result
 }
 
-const parseInfoTableEntries = (infoSection: string): HistoryInfoEntry[] => {
+const parseInfoTableEntries = (infoSection: string): HistoryDetailInfoEntry[] => {
   if (!infoSection) {
     return []
   }
-  const entries: HistoryInfoEntry[] = []
+  const entries: HistoryDetailInfoEntry[] = []
   const infoRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi
   let infoMatch: RegExpExecArray | null
   while ((infoMatch = infoRegex.exec(infoSection))) {
@@ -525,7 +490,7 @@ export function parseTvShowSeasonCompletionFromHtml(
 export function parseTvShowSeasonEntriesFromHtml(
   html: string | null | undefined,
   baseUrl: string,
-): SeasonEntrySummary[] {
+): HistorySeasonEntrySummary[] {
   if (!html || typeof html !== 'string') {
     return []
   }
@@ -534,7 +499,7 @@ export function parseTvShowSeasonEntriesFromHtml(
     return []
   }
   const blockPattern = /<div[^>]*class=['"][^'"]*\bse-c\b[^'"]*['"][^>]*>/gi
-  const entries: SeasonEntrySummary[] = []
+  const entries: HistorySeasonEntrySummary[] = []
   let index = 0
   let blockMatch: RegExpExecArray | null
   while ((blockMatch = blockPattern.exec(seasonsSection))) {
@@ -573,22 +538,15 @@ export function parseTvShowSeasonEntriesFromHtml(
   return entries
 }
 
-export interface ParsedItem {
-  id: string
-  title: string
-  linkUrl: string
-  passCode: string
-}
-
 export function parseItemsFromHtml(
   html: string | null | undefined,
   historyItems: Record<string, { linkUrl?: string; passCode?: string }> = {},
-): ParsedItem[] {
+): HistorySnapshotItem[] {
   const sectionHtml = extractDownloadTableHtml(html)
   if (!sectionHtml) {
     return []
   }
-  const items: ParsedItem[] = []
+  const items: HistorySnapshotItem[] = []
   const seenIds = new Set<string>()
   const rowRegex = /<tr[^>]*id=["']link-(\d+)["'][\s\S]*?<\/tr>/gi
   let match: RegExpExecArray | null

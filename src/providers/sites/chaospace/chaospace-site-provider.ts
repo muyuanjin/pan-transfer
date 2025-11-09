@@ -1,10 +1,14 @@
 import type {
+  SiteHistoryDetailInput,
+  SiteHistorySnapshotInput,
   SiteProvider,
   SiteResourceCollection,
   SiteResourceItem,
   TransferContext,
 } from '@/platform/registry'
 import type { TransferRequestPayload } from '@/shared/types/transfer'
+import { summarizeSeasonCompletion, type CompletionStatus } from '@/shared/utils/completion-status'
+import type { HistoryDetail, SiteHistorySnapshot } from '@/shared/types/history'
 import {
   analyzePage as analyzeChaospacePage,
   normalizePageUrl,
@@ -13,6 +17,14 @@ import {
   type AnalyzePageOptions,
   type PageAnalysisResult,
 } from './page-analyzer'
+import {
+  parseItemsFromHtml,
+  parsePageTitleFromHtml,
+  parseTvShowSeasonCompletionFromHtml,
+  parseCompletionFromHtml,
+  parseTvShowSeasonEntriesFromHtml,
+  parseHistoryDetailFromHtml,
+} from './parser-service'
 import type { ResourceItem } from '@/content/types'
 
 export const CHAOSPACE_SITE_PROVIDER_ID = 'chaospace'
@@ -67,6 +79,26 @@ export function createChaospaceSiteProvider(
     },
     buildTransferPayload(input) {
       return buildTransferPayloadFromSelection(input)
+    },
+    async collectHistorySnapshot(input: SiteHistorySnapshotInput) {
+      const normalizedUrl = normalizeBackgroundPageUrl(input.pageUrl)
+      if (!normalizedUrl) {
+        throw new Error('缺少页面地址')
+      }
+      if (!isChaospaceDetailUrl(normalizedUrl)) {
+        throw new Error('页面不属于 CHAOSPACE，无法刷新历史记录')
+      }
+      return collectChaospaceHistorySnapshot(normalizedUrl, input.historyRecord ?? null)
+    },
+    async collectHistoryDetail(input: SiteHistoryDetailInput) {
+      const normalizedUrl = normalizeBackgroundPageUrl(input.pageUrl)
+      if (!normalizedUrl) {
+        throw new Error('缺少页面地址')
+      }
+      if (!isChaospaceDetailUrl(normalizedUrl)) {
+        throw new Error('页面不属于 CHAOSPACE，无法解析详情')
+      }
+      return collectChaospaceHistoryDetail(normalizedUrl)
     },
   }
 }
@@ -218,4 +250,117 @@ function buildTransferPayloadFromSelection(input: {
     payload.origin = resolvedOrigin
   }
   return payload
+}
+
+async function collectChaospaceHistorySnapshot(
+  pageUrl: string,
+  historyRecord: SiteHistorySnapshotInput['historyRecord'],
+): Promise<SiteHistorySnapshot> {
+  const html = await fetchChaospacePageHtml(pageUrl)
+  const historyItems = buildHistoryItemLookup(historyRecord)
+  const items = parseItemsFromHtml(html, historyItems)
+  const pageTitle = parsePageTitleFromHtml(html)
+  const pageType: SiteHistorySnapshot['pageType'] = items.length > 1 ? 'series' : 'movie'
+  const seasonCompletion: Record<string, CompletionStatus> = isTvShowUrl(pageUrl)
+    ? parseTvShowSeasonCompletionFromHtml(html)
+    : {}
+  let completion: CompletionStatus | null = null
+  if (isSeasonUrl(pageUrl)) {
+    completion = parseCompletionFromHtml(html, 'season-meta')
+    if (completion) {
+      const seasonIdMatch = pageUrl.match(/\/seasons\/(\d+)\.html/)
+      const seasonId = seasonIdMatch?.[1]
+      if (seasonId) {
+        seasonCompletion[seasonId] = completion
+      }
+    }
+  } else if (isTvShowUrl(pageUrl)) {
+    completion = summarizeSeasonCompletion(Object.values(seasonCompletion))
+  } else {
+    completion = parseCompletionFromHtml(html, 'detail-meta')
+  }
+  if (!completion && Object.keys(seasonCompletion).length) {
+    completion = summarizeSeasonCompletion(Object.values(seasonCompletion))
+  }
+
+  const seasonEntries: SiteHistorySnapshot['seasonEntries'] = isTvShowUrl(pageUrl)
+    ? parseTvShowSeasonEntriesFromHtml(html, pageUrl).map((entry, idx) => ({
+        seasonId: entry.seasonId,
+        url: entry.url,
+        label: entry.label,
+        seasonIndex: Number.isFinite(entry.seasonIndex) ? entry.seasonIndex : idx,
+        poster: entry.poster || null,
+        completion: seasonCompletion[entry.seasonId] || entry.completion || null,
+      }))
+    : []
+
+  return {
+    pageUrl,
+    pageTitle,
+    pageType,
+    total: items.length,
+    items,
+    completion,
+    seasonCompletion,
+    seasonEntries,
+    providerId: CHAOSPACE_SITE_PROVIDER_ID,
+    providerLabel: 'CHAOSPACE',
+  }
+}
+
+async function collectChaospaceHistoryDetail(pageUrl: string): Promise<HistoryDetail> {
+  const html = await fetchChaospacePageHtml(pageUrl)
+  return parseHistoryDetailFromHtml(html, pageUrl)
+}
+
+async function fetchChaospacePageHtml(pageUrl: string): Promise<string> {
+  const response = await fetch(pageUrl, { credentials: 'include' })
+  if (!response.ok) {
+    throw new Error(`获取页面失败：${response.status}`)
+  }
+  return response.text()
+}
+
+function buildHistoryItemLookup(
+  historyRecord: SiteHistorySnapshotInput['historyRecord'],
+): Record<string, { linkUrl?: string; passCode?: string }> {
+  if (!historyRecord || !historyRecord.items) {
+    return {}
+  }
+  const result: Record<string, { linkUrl?: string; passCode?: string }> = {}
+  Object.entries(historyRecord.items).forEach(([itemId, item]) => {
+    if (!itemId || !item) {
+      return
+    }
+    const linkUrl = typeof item.linkUrl === 'string' ? item.linkUrl : null
+    const passCode = typeof item.passCode === 'string' ? item.passCode : null
+    const entry: { linkUrl?: string; passCode?: string } = {}
+    if (linkUrl) {
+      entry.linkUrl = linkUrl
+    }
+    if (passCode) {
+      entry.passCode = passCode
+    }
+    if (entry.linkUrl || entry.passCode) {
+      result[itemId] = entry
+    }
+  })
+  return result
+}
+
+function normalizeBackgroundPageUrl(url: string | null | undefined): string {
+  const candidate = typeof url === 'string' ? url.trim() : ''
+  if (!candidate) {
+    return ''
+  }
+  try {
+    const normalized = new URL(
+      candidate,
+      candidate.startsWith('http') ? undefined : 'https://chaospace.cc',
+    )
+    normalized.hash = ''
+    return normalized.toString()
+  } catch {
+    return candidate
+  }
 }

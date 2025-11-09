@@ -6,24 +6,12 @@ import {
   normalizeHistoryPath,
   persistHistoryNow,
 } from '../storage/history-store'
-import {
-  parseItemsFromHtml,
-  parsePageTitleFromHtml,
-  isTvShowUrl,
-  parseTvShowSeasonCompletionFromHtml,
-  parseCompletionFromHtml,
-  isSeasonUrl,
-  parseTvShowSeasonEntriesFromHtml,
-  parseHistoryDetailFromHtml,
-  type ParsedItem,
-  type SeasonEntrySummary,
-  type HistoryDetail,
-} from './parser-service'
+import type { SiteProvider } from '@/platform/registry'
+import type { HistoryDetail, SiteHistorySnapshot } from '@/shared/types/history'
 import {
   mergeCompletionStatus,
   mergeSeasonCompletionMap,
   normalizeSeasonEntries,
-  summarizeSeasonCompletion,
   type CompletionStatus,
 } from '@/shared/utils/completion-status'
 import { dispatchTransferPayload } from '../providers/pipeline'
@@ -36,121 +24,13 @@ import type {
   TransferJobMeta,
 } from '@/shared/types/transfer'
 
-interface PageSnapshot {
-  pageUrl: string
-  pageTitle: string
-  pageType: 'series' | 'movie' | 'anime' | 'unknown'
-  total: number
-  items: ParsedItem[]
-  completion: CompletionStatus | null
-  seasonCompletion: Record<string, CompletionStatus>
-  seasonEntries: SeasonEntrySummary[]
-  providerId?: string
-  providerLabel?: string
-}
-
-interface SnapshotOptions {
-  providerId?: string | null
-  providerLabel?: string | null
-}
-
 interface HistoryProviderDescriptor {
   providerId: string | null
   providerLabel: string | null
+  provider?: SiteProvider | null
 }
 
 const nowTs = (): number => Date.now()
-
-export async function collectPageSnapshot(
-  pageUrl: string,
-  options: SnapshotOptions = {},
-): Promise<PageSnapshot> {
-  const providerId =
-    typeof options.providerId === 'string' && options.providerId
-      ? options.providerId
-      : CHAOSPACE_SITE_PROVIDER_ID
-  if (providerId && providerId !== CHAOSPACE_SITE_PROVIDER_ID) {
-    throw new Error('暂不支持该站点的历史检测')
-  }
-  const providerLabel =
-    typeof options.providerLabel === 'string' && options.providerLabel
-      ? options.providerLabel
-      : 'CHAOSPACE'
-  const response = await fetch(pageUrl, { credentials: 'include' })
-  if (!response.ok) {
-    throw new Error(`获取页面失败：${response.status}`)
-  }
-  const html = await response.text()
-
-  await ensureHistoryLoaded()
-  const historyIndex = getHistoryIndexMap()
-  const existing = historyIndex.get(pageUrl)
-  const recordItems = (existing?.record?.items ?? {}) as Record<
-    string,
-    { linkUrl?: string; passCode?: string }
-  >
-
-  const items = parseItemsFromHtml(html, recordItems)
-  const pageTitle = parsePageTitleFromHtml(html)
-  const pageType: PageSnapshot['pageType'] = items.length > 1 ? 'series' : 'movie'
-  const seasonCompletion: Record<string, CompletionStatus> = isTvShowUrl(pageUrl)
-    ? parseTvShowSeasonCompletionFromHtml(html)
-    : {}
-  let completion: CompletionStatus | null = null
-  if (isSeasonUrl(pageUrl)) {
-    completion = parseCompletionFromHtml(html, 'season-meta')
-    if (completion) {
-      const seasonIdMatch = pageUrl.match(/\/seasons\/(\d+)\.html/)
-      const seasonId = seasonIdMatch?.[1]
-      if (seasonId) {
-        seasonCompletion[seasonId] = completion
-      }
-    }
-  } else if (isTvShowUrl(pageUrl)) {
-    completion = summarizeSeasonCompletion(Object.values(seasonCompletion))
-  } else {
-    completion = parseCompletionFromHtml(html, 'detail-meta')
-  }
-  if (!completion && Object.keys(seasonCompletion).length) {
-    completion = summarizeSeasonCompletion(Object.values(seasonCompletion))
-  }
-
-  const seasonEntries: SeasonEntrySummary[] = isTvShowUrl(pageUrl)
-    ? parseTvShowSeasonEntriesFromHtml(html, pageUrl).map((entry, idx) => ({
-        seasonId: entry.seasonId,
-        url: entry.url,
-        label: entry.label,
-        seasonIndex: Number.isFinite(entry.seasonIndex) ? entry.seasonIndex : idx,
-        poster: entry.poster || null,
-        completion: seasonCompletion[entry.seasonId] || null,
-      }))
-    : []
-
-  return {
-    pageUrl,
-    pageTitle,
-    pageType,
-    total: items.length,
-    items,
-    completion,
-    seasonCompletion,
-    seasonEntries,
-    providerId,
-    providerLabel,
-  }
-}
-
-export async function collectHistoryDetail(pageUrl: string): Promise<HistoryDetail> {
-  if (!pageUrl) {
-    throw new Error('缺少页面地址')
-  }
-  const response = await fetch(pageUrl, { credentials: 'include' })
-  if (!response.ok) {
-    throw new Error(`获取页面失败：${response.status}`)
-  }
-  const html = await response.text()
-  return parseHistoryDetailFromHtml(html, pageUrl)
-}
 
 interface HistoryDetailPayload {
   pageUrl?: string
@@ -165,7 +45,12 @@ export async function handleHistoryDetail(payload: HistoryDetailPayload = {}): P
   if (!pageUrl) {
     throw new Error('缺少页面地址')
   }
-  const detail = await collectHistoryDetail(pageUrl)
+  await ensureHistoryLoaded()
+  const historyIndex = getHistoryIndexMap()
+  const entry = historyIndex.get(pageUrl)
+  const record = entry?.record ? ensureHistoryRecordStructure(entry.record) : null
+  const providerInfo = await resolveHistoryRecordProvider(record, pageUrl)
+  const detail = await collectHistoryDetailForPage(pageUrl, providerInfo)
   return {
     ok: true,
     pageUrl,
@@ -214,6 +99,7 @@ async function detectProviderForUrl(
         return {
           providerId: provider.id,
           providerLabel: provider.metadata.displayName || provider.id,
+          provider,
         }
       }
     } catch (error) {
@@ -228,22 +114,19 @@ async function detectProviderForUrl(
 }
 
 async function resolveHistoryRecordProvider(
-  record: HistoryRecord,
+  record: HistoryRecord | null,
   pageUrl: string,
 ): Promise<HistoryProviderDescriptor> {
   const declaredId = normalizeProviderField(record?.siteProviderId)
   const declaredLabel = normalizeProviderField(record?.siteProviderLabel)
   const registry = getBackgroundProviderRegistry()
 
-  if (declaredId && declaredLabel) {
-    return { providerId: declaredId, providerLabel: declaredLabel }
-  }
-
   if (declaredId) {
     const provider = registry.getSiteProvider(declaredId)
     return {
       providerId: declaredId,
       providerLabel: declaredLabel || provider?.metadata.displayName || declaredId,
+      provider,
     }
   }
 
@@ -252,10 +135,57 @@ async function resolveHistoryRecordProvider(
     return detected
   }
 
+  const chaosProvider = registry.getSiteProvider(CHAOSPACE_SITE_PROVIDER_ID)
   return {
-    providerId: declaredId,
-    providerLabel: declaredLabel,
+    providerId: chaosProvider ? CHAOSPACE_SITE_PROVIDER_ID : null,
+    providerLabel: chaosProvider?.metadata.displayName || declaredLabel,
+    provider: chaosProvider,
   }
+}
+
+async function collectHistorySnapshotForRecord(
+  pageUrl: string,
+  record: HistoryRecord,
+  providerInfo: HistoryProviderDescriptor,
+): Promise<SiteHistorySnapshot> {
+  const provider = providerInfo.provider ?? resolveProviderInstance(providerInfo.providerId)
+  if (provider?.collectHistorySnapshot) {
+    return provider.collectHistorySnapshot({ pageUrl, historyRecord: record })
+  }
+  if (!providerInfo.providerId || providerInfo.providerId === CHAOSPACE_SITE_PROVIDER_ID) {
+    const chaosProvider = resolveProviderInstance(CHAOSPACE_SITE_PROVIDER_ID)
+    if (chaosProvider?.collectHistorySnapshot) {
+      return chaosProvider.collectHistorySnapshot({ pageUrl, historyRecord: record })
+    }
+  }
+  throw new Error('provider-snapshot-unavailable')
+}
+
+async function collectHistoryDetailForPage(
+  pageUrl: string,
+  providerInfo: HistoryProviderDescriptor,
+): Promise<HistoryDetail> {
+  const provider = providerInfo.provider ?? resolveProviderInstance(providerInfo.providerId)
+  if (provider?.collectHistoryDetail) {
+    return provider.collectHistoryDetail({ pageUrl })
+  }
+  if (!providerInfo.providerId || providerInfo.providerId === CHAOSPACE_SITE_PROVIDER_ID) {
+    const chaosProvider = resolveProviderInstance(CHAOSPACE_SITE_PROVIDER_ID)
+    if (chaosProvider?.collectHistoryDetail) {
+      return chaosProvider.collectHistoryDetail({ pageUrl })
+    }
+  }
+  throw new Error('provider-detail-unavailable')
+}
+
+function resolveProviderInstance(
+  providerId: string | null,
+  registry = getBackgroundProviderRegistry(),
+): SiteProvider | null {
+  if (!providerId) {
+    return null
+  }
+  return registry.getSiteProvider(providerId)
 }
 
 export async function handleCheckUpdates(
@@ -275,22 +205,14 @@ export async function handleCheckUpdates(
   const knownIds = new Set(Object.keys(record.items || {}))
   const timestamp = nowTs()
   const providerInfo = await resolveHistoryRecordProvider(record, pageUrl)
-  const normalizedProviderId = providerInfo.providerId || CHAOSPACE_SITE_PROVIDER_ID
-  const normalizedProviderLabel =
-    providerInfo.providerLabel ||
-    (normalizedProviderId === CHAOSPACE_SITE_PROVIDER_ID ? 'CHAOSPACE' : null)
-
-  if (!record.siteProviderId && normalizedProviderId) {
-    record.siteProviderId = normalizedProviderId
-  }
-  if (!record.siteProviderLabel && normalizedProviderLabel) {
-    record.siteProviderLabel = normalizedProviderLabel
-  }
-
-  if (providerInfo.providerId && providerInfo.providerId !== CHAOSPACE_SITE_PROVIDER_ID) {
-    chaosLogger.info('[Pan Transfer] Skipping history update for unsupported provider', {
+  let snapshot: SiteHistorySnapshot
+  try {
+    snapshot = await collectHistorySnapshotForRecord(pageUrl, record, providerInfo)
+  } catch (error) {
+    chaosLogger.info('[Pan Transfer] Provider snapshot unavailable, skipping history update', {
       pageUrl,
       providerId: providerInfo.providerId,
+      error,
     })
     record.lastCheckedAt = timestamp
     await persistHistoryNow()
@@ -305,11 +227,19 @@ export async function handleCheckUpdates(
       completion: record.completion,
     }
   }
+  const normalizedProviderId =
+    snapshot.providerId || providerInfo.providerId || CHAOSPACE_SITE_PROVIDER_ID
+  const normalizedProviderLabel =
+    snapshot.providerLabel ||
+    providerInfo.providerLabel ||
+    (normalizedProviderId === CHAOSPACE_SITE_PROVIDER_ID ? 'CHAOSPACE' : null)
 
-  const snapshot = await collectPageSnapshot(pageUrl, {
-    providerId: normalizedProviderId,
-    providerLabel: normalizedProviderLabel,
-  })
+  if (!record.siteProviderId && normalizedProviderId) {
+    record.siteProviderId = normalizedProviderId
+  }
+  if (!record.siteProviderLabel && normalizedProviderLabel) {
+    record.siteProviderLabel = normalizedProviderLabel
+  }
 
   if (snapshot.completion) {
     record.completion = mergeCompletionStatus(
