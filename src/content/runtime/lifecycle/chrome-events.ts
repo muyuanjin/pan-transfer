@@ -1,4 +1,5 @@
 import { chaosLogger } from '@/shared/log'
+import type { PageAnalysisResult } from '@/providers/sites/chaospace/page-analyzer'
 import { state } from '../../state'
 import {
   EDGE_STATE_KEY,
@@ -44,7 +45,7 @@ export function registerChromeEvents(deps: {
   syncPinStateFromStorage: (pinned: boolean) => void
   setStatusProgress: (progress: unknown) => void
   getFloatingPanel: () => HTMLElement | null
-  analyzePageForMessage: () => Promise<unknown>
+  analyzePageForMessage: () => Promise<PageAnalysisResult>
 }): () => void {
   const {
     history,

@@ -1,6 +1,6 @@
 import { chaosLogger } from '@/shared/log'
 import { state } from '../state'
-import { sanitizeSeasonDirSegment } from './page-analyzer'
+import { sanitizeSeasonDirSegment } from '@/providers/sites/chaospace/page-analyzer'
 import { rebuildSeasonDirMap, updateSeasonExampleDir } from './season-manager'
 import { summarizeSeasonCompletion, type CompletionStatus } from '@/shared/utils/completion-status'
 import type { PosterInfo } from '@/shared/utils/sanitizers'

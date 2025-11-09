@@ -15,7 +15,7 @@ import {
   MAX_HISTORY_RATE_LIMIT_MS,
 } from '../constants'
 import { state } from '../state'
-import { normalizeDir } from '../services/page-analyzer'
+import { normalizeDir } from '@/providers/sites/chaospace/page-analyzer'
 import type {
   PanelRuntimeState,
   PanelPositionSnapshot,

@@ -22,10 +22,13 @@ import type { PageDataHydrator } from '../page-data-hydrator'
 import type { HeaderPresenter } from '../ui/header-presenter'
 import type { SettingsCoordinator } from './settings-coordinator'
 import type { PanelShellInstance, SettingsModalHandle } from '../types'
-import type { analyzePage } from '../../services/page-analyzer'
+import type {
+  AnalyzePageOptions,
+  PageAnalysisResult,
+} from '@/providers/sites/chaospace/page-analyzer'
 import type { mountPanelShell } from '../../components/panel'
 import type { ToastHandler } from '../../components/toast'
-import { suggestDirectoryFromClassification } from '../../services/page-analyzer'
+import { suggestDirectoryFromClassification } from '@/providers/sites/chaospace/page-analyzer'
 import { formatOriginLabel } from '../../utils/format'
 import { resetPanelRuntimeState } from '../panel-state'
 import type { TabSeasonPreferenceController } from '../../services/tab-season-preference'
@@ -36,6 +39,7 @@ type PanelEdgeController = ReturnType<typeof createPanelEdgeController>
 type HistoryController = ReturnType<typeof createHistoryController>
 type ResourceListRenderer = ReturnType<typeof createResourceListRenderer>
 type SeasonLoader = ReturnType<typeof createSeasonLoader>
+type AnalyzePageFn = (options?: AnalyzePageOptions) => Promise<PageAnalysisResult>
 interface PanelFactoryDeps {
   document: Document
   window: Window & typeof globalThis
@@ -50,7 +54,7 @@ interface PanelFactoryDeps {
   resourceRenderer: ResourceListRenderer
   seasonLoader: SeasonLoader
   hydrator: PageDataHydrator
-  analyzePage: typeof analyzePage
+  analyzePage: AnalyzePageFn
   mountPanelShell: typeof mountPanelShell
   settingsCoordinator: SettingsCoordinator
   staticBinders: Binder[]

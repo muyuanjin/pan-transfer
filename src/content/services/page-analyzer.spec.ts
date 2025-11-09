@@ -5,7 +5,7 @@ import {
   analyzePage,
   suggestDirectoryFromClassification,
   __resetPageAnalyzerForTests,
-} from './page-analyzer'
+} from '@/providers/sites/chaospace/page-analyzer'
 
 const FIXTURE_DIR = resolve(__dirname, '__fixtures__')
 const ORIGINAL_FETCH = globalThis.fetch
@@ -225,7 +225,7 @@ describe('page-analyzer 使用 chaospace 真实页面', () => {
     const html = stripScripts(readFixture('chaospace-season-428609.html'))
     stubFetch({ [seasonUrl]: html })
 
-    const { fetchSeasonDetail } = await import('./page-analyzer')
+    const { fetchSeasonDetail } = await import('@/providers/sites/chaospace/page-analyzer')
 
     const detail = await fetchSeasonDetail({
       seasonId: '428609',
@@ -260,7 +260,7 @@ describe('page-analyzer 使用 chaospace 真实页面', () => {
       </div>
     `
 
-    const { extractItemsFromDocument } = await import('./page-analyzer')
+    const { extractItemsFromDocument } = await import('@/providers/sites/chaospace/page-analyzer')
 
     const items = extractItemsFromDocument(document)
 
@@ -277,7 +277,7 @@ describe('page-analyzer 使用 chaospace 真实页面', () => {
     const titleNode = doc.querySelector('#seasons .se-c .se-q .title')
     const rawLabel = titleNode?.textContent?.trim() || ''
 
-    const { sanitizeSeasonDirSegment } = await import('./page-analyzer')
+    const { sanitizeSeasonDirSegment } = await import('@/providers/sites/chaospace/page-analyzer')
 
     expect(sanitizeSeasonDirSegment(rawLabel)).toBe('第1季')
   })

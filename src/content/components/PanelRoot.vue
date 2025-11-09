@@ -44,7 +44,9 @@
         />
         <div class="chaospace-header-body">
           <div class="chaospace-header-topline">
-            <span class="chaospace-assistant-badge">🚀 CHAOSPACE 转存助手</span>
+            <span class="chaospace-assistant-badge" data-role="assistant-badge">
+              🚀 Pan Transfer 转存助手 · CHAOSPACE
+            </span>
           </div>
           <h2 class="chaospace-show-title" data-role="show-title">{{ safeTitle }}</h2>
           <p class="chaospace-show-subtitle" data-role="show-subtitle">{{ subtitle }}</p>

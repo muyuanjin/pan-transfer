@@ -1,4 +1,4 @@
-import { normalizeDir } from '../../../services/page-analyzer'
+import { normalizeDir } from '@/providers/sites/chaospace/page-analyzer'
 import type { PanelBaseDirDomRefs } from '../../../types'
 import type { ContentStore } from '../../../state'
 import type { createPanelPreferencesController } from '../../../controllers/panel-preferences'

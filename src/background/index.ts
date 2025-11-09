@@ -1,5 +1,5 @@
 import { chaosLogger } from '@/shared/log'
-import { handleTransfer, setProgressHandlers } from './services/transfer-service'
+import { setProgressHandlers } from './services/transfer-service'
 import { handleCheckUpdates, handleHistoryDetail } from './services/history-service'
 import {
   deleteHistoryRecords,
@@ -14,6 +14,7 @@ import {
   setTabSeasonPreference,
 } from './storage/season-preference-store'
 import type { TransferRequestPayload } from '../shared/types/transfer'
+import { dispatchTransferPayload, getBackgroundTransferPipeline } from './providers/pipeline'
 
 interface JobContext {
   tabId?: number
@@ -118,6 +119,7 @@ const isSeasonPreferenceClearMessage = (
   message: BackgroundMessage,
 ): message is SeasonPreferenceClearMessage => message?.type === 'chaospace:season-pref:clear'
 const jobContexts = new Map<string, JobContext>()
+void getBackgroundTransferPipeline()
 
 const resolveErrorMessage = (error: unknown, fallback: string): string => {
   if (error instanceof Error && typeof error.message === 'string' && error.message.trim()) {
@@ -376,8 +378,8 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
       }
       jobContexts.set(payload.jobId, context)
     }
-    handleTransfer(payload)
-      .then((result) => sendResponse({ ok: true, ...result }))
+    dispatchTransferPayload(payload)
+      .then(({ response }) => sendResponse({ ok: true, ...response }))
       .catch((error: unknown) =>
         sendResponse({ ok: false, error: resolveErrorMessage(error, '转存失败') }),
       )

@@ -4,7 +4,7 @@ import type { createPanelPreferencesController } from '../../controllers/panel-p
 import type { createLoggingController } from '../../controllers/logging-controller'
 import type { PanelBaseDirDomRefs, ResourceItem } from '../../types'
 import { computeItemTargetPath, getTargetPath } from '../../services/season-manager'
-import { normalizePageUrl } from '../../services/page-analyzer'
+import { normalizePageUrl } from '@/providers/sites/chaospace/page-analyzer'
 import { showToast } from '../../components/toast'
 import type { TabSeasonPreferenceController } from '../../services/tab-season-preference'
 
@@ -165,6 +165,8 @@ export function createTransferController(deps: {
           poster: state.poster?.src?.length
             ? { src: state.poster.src, alt: state.poster.alt || '' }
             : null,
+          siteProviderId: state.activeSiteProviderId || undefined,
+          siteProviderLabel: state.activeSiteProviderLabel || undefined,
         },
       }
 

@@ -1,6 +1,6 @@
 import { chaosLogger } from '@/shared/log'
 import { DEFAULT_PRESETS, HISTORY_BATCH_RATE_LIMIT_MS, STORAGE_KEY } from '../constants'
-import { normalizeDir } from '../services/page-analyzer'
+import { normalizeDir } from '@/providers/sites/chaospace/page-analyzer'
 import { clampHistoryRateLimit, sanitizePreset } from '../components/settings-modal'
 import { safeStorageGet, safeStorageSet } from '../utils/storage'
 import type { PanelBaseDirDomRefs } from '../types'

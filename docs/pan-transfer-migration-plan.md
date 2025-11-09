@@ -1,6 +1,6 @@
 # Pan Transfer Architecture Migration Plan
 
-_Last updated: 2025-11-08_
+_Last updated: 2025-11-12_
 
 ## 1. Goals & Context
 
@@ -60,22 +60,28 @@ src/
 
 - Create `src/platform/registry` and define TypeScript interfaces (`SiteProvider`, `StorageProvider`, `TransferContext`).
 - Stand up `ProviderRegistry` service (background + shared module) with typed events for provider changes.
-- Introduce `TransferPipeline` skeleton with dependency injection, queue hooks, and feature-flag toggles (e.g., `enableMultiSitePipeline`).
+- Introduce `TransferPipeline` skeleton with dependency injection and queue hooks.
 - Add Vitest specs for the registry/pipeline contracts and ensure mocks cover both site and storage providers.
-- Exit criteria: background/content compile with new scaffolding (behind feature flag), no behavioural change for CHAOSPACE users.
+- Exit criteria: background/content compile with new scaffolding, no behavioural change for CHAOSPACE users.
 
 ### Phase 2 – Site Provider Extraction & Sample Expansion
 
 - Move existing CHAOSPACE-specific selectors/parsers into `providers/sites/chaospace` implementing the new interface.
+- ✅ `providers/sites/chaospace` now hosts the migrated DOM analyzers plus `createChaospaceSiteProvider` with initial detection/resource-mapping tests; runtime still consumes the analyzer directly until registry wiring lands.
+- ✅ Content runtime now shows the detected provider badge in the floating panel header and automatically rebuilds via the ProviderRegistry path.
+- ✅ Content runtime now instantiates a ProviderRegistry + `TransferPipeline` runner, so Chaospace detection/collection flows through `SiteProvider.collectResources` with automatic fallback to the legacy analyzer when no providers match.
 - Add a second "example" provider (e.g., `generic-forum`) that exercises the interface and documents integration steps.
 - Implement detection orchestration in content runtime: first matching provider wins (with telemetry when none match).
 - Ensure runtime logs stay on the `[Pan Transfer]` prefix once provider extraction lands to avoid mixing contexts.
 - Update README with contributor docs on building site providers, plus a checklist for parity testing.
-- Exit criteria: pipeline can toggle between CHAOSPACE provider and sample provider in dev config; Playwright exercises CHAOSPACE path.
+- Exit criteria: pipeline automatically routes between CHAOSPACE provider and the sample provider based on detection; Playwright exercises the CHAOSPACE path.
 
 ### Phase 3 – Storage Provider Modularization
 
 - Encapsulate Baidu Netdisk flows (`background/services/baidu`) into `providers/storage/baidu-netdisk` with typed capabilities (quota, link status, retry policy).
+- ✅ Added a temporary `providers/storage/mock-storage-provider` to exercise the pipeline and tests before extracting the Baidu provider.
+- ✅ Scaffolded `providers/storage/baidu-netdisk` that wraps the existing `handleTransfer` pipeline plus readiness checks, and introduced a dev toggle (`VITE_PAN_STORAGE_PROVIDER=mock` or `window.PAN_TRANSFER_STORAGE_PROVIDER='mock'`) to swap between Baidu and the mock provider.
+- ✅ Background transfer requests (manual + history re-check) now route through the `TransferPipeline` storage dispatch helper so choosing Baidu vs. mock storage is purely configuration, no longer a direct call to `handleTransfer`.
 - Define storage-agnostic transfer commands so future providers can plug in without editing content runtime.
 - Add integration tests (Vitest + mocked fetch) for Baidu provider; document how to add new storage providers.
 - Exit criteria: Transfer pipeline depends only on storage interfaces; feature flag allows swapping mock storage provider in dev builds.
@@ -86,7 +92,7 @@ src/
 - Add settings panel under `platform/settings` where users enable/disable providers and configure default storage target.
 - Ensure modular CSS + `styles.loader` support provider-specific accents without global leaks.
 - Playwright coverage: detection state, provider switch, transfer confirmation.
-- Exit criteria: multi-site UI available behind `enableMultiSiteUI` flag; docs describe manual verification steps for each provider.
+- Exit criteria: multi-site UI ships by default; docs describe manual verification steps for each provider.
 
 ### Phase 5 – Release & Automation
 

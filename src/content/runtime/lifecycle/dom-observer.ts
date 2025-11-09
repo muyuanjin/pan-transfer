@@ -1,4 +1,5 @@
 import { chaosLogger } from '@/shared/log'
+import type { PageAnalysisResult } from '@/providers/sites/chaospace/page-analyzer'
 import {
   INITIAL_PANEL_DELAY_MS,
   PANEL_CREATION_MAX_ATTEMPTS,
@@ -9,7 +10,7 @@ interface DomLifecycleDeps {
   createPanel: () => Promise<boolean>
   hasPanel: () => boolean
   isCreating: () => boolean
-  analyzePage: () => Promise<{ items?: unknown[] }>
+  analyzePage: () => Promise<PageAnalysisResult>
 }
 
 export interface DomLifecycleController {

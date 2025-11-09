@@ -517,6 +517,7 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
   }
   const showTitle = panel.querySelector<HTMLElement>('[data-role="show-title"]')
   const showSubtitle = panel.querySelector<HTMLElement>('[data-role="show-subtitle"]')
+  const assistantBadge = panel.querySelector<HTMLElement>('[data-role="assistant-badge"]')
   const baseDirInput = panel.querySelector<HTMLInputElement>('[data-role="base-dir"]')
   const useTitleCheckbox = panel.querySelector<HTMLInputElement>('[data-role="use-title"]')
   const useSeasonCheckbox = panel.querySelector<HTMLInputElement>('[data-role="use-season"]')
@@ -596,6 +597,7 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     headerPoster,
     showTitle,
     showSubtitle,
+    assistantBadge,
     baseDirInput,
     useTitleCheckbox,
     useSeasonCheckbox,

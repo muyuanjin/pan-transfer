@@ -3,7 +3,7 @@ import {
   CLASSIFICATION_PATH_MAP,
   TV_SHOW_INITIAL_SEASON_BATCH,
   PAN_DISK_BASE_URL,
-} from '../constants'
+} from '@/content/constants'
 import { stripHtmlTags, extractCleanTitle } from '@/shared/utils/sanitizers'
 import type { PosterInfo } from '@/shared/utils/sanitizers'
 import {
@@ -17,7 +17,7 @@ import {
   normalizeSeasonLabel as normalizeSeasonLabelUtil,
   resolveSeasonOrdinalValue,
 } from '@/shared/utils/chinese-numeral'
-import type { DeferredSeasonInfo, ResourceItem } from '../types'
+import type { DeferredSeasonInfo, ResourceItem } from '@/content/types'
 
 export type MediaClassification = 'movie' | 'tvshow' | 'anime' | 'unknown'
 
@@ -66,6 +66,8 @@ export interface PageAnalysisResult {
   seasonEntries: SeasonEntry[]
   classification: MediaClassification
   classificationDetail: DetailedClassificationResult | null
+  providerId?: string
+  providerLabel?: string
 }
 
 export interface SeasonDetailResult {
@@ -985,6 +987,8 @@ async function collectLinks(options: AnalyzePageOptions = {}): Promise<PageAnaly
     seasonEntries: [],
     classification: 'unknown',
     classificationDetail: null,
+    providerId: 'chaospace',
+    providerLabel: 'CHAOSPACE',
   }
 
   let completion: CompletionStatus | null = null

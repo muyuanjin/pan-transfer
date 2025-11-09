@@ -334,8 +334,8 @@ test.describe('Chaospace panel overlay', () => {
 
         await expect(
           page.locator('.chaospace-assistant-badge'),
-          'Panel badge should promote the Chaospace assistant',
-        ).toContainText('CHAOSPACE 转存助手')
+          'Panel badge should promote the Pan Transfer assistant with provider label',
+        ).toContainText('Pan Transfer 转存助手 · CHAOSPACE')
 
         // 等待面板动画完成(chaospace-panel-in 持续 0.35s)
         // 额外等待一些时间确保 animationend 事件触发并添加 is-mounted 类

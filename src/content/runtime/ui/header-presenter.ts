@@ -44,6 +44,11 @@ export function createHeaderPresenter({
         : '未检测到页面来源'
     }
 
+    const providerLabel = state.activeSiteProviderLabel?.trim() || 'CHAOSPACE'
+    if (headerDom.assistantBadge) {
+      headerDom.assistantBadge.textContent = `🚀 Pan Transfer 转存助手 · ${providerLabel}`
+    }
+
     if (headerDom.header) {
       headerDom.header.classList.toggle('has-poster', hasPoster)
     }

@@ -14,7 +14,7 @@ import {
 } from '../services/history-service'
 import type { HistoryUpdateResponse } from '../services/history-service'
 import { dedupeSeasonDirMap, updateSeasonExampleDir } from '../services/season-manager'
-import { normalizePageUrl } from '../services/page-analyzer'
+import { normalizePageUrl } from '@/providers/sites/chaospace/page-analyzer'
 import {
   ensureHistoryDetailOverlay,
   renderHistoryDetail as renderHistoryDetailComponent,

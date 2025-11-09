@@ -1,6 +1,6 @@
 import { chaosLogger } from '@/shared/log'
 import { HISTORY_KEY, HISTORY_FILTERS, type HistoryFilter } from '../constants'
-import { normalizePageUrl } from './page-analyzer'
+import { normalizePageUrl } from '@/providers/sites/chaospace/page-analyzer'
 import type { CompletionStatus, SeasonEntry } from '@/shared/utils/completion-status'
 import type { PosterInfo } from '@/shared/utils/sanitizers'
 import type {

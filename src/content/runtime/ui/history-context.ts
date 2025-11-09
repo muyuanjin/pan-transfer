@@ -1,6 +1,6 @@
 import { inject, type InjectionKey } from 'vue'
 import type { createHistoryController } from '../../history/controller'
-import { buildPanDirectoryUrl } from '../../services/page-analyzer'
+import { buildPanDirectoryUrl } from '@/providers/sites/chaospace/page-analyzer'
 import type { HistoryDetailOverrides as HistoryDetailOverridesInput } from '../../components/history-detail'
 import { useContentStore } from '../../state'
 

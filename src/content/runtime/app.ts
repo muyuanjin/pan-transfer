@@ -1,12 +1,11 @@
 import { chaosLogger } from '@/shared/log'
 import {
-  analyzePage,
   extractItemsFromDocument,
   extractPosterDetails,
   extractSeasonPageCompletion,
   fetchHtmlDocument,
   isSupportedDetailPage,
-} from '../services/page-analyzer'
+} from '@/providers/sites/chaospace/page-analyzer'
 import { state, panelDom, detailDom } from '../state'
 import { createPanelRuntimeState } from './panel-state'
 import type { PanelEdgeSnapshot, PanelPositionSnapshot, PanelSizeSnapshot } from '../types'
@@ -60,6 +59,7 @@ import { loadStoredEdgeState, persistEdgeState } from '../utils/panel-edge'
 import { toolbarContextKey, type ToolbarContext } from './ui/toolbar-context'
 import { historyContextKey } from './ui/history-context'
 import { panelPreferencesContextKey } from './ui/panel-preferences-context'
+import { createPageAnalysisRunner } from '../services/page-analysis-runner'
 
 export function createRuntimeApp() {
   const panelState = createPanelRuntimeState()
@@ -518,6 +518,8 @@ export function createRuntimeApp() {
     panelDom: panelSettingsDom,
   })
 
+  const analysisRunner = createPageAnalysisRunner({ document, window })
+
   const panelFactory = createPanelFactory({
     document,
     window,
@@ -532,7 +534,7 @@ export function createRuntimeApp() {
     resourceRenderer,
     seasonLoader,
     hydrator: pageDataHydrator,
-    analyzePage,
+    analyzePage: (options) => analysisRunner.analyzePage(options),
     mountPanelShell,
     settingsCoordinator,
     staticBinders: [
@@ -581,7 +583,7 @@ export function createRuntimeApp() {
     createPanel: () => panelFactory.createPanel(),
     hasPanel: () => Boolean(getFloatingPanel()),
     isCreating: () => panelFactory.isCreating(),
-    analyzePage: () => analyzePage(),
+    analyzePage: () => analysisRunner.analyzePage(),
   })
 
   const syncSeasonPreferenceFromStorage = (nextValue: boolean | null): void => {
@@ -733,7 +735,7 @@ export function createRuntimeApp() {
       syncPinStateFromStorage,
       setStatusProgress: (progress) => transferController.handleProgressEvent(progress),
       getFloatingPanel,
-      analyzePageForMessage: () => analyzePage(),
+      analyzePageForMessage: () => analysisRunner.analyzePage(),
     })
 
     domLifecycle.scheduleInitialPanelCreation()

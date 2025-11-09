@@ -25,7 +25,7 @@ import {
   summarizeSeasonCompletion,
   type CompletionStatus,
 } from '@/shared/utils/completion-status'
-import { handleTransfer } from './transfer-service'
+import { dispatchTransferPayload } from '../providers/pipeline'
 import type {
   TransferRequestPayload,
   TransferResultEntry,
@@ -41,6 +41,8 @@ interface PageSnapshot {
   completion: CompletionStatus | null
   seasonCompletion: Record<string, CompletionStatus>
   seasonEntries: SeasonEntrySummary[]
+  providerId?: string
+  providerLabel?: string
 }
 
 const nowTs = (): number => Date.now()
@@ -105,6 +107,8 @@ export async function collectPageSnapshot(pageUrl: string): Promise<PageSnapshot
     completion,
     seasonCompletion,
     seasonEntries,
+    providerId: 'chaospace',
+    providerLabel: 'CHAOSPACE',
   }
 }
 
@@ -259,6 +263,12 @@ export async function handleCheckUpdates(
     trigger: 'history-update',
     total: newItems.length,
   }
+  if (snapshot.providerId) {
+    meta.siteProviderId = snapshot.providerId
+  }
+  if (snapshot.providerLabel) {
+    meta.siteProviderLabel = snapshot.providerLabel
+  }
 
   const transferPayload: TransferRequestPayload = {
     jobId,
@@ -274,7 +284,7 @@ export async function handleCheckUpdates(
     meta,
   }
 
-  const transferResult = await handleTransfer(transferPayload)
+  const { response: transferResult } = await dispatchTransferPayload(transferPayload)
 
   const updateResult: CheckUpdatesResult = {
     ok: true,

@@ -240,6 +240,8 @@ export interface ContentState {
   fileFilterMode: FileFilterEvaluationMode
   fileFilters: FileFilterRule[]
   fileRenameRules: FileRenameRule[]
+  activeSiteProviderId: string | null
+  activeSiteProviderLabel: string | null
 }
 
 const PANEL_DOM_KEYS = [
@@ -249,6 +251,7 @@ const PANEL_DOM_KEYS = [
   'headerPoster',
   'showTitle',
   'showSubtitle',
+  'assistantBadge',
   'baseDirInput',
   'useTitleCheckbox',
   'useSeasonCheckbox',
@@ -309,6 +312,7 @@ export interface PanelDomDefinition {
   headerPoster: HTMLImageElement
   showTitle: HTMLElement
   showSubtitle: HTMLElement
+  assistantBadge: HTMLElement
   baseDirInput: HTMLInputElement
   useTitleCheckbox: HTMLInputElement
   useSeasonCheckbox: HTMLInputElement
@@ -498,6 +502,7 @@ export interface PanelHeaderDomRefs {
   readonly headerPoster: HTMLImageElement | null
   readonly showTitle: HTMLElement | null
   readonly showSubtitle: HTMLElement | null
+  readonly assistantBadge: HTMLElement | null
 }
 
 export function getPanelHeaderDom(panelDom: PanelDomRefs): PanelHeaderDomRefs {
@@ -516,6 +521,9 @@ export function getPanelHeaderDom(panelDom: PanelDomRefs): PanelHeaderDomRefs {
     },
     get showSubtitle() {
       return panelDom.get('showSubtitle')
+    },
+    get assistantBadge() {
+      return panelDom.get('assistantBadge')
     },
   }
 }

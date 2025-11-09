@@ -2,7 +2,7 @@ import {
   normalizeDir,
   sanitizeSeasonDirSegment,
   buildPanDirectoryUrl,
-} from '../../services/page-analyzer'
+} from '@/providers/sites/chaospace/page-analyzer'
 import type {
   ContentHistoryRecord,
   HistoryCompletion,

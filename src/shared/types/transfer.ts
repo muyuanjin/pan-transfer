@@ -22,6 +22,8 @@ export interface TransferJobMeta {
   seasonCompletion?: Record<string, CompletionStatusInput>
   seasonEntries?: SeasonEntryInput[]
   poster?: PosterInfo | null
+  siteProviderId?: string
+  siteProviderLabel?: string
 }
 
 export interface TransferItemPayload {

@@ -32,7 +32,7 @@ src/
 │   └── index.ts        # 后台入口
 ├── content/            # Content Script 内容脚本(部分模块化,主入口待重构)
 │   ├── components/     # UI 组件(panel.js[Vue], history-card.js, resource-list.js, settings-modal.js, zoom-preview.js)
-│   ├── services/       # 页面解析和历史服务(page-analyzer.js, season-loader.js, history-service.js)
+│   ├── services/       # 页面解析和历史服务(page-analyzer.ts, season-loader.ts, history-service.ts)
 │   ├── state/          # 前端状态管理(index.js)
 │   ├── utils/          # DOM/格式化/存储工具(dom.js, format.js, storage.js, title.js)
 │   ├── styles/         # 样式文件(待模块化拆分)
@@ -71,7 +71,7 @@ dist/                    # Vite 构建产物(用于加载到浏览器)
 ```
 CHAOSPACE 页面
     ↓ (DOM 解析)
-content/services/page-analyzer.js → 提取资源列表
+providers/sites/chaospace/page-analyzer.ts → 提取资源列表
     ↓ (用户选择)
 background/services/transfer-service.js → 抓取分享链接详情
     ↓ (验证提取码)
@@ -383,7 +383,7 @@ npm run check
 
 相关文件:
 
-- `src/content/services/page-analyzer.js` - 页面解析逻辑(剧集资源列表提取)
+- `src/providers/sites/chaospace/page-analyzer.ts` - 页面解析逻辑(剧集资源列表提取)
 - `src/background/services/parser-service.ts` - 链接详情解析(HTML 解析)
 
 ### 缓存不生效
@@ -410,7 +410,7 @@ npm run check
 - **函数**:驼峰命名法(如 `normalizePath`)
 - **类型/接口**:帕斯卡命名法(如 `TransferRuntimeOptions`、`ProgressLogger`)
 - **DOM ID/Class**:kebab-case(如 `chaospace-panel`、`season-tab-active`)
-- **文件名**:kebab-case(如 `page-analyzer.js`、`transfer-service.ts`)
+- **文件名**:kebab-case(如 `page-analyzer.ts`、`transfer-service.ts`)
 - **异步函数**:优先使用 `async`/`await` 而非 Promise 链
 
 ### TypeScript 规范

@@ -75,6 +75,8 @@ function createInitialState(): ContentState {
     fileFilterMode: DEFAULT_FILE_FILTER_MODE,
     fileFilters: [],
     fileRenameRules: [],
+    activeSiteProviderId: null,
+    activeSiteProviderLabel: null,
   }
 }
 

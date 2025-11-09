@@ -1,6 +1,10 @@
 import { ALL_SEASON_TAB_ID, NO_SEASON_TAB_ID } from '../constants'
 import { state } from '../state'
-import { normalizeDir, sanitizeSeasonDirSegment, deriveSeasonDirectory } from './page-analyzer'
+import {
+  normalizeDir,
+  sanitizeSeasonDirSegment,
+  deriveSeasonDirectory,
+} from '@/providers/sites/chaospace/page-analyzer'
 import { extractCleanTitle } from '../utils/title'
 import type {
   PanelBaseDirDomRefs,

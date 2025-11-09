@@ -4,7 +4,7 @@ import {
   normalizePageUrl,
   sanitizeSeasonDirSegment,
   suggestDirectoryFromClassification,
-} from '../services/page-analyzer'
+} from '@/providers/sites/chaospace/page-analyzer'
 import { rebuildSeasonDirMap, updateSeasonExampleDir } from '../services/season-manager'
 import {
   normalizeHistoryCompletion,
@@ -28,6 +28,8 @@ interface PageAnalysisMeta {
   classificationDetail?: unknown
   totalSeasons?: number
   loadedSeasons?: number
+  providerId?: string
+  providerLabel?: string
 }
 
 export interface PageDataHydrator {
@@ -70,6 +72,9 @@ export function createPageDataHydrator(): PageDataHydrator {
     state.pageTitle = meta.title || ''
     state.pageUrl = normalizePageUrl(meta.url || window.location.href)
     state.origin = meta.origin || window.location.origin
+    state.activeSiteProviderId = typeof meta.providerId === 'string' ? meta.providerId : null
+    state.activeSiteProviderLabel =
+      typeof meta.providerLabel === 'string' ? meta.providerLabel : null
 
     const normalizedPoster = sanitizePosterInfo(meta.poster)
     state.poster = normalizedPoster

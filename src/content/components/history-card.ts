@@ -5,7 +5,7 @@ import { formatHistoryTimestamp } from './history/history-card.helpers'
 import type { HistoryGroup, PanelHistoryDomRefs } from '../types'
 import type { ContentStore } from '../state'
 import { pinia } from '../state'
-import { normalizePageUrl } from '../services/page-analyzer'
+import { normalizePageUrl } from '@/providers/sites/chaospace/page-analyzer'
 import { HISTORY_DISPLAY_LIMIT } from '../constants'
 import { historyContextKey, type HistoryController } from '../runtime/ui/history-context'
 
