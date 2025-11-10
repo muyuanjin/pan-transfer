@@ -1,6 +1,6 @@
 # Pan Transfer Architecture Migration Plan
 
-_Last updated: 2025-11-10_
+_Last updated: 2025-11-15_
 
 ## 1. Goals & Context
 
@@ -96,6 +96,8 @@ src/
 - ✅ Define storage-agnostic transfer commands so future providers can plug in without editing content runtime. `dispatchTransferPayload` + the `'chaospace:transfer'` message now speak purely in terms of `StorageProvider` interfaces.
 - ✅ Add integration tests (Vitest + mocked fetch) for Baidu provider (`src/providers/storage/baidu-netdisk/__tests__/baidu-netdisk-provider.spec.ts`).
 - ✅ Document how to add new storage providers (README now includes “Adding Storage Providers” plus the mirrored 中文段落).
+- ✅ Ship a background dev hook (`pan-transfer:dev:set-storage-mode`) plus test hooks so extension pages/Playwright can flip between Baidu and mock storage without rebuilding; caches reset automatically and the selected provider is logged for telemetry. (`src/background/providers/storage-mode.ts`, `src/background/index.ts`, `src/public/test-hooks.html`)
+- ✅ Cover the mock provider path end-to-end in Playwright (`tests/e2e/panel.spec.ts`) to guard against regressions before onboarding additional storage backends.
 - ✅ Exit criteria: Transfer pipeline depends only on storage interfaces; feature flag allows swapping mock storage provider in dev builds.
 
 ### Phase 4 – Multi-Site UX & Settings
@@ -106,6 +108,8 @@ src/
 - ✅ Settings overlay includes provider enable/disable controls (no arbitrary storage selector) wired to the new controller, with Playwright coverage for provider switching retained.
 - ✅ Ensure modular CSS + `styles.loader` support provider-specific accents without global leaks. Provider accent themes now live under `src/content/styles/providers/` and load on demand via `ensureProviderAccentStyles`.
 - ✅ Document manual override + verification steps per provider so QA can validate CHAOSPACE vs. future sites before rollout (`docs/provider-override-guide.md` with the Generic Forum sample fixture).
+- ✅ Provider preference analytics now emit opt-out snapshot logs (init + external updates) so dashboards can track disabled-provider trends without extra instrumentation. (`src/content/controllers/provider-preferences.ts`)
+- ✅ Generic Forum QA guide now records the sandbox-specific storage-mode delta so reviewers flip to the mock provider before running smoke tests (`docs/provider-override-guide.md`).
 - Exit criteria: multi-site UI ships by default; docs describe manual verification steps for each provider.
 
 ### Phase 5 – Release & Automation
@@ -131,4 +135,4 @@ src/
 
 1. File GitHub issues per phase with checklists mirroring the bullets above (Phase 4 tickets should now mention the provider accent loader + QA guide deliverables, and Phase 3 tickets continue to guard storage modularization follow-ups).
 2. ✅ Playwright coverage for provider toggle/accent flows now lives in `tests/e2e/panel.spec.ts`, and provider preference updates emit analytics-friendly logs so opt-out trends surface in dashboards. Keep refining these signals as new providers graduate from preview.
-3. Queue remaining Phase 4 items: add storage-provider E2E assertions, monitor analytics for opt-out provider usage, and capture any manual QA deltas discovered while testing the Generic Forum sample host before broadening real-site access.
+3. Next focus areas for Phase 4+: maintain the new storage-provider E2E alongside future providers, hook the opt-out snapshot logs into dashboards, and expand the QA delta log once Generic Forum (or the next site) is ready for real host access.

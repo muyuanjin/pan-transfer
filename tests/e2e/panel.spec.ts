@@ -18,6 +18,7 @@ declare global {
   interface Window {
     seedHistory?: (storageKey: string, snapshot: unknown) => Promise<void>
     clearStorage?: (storageKey: string) => Promise<void>
+    setStorageProviderMode?: (mode: string) => Promise<{ ok?: boolean; mode?: string }>
   }
 }
 
@@ -565,65 +566,128 @@ async function resolveExtensionId(context: BrowserContext): Promise<string> {
   return cachedExtensionId
 }
 
+async function withTestHookPage<T>(
+  context: BrowserContext,
+  callback: (page: Page) => Promise<T>,
+): Promise<T> {
+  const extensionId = await resolveExtensionId(context)
+  const hookPage = await context.newPage()
+  await hookPage.goto(`chrome-extension://${extensionId}/test-hooks.html`, {
+    waitUntil: 'load',
+  })
+  try {
+    return await callback(hookPage)
+  } finally {
+    await hookPage.close()
+  }
+}
+
+type DevStorageProviderMode = 'auto' | 'baidu' | 'mock'
+
+async function setStorageProviderMode(
+  context: BrowserContext,
+  mode: DevStorageProviderMode,
+): Promise<void> {
+  await withTestHookPage(context, async (hookPage) => {
+    await hookPage.evaluate(() => {
+      if (typeof window.setStorageProviderMode === 'function') {
+        return
+      }
+      window.setStorageProviderMode = (nextMode: string) =>
+        new Promise<{ ok?: boolean; mode?: string }>((resolve, reject) => {
+          try {
+            const chromeApi = (globalThis as typeof globalThis & { chrome?: ChromeStorageBridge })
+              .chrome
+            if (!chromeApi?.runtime) {
+              reject(new Error('chrome.runtime is unavailable'))
+              return
+            }
+            chromeApi.runtime.sendMessage(
+              {
+                type: 'pan-transfer:dev:set-storage-mode',
+                payload: { mode: nextMode },
+              },
+              (response) => {
+                const error = chromeApi.runtime?.lastError
+                if (error) {
+                  reject(new Error(error.message))
+                  return
+                }
+                resolve(response)
+              },
+            )
+          } catch (error) {
+            reject(error as Error)
+          }
+        })
+    })
+    await hookPage.evaluate(
+      async ({ mode }) => {
+        if (typeof window.setStorageProviderMode !== 'function') {
+          throw new Error('setStorageProviderMode helper is unavailable')
+        }
+        await window.setStorageProviderMode(mode)
+      },
+      { mode },
+    )
+  })
+}
+
 async function seedHistoryRecords(
   context: BrowserContext,
   records: HistoryRecord[],
 ): Promise<void> {
-  const extensionId = await resolveExtensionId(context)
-  const seedPage = await context.newPage()
-  await seedPage.goto(`chrome-extension://${extensionId}/test-hooks.html`, {
-    waitUntil: 'load',
-  })
-  await seedPage.evaluate(() => {
-    if (typeof window.seedHistory === 'function') {
-      return
-    }
-    const invokeStorage = (action: (cb: () => void, chromeApi: ChromeStorageBridge) => void) =>
-      new Promise<void>((resolve, reject) => {
-        try {
-          const chromeApi = (globalThis as typeof globalThis & { chrome?: ChromeStorageBridge })
-            .chrome
-          if (!chromeApi?.storage?.local) {
-            reject(new Error('chrome.storage.local is unavailable'))
-            return
-          }
-          action(() => {
-            const error = chromeApi.runtime?.lastError
-            if (error) {
-              reject(new Error(error.message))
+  await withTestHookPage(context, async (seedPage) => {
+    await seedPage.evaluate(() => {
+      if (typeof window.seedHistory === 'function') {
+        return
+      }
+      const invokeStorage = (action: (cb: () => void, chromeApi: ChromeStorageBridge) => void) =>
+        new Promise<void>((resolve, reject) => {
+          try {
+            const chromeApi = (globalThis as typeof globalThis & { chrome?: ChromeStorageBridge })
+              .chrome
+            if (!chromeApi?.storage?.local) {
+              reject(new Error('chrome.storage.local is unavailable'))
               return
             }
-            resolve()
-          }, chromeApi)
-        } catch (error) {
-          reject(error as Error)
+            action(() => {
+              const error = chromeApi.runtime?.lastError
+              if (error) {
+                reject(new Error(error.message))
+                return
+              }
+              resolve()
+            }, chromeApi)
+          } catch (error) {
+            reject(error as Error)
+          }
+        })
+      window.seedHistory = (storageKey: string, snapshot: unknown) =>
+        invokeStorage((done, chromeApi) => {
+          chromeApi.storage.local.set({ [storageKey]: snapshot }, done)
+        })
+      window.clearStorage = (storageKey: string) =>
+        invokeStorage((done, chromeApi) => {
+          chromeApi.storage.local.remove(storageKey, done)
+        })
+    })
+    await seedPage.evaluate(
+      ({ storageKey, snapshot }) => {
+        if (typeof window.seedHistory !== 'function') {
+          throw new Error('seedHistory helper is unavailable')
         }
-      })
-    window.seedHistory = (storageKey: string, snapshot: unknown) =>
-      invokeStorage((done, chromeApi) => {
-        chromeApi.storage.local.set({ [storageKey]: snapshot }, done)
-      })
-    window.clearStorage = (storageKey: string) =>
-      invokeStorage((done, chromeApi) => {
-        chromeApi.storage.local.remove(storageKey, done)
-      })
-  })
-  await seedPage.evaluate(
-    ({ storageKey, snapshot }) => {
-      if (typeof window.seedHistory !== 'function') {
-        throw new Error('seedHistory helper is unavailable')
-      }
-      return window.seedHistory(storageKey, snapshot)
-    },
-    {
-      storageKey: HISTORY_STORAGE_KEY,
-      snapshot: {
-        version: HISTORY_VERSION,
-        records,
+        return window.seedHistory(storageKey, snapshot)
       },
-    },
-  )
-  await seedPage.close()
+      {
+        storageKey: HISTORY_STORAGE_KEY,
+        snapshot: {
+          version: HISTORY_VERSION,
+          records,
+        },
+      },
+    )
+  })
 }
 
 function createHistoryRecordSeed(pageUrl: string): HistoryRecord {
@@ -893,6 +957,49 @@ test.describe('Provider overrides', () => {
       expectNoPrefixedErrors(errorTracker)
     } finally {
       errorTracker.dispose()
+    }
+  })
+})
+
+test.describe('Storage providers', () => {
+  test('mock provider handles transfer dispatch without Baidu APIs', async ({ page, context }) => {
+    await setStorageProviderMode(context, 'mock')
+    const { panelLocator, errorTracker } = await mountPanelForUrl(
+      page,
+      context,
+      CHAOSPACE_BASE_DETAIL_URL,
+    )
+    try {
+      await ensurePanelPinned(panelLocator)
+      const selectAllButton = page.getByRole('button', { name: '全选' })
+      await expect(selectAllButton, 'Select-all button should be visible').toBeVisible()
+      await selectAllButton.click()
+      const transferButton = page.locator('[data-role="transfer-btn"]')
+      await expect(
+        transferButton,
+        'Transfer button should be enabled once resources are selected',
+      ).toBeEnabled()
+      await transferButton.click()
+
+      const successToast = page.locator('.chaospace-toast.success')
+      await expect(successToast, 'Mock storage provider should emit a success toast').toContainText(
+        '转存成功',
+        { timeout: 15000 },
+      )
+
+      await expect(
+        page.locator('.chaospace-log-summary'),
+        'Log summary should surface the mock-transfer aggregate counts',
+      ).toContainText('成功 0 · 跳过 0 · 失败 0')
+      await expect(
+        page.locator('[data-role="transfer-label"]'),
+        'Transfer button label should exit the running state',
+      ).toContainText('转存选中')
+
+      expectNoPrefixedErrors(errorTracker)
+    } finally {
+      errorTracker.dispose()
+      await setStorageProviderMode(context, 'baidu')
     }
   })
 })

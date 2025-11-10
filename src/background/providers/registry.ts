@@ -4,18 +4,19 @@ import { createGenericForumSiteProvider } from '@/providers/sites/generic-forum'
 import { createMockStorageProvider } from '@/providers/storage'
 import { createBaiduNetdiskProvider } from '@/providers/storage/baidu-netdisk'
 import {
-  resolveStorageProviderMode,
-  type StorageProviderMode as ResolvedStorageProviderMode,
-} from '@/shared/dev-toggles'
+  resolveEffectiveStorageMode,
+  type ResolvedStorageProviderMode,
+  type StorageProviderMode,
+} from './storage-mode'
 
-const registryCache: Partial<Record<ResolvedStorageProviderMode, ProviderRegistry>> = {}
+let registryCache: Partial<Record<ResolvedStorageProviderMode, ProviderRegistry>> = {}
 
-export type StorageProviderMode = 'auto' | ResolvedStorageProviderMode
+export { type StorageProviderMode } from './storage-mode'
 
 export function getBackgroundProviderRegistry(
   mode: StorageProviderMode = 'auto',
 ): ProviderRegistry {
-  const storageMode = resolveStorageProviderMode(mode === 'auto' ? undefined : mode)
+  const storageMode = resolveEffectiveStorageMode(mode)
   const cached = registryCache[storageMode]
   if (cached) {
     return cached
@@ -30,4 +31,8 @@ export function getBackgroundProviderRegistry(
   }
   registryCache[storageMode] = nextRegistry
   return nextRegistry
+}
+
+export function resetBackgroundProviderRegistryCache(): void {
+  registryCache = {}
 }

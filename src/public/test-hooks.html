@@ -30,6 +30,7 @@
     <pre>
 seedHistory(storageKey, snapshot)
 clearStorage(storageKey)
+setStorageProviderMode(mode)
     </pre>
     <script>
       const invokeStorage = (action) =>
@@ -57,6 +58,35 @@ clearStorage(storageKey)
 
       window.clearStorage = (storageKey) =>
         invokeStorage((done) => chrome.storage.local.remove(storageKey, done))
+
+      const sendRuntimeMessage = (payload) =>
+        new Promise((resolve, reject) => {
+          try {
+            chrome.runtime.sendMessage(payload, (response) => {
+              const error = chrome.runtime?.lastError
+              if (error) {
+                reject(new Error(error.message))
+                return
+              }
+              resolve(response)
+            })
+          } catch (error) {
+            reject(error)
+          }
+        })
+
+      window.setStorageProviderMode = async (mode) => {
+        const response = await sendRuntimeMessage({
+          type: 'pan-transfer:dev:set-storage-mode',
+          payload: { mode },
+        })
+        if (!response || !response.ok) {
+          throw new Error(
+            response?.error || 'Storage provider mode update was rejected by background script',
+          )
+        }
+        return response
+      }
     </script>
   </body>
 </html>

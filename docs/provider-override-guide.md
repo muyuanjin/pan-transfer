@@ -60,6 +60,18 @@ list yet, so manual QA requires a temporary sandbox.
 6. Disable the provider inside ⚙️ → **站点解析器** and confirm the badge greys out with a toast stating
    the provider is disabled.
 
+### Generic Forum QA Deltas
+
+- The sample HTML references fake `pan.baidu.com` links, so real transfers will fail. Switch the
+  storage provider to the mock implementation (`window.PAN_TRANSFER_STORAGE_PROVIDER = 'mock'` or
+  the `chrome-extension://<id>/test-hooks.html → setStorageProviderMode('mock')` helper) before
+  running any transfer smoke tests.
+- Because the sandbox does not replay real CHAOSPACE history, completion badges fall back to the
+  default CHAOSPACE state until a mock transfer finishes. Treat this as expected during host review.
+- The provider markers come from the sample HTML (and from the `?pan-provider-demo=1` Playwright
+  hook) and are not injected on production CHAOSPACE pages yet. Keep using the sandbox host when
+  verifying Generic Forum until the provider is greenlit.
+
 ## Troubleshooting Tips
 
 - If the accent color does not change, reload the tab to ensure the provider CSS was injected (the

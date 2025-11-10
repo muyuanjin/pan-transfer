@@ -14,7 +14,13 @@ import {
   setTabSeasonPreference,
 } from './storage/season-preference-store'
 import type { TransferRequestPayload } from '../shared/types/transfer'
-import { dispatchTransferPayload, getBackgroundTransferPipeline } from './providers/pipeline'
+import {
+  dispatchTransferPayload,
+  getBackgroundTransferPipeline,
+  resetBackgroundTransferPipelineCache,
+} from './providers/pipeline'
+import { resetBackgroundProviderRegistryCache } from './providers/registry'
+import { setStorageProviderModeOverride, type StorageProviderMode } from './providers/storage-mode'
 
 interface JobContext {
   tabId?: number
@@ -74,6 +80,13 @@ interface SeasonPreferenceClearMessage {
   type: 'chaospace:season-pref:clear'
 }
 
+interface DevStorageModeMessage {
+  type: 'pan-transfer:dev:set-storage-mode'
+  payload?: {
+    mode?: unknown
+  }
+}
+
 type BackgroundMessage =
   | HistoryDeleteMessage
   | HistoryClearMessage
@@ -84,6 +97,7 @@ type BackgroundMessage =
   | SeasonPreferenceInitMessage
   | SeasonPreferenceUpdateMessage
   | SeasonPreferenceClearMessage
+  | DevStorageModeMessage
   | {
       type?: string
       payload?: unknown
@@ -118,6 +132,31 @@ const isSeasonPreferenceUpdateMessage = (
 const isSeasonPreferenceClearMessage = (
   message: BackgroundMessage,
 ): message is SeasonPreferenceClearMessage => message?.type === 'chaospace:season-pref:clear'
+
+const isDevStorageModeMessage = (message: BackgroundMessage): message is DevStorageModeMessage =>
+  message?.type === 'pan-transfer:dev:set-storage-mode'
+
+const normalizeStorageMode = (value: unknown): StorageProviderMode | null => {
+  if (typeof value !== 'string') {
+    return 'auto'
+  }
+  const normalized = value.trim().toLowerCase()
+  if (!normalized || normalized === 'auto') {
+    return 'auto'
+  }
+  if (normalized === 'mock' || normalized === 'baidu') {
+    return normalized
+  }
+  return null
+}
+
+const isExtensionSender = (sender?: chrome.runtime.MessageSender): boolean => {
+  const origin = sender?.origin || sender?.url
+  if (typeof origin !== 'string') {
+    return false
+  }
+  return origin.startsWith('chrome-extension://')
+}
 const jobContexts = new Map<string, JobContext>()
 void getBackgroundTransferPipeline()
 
@@ -236,6 +275,27 @@ async function bootstrapStores(): Promise<void> {
 bootstrapStores()
 
 chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendResponse) => {
+  if (isDevStorageModeMessage(message)) {
+    if (!isExtensionSender(sender)) {
+      sendResponse({ ok: false, error: '无权更新存储模式' })
+      return false
+    }
+    const requestedMode = normalizeStorageMode(message.payload?.mode)
+    if (!requestedMode) {
+      sendResponse({ ok: false, error: '无效的存储模式' })
+      return false
+    }
+    setStorageProviderModeOverride(requestedMode === 'auto' ? null : requestedMode)
+    resetBackgroundProviderRegistryCache()
+    resetBackgroundTransferPipelineCache()
+    void getBackgroundTransferPipeline()
+    chaosLogger.info('[Pan Transfer] Storage provider mode updated via dev hook', {
+      mode: requestedMode,
+    })
+    sendResponse({ ok: true, mode: requestedMode })
+    return true
+  }
+
   if (isHistoryRefreshMessage(message)) {
     const reloadPromise = (async () => {
       await reloadCacheFromStorage()

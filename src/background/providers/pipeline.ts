@@ -3,16 +3,17 @@ import { chaosLogger } from '@/shared/log'
 import type { TransferRequestPayload, TransferResponsePayload } from '@/shared/types/transfer'
 import type { TransferContext, StorageTransferResult } from '@/platform/registry/types'
 import {
-  resolveStorageProviderMode,
-  type StorageProviderMode as ResolvedStorageProviderMode,
-} from '@/shared/dev-toggles'
-import { getBackgroundProviderRegistry, type StorageProviderMode } from './registry'
+  resolveEffectiveStorageMode,
+  type ResolvedStorageProviderMode,
+  type StorageProviderMode,
+} from './storage-mode'
+import { getBackgroundProviderRegistry } from './registry'
 import {
   getProviderPreferencesSnapshot,
   initProviderPreferences,
 } from '@/background/settings/provider-preferences'
 
-const pipelineCache: Partial<Record<ResolvedStorageProviderMode, TransferPipeline>> = {}
+let pipelineCache: Partial<Record<ResolvedStorageProviderMode, TransferPipeline>> = {}
 
 void initProviderPreferences().catch((error) => {
   const err = error as Error
@@ -40,7 +41,7 @@ export class StorageDispatchError extends Error {
 export function getBackgroundTransferPipeline(
   mode: StorageProviderMode = 'auto',
 ): TransferPipeline {
-  const storageMode = resolveStorageProviderMode(mode === 'auto' ? undefined : mode)
+  const storageMode = resolveEffectiveStorageMode(mode)
   const cached = pipelineCache[storageMode]
   if (cached) {
     return cached
@@ -51,6 +52,9 @@ export function getBackgroundTransferPipeline(
   })
   pipelineCache[storageMode] = nextPipeline
   return nextPipeline
+}
+export function resetBackgroundTransferPipelineCache(): void {
+  pipelineCache = {}
 }
 
 export interface BackgroundTransferDispatchResult {

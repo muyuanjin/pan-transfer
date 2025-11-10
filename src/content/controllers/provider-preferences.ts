@@ -43,8 +43,13 @@ export function createProviderPreferencesController({
     disabledSiteProviderIds: [],
     preferredSiteProviderId: null,
   }
+  type SnapshotReason = 'init' | 'external' | 'local'
+  let pendingLocalUpdates = 0
 
-  const applySnapshot = (nextSnapshot: ProviderPreferencesSnapshot): void => {
+  const applySnapshot = (
+    nextSnapshot: ProviderPreferencesSnapshot,
+    reason: SnapshotReason = 'local',
+  ): void => {
     snapshot = nextSnapshot
     state.disabledSiteProviderIds = new Set(nextSnapshot.disabledSiteProviderIds)
     state.preferredSiteProviderId = nextSnapshot.preferredSiteProviderId
@@ -54,15 +59,22 @@ export function createProviderPreferencesController({
     ) {
       state.manualSiteProviderId = null
     }
+    if (reason === 'init' || reason === 'external') {
+      logOptOutSnapshot(reason)
+    }
   }
 
   const loadPreferences = async (): Promise<void> => {
     const loaded = await loadProviderPreferences()
-    applySnapshot(loaded)
+    applySnapshot(loaded, 'init')
   }
 
   subscribeToProviderPreferences((nextSnapshot) => {
-    applySnapshot(nextSnapshot)
+    const reason: SnapshotReason = pendingLocalUpdates > 0 ? 'local' : 'external'
+    if (pendingLocalUpdates > 0) {
+      pendingLocalUpdates -= 1
+    }
+    applySnapshot(nextSnapshot, reason)
   })
 
   const toggleSiteProvider = async (providerId: string, enabled: boolean): Promise<void> => {
@@ -75,19 +87,23 @@ export function createProviderPreferencesController({
     } else {
       disabledSet.add(providerId)
     }
-    const nextSnapshot = await saveProviderPreferencesUpdate({
-      disabledSiteProviderIds: Array.from(disabledSet),
-    })
-    applySnapshot(nextSnapshot)
+    const nextSnapshot = await withLocalUpdate(() =>
+      saveProviderPreferencesUpdate({
+        disabledSiteProviderIds: Array.from(disabledSet),
+      }),
+    )
+    applySnapshot(nextSnapshot, 'local')
     logProviderToggle(providerId, enabled, nextSnapshot)
   }
 
   const setPreferredSiteProvider = async (providerId: string | null): Promise<void> => {
     const normalized = normalizePreferenceId(providerId)
-    const nextSnapshot = await saveProviderPreferencesUpdate({
-      preferredSiteProviderId: normalized,
-    })
-    applySnapshot(nextSnapshot)
+    const nextSnapshot = await withLocalUpdate(() =>
+      saveProviderPreferencesUpdate({
+        preferredSiteProviderId: normalized,
+      }),
+    )
+    applySnapshot(nextSnapshot, 'local')
     logPreferredProvider(normalized)
   }
 
@@ -123,6 +139,28 @@ export function createProviderPreferencesController({
       providerId,
       providerLabel: option?.label ?? providerId,
     })
+  }
+
+  function logOptOutSnapshot(reason: 'init' | 'external'): void {
+    logger.info('provider-preference-snapshot', {
+      event: 'provider-preference-snapshot',
+      reason,
+      disabledCount: snapshot.disabledSiteProviderIds.length,
+      totalProviders: siteOptions.length,
+      hasOptOuts: snapshot.disabledSiteProviderIds.length > 0,
+      disabledSiteProviderIds: [...snapshot.disabledSiteProviderIds],
+      preferredSiteProviderId: snapshot.preferredSiteProviderId,
+    })
+  }
+
+  async function withLocalUpdate<T>(operation: () => Promise<T>): Promise<T> {
+    pendingLocalUpdates += 1
+    try {
+      return await operation()
+    } catch (error) {
+      pendingLocalUpdates = Math.max(0, pendingLocalUpdates - 1)
+      throw error
+    }
   }
 }
 
