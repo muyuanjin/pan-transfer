@@ -51,12 +51,12 @@
 .chaospace-history-summary-item:hover {
   border-color: var(--cp-accent);
   transform: translateY(-1px);
-  background: rgba(99, 102, 241, 0.12);
-  box-shadow: 0 8px 18px rgba(99, 102, 241, 0.18);
+  background: rgba(var(--cp-accent-rgb), 0.12);
+  box-shadow: 0 8px 18px rgba(var(--cp-accent-rgb), 0.18);
 }
 
 .chaospace-history-summary-item:focus-visible {
-  outline: 2px solid rgba(99, 102, 241, 0.4);
+  outline: 2px solid rgba(var(--cp-accent-rgb), 0.4);
   outline-offset: 2px;
 }
 

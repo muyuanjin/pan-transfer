@@ -69,8 +69,8 @@ body.chaospace-history-detail-active {
 }
 
 .chaospace-history-detail-close:hover {
-  background: rgba(99, 102, 241, 0.28);
-  border-color: rgba(99, 102, 241, 0.45);
+  background: rgba(var(--cp-accent-rgb), 0.28);
+  border-color: rgba(var(--cp-accent-rgb), 0.45);
   transform: rotate(90deg) scale(1.05);
 }
 
@@ -238,8 +238,8 @@ body.chaospace-history-detail-active {
 
 .chaospace-history-detail-still:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 26px rgba(99, 102, 241, 0.28);
-  border-color: rgba(99, 102, 241, 0.4);
+  box-shadow: 0 12px 26px rgba(var(--cp-accent-rgb), 0.28);
+  border-color: rgba(var(--cp-accent-rgb), 0.4);
 }
 
 .chaospace-history-detail-still img {

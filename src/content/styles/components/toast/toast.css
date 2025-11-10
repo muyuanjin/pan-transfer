@@ -25,7 +25,7 @@
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.6), rgba(236, 72, 153, 0.6));
+  background: linear-gradient(135deg, rgba(var(--cp-accent-rgb), 0.6), rgba(236, 72, 153, 0.6));
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);

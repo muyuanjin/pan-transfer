@@ -1,8 +1,8 @@
 .chaospace-badge {
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(99, 102, 241, 0.15);
-  border: 1px solid rgba(99, 102, 241, 0.24);
+  background: rgba(var(--cp-accent-rgb), 0.15);
+  border: 1px solid rgba(var(--cp-accent-rgb), 0.24);
   color: var(--cp-text-secondary);
 }
 
@@ -52,12 +52,12 @@
 }
 
 .chaospace-chip-button:hover {
-  background: rgba(99, 102, 241, 0.16);
+  background: rgba(var(--cp-accent-rgb), 0.16);
   color: var(--cp-text-primary);
 }
 
 .chaospace-chip-button.is-active {
-  background: rgba(99, 102, 241, 0.24);
+  background: rgba(var(--cp-accent-rgb), 0.24);
   color: var(--cp-text-primary);
 }
 

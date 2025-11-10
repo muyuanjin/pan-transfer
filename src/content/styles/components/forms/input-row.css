@@ -21,8 +21,8 @@
 
 .chaospace-input-row input:focus {
   outline: none;
-  border-color: rgba(99, 102, 241, 0.6);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  border-color: rgba(var(--cp-accent-rgb), 0.6);
+  box-shadow: 0 0 0 3px rgba(var(--cp-accent-rgb), 0.2);
 }
 
 .chaospace-input-row button {

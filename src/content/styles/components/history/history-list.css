@@ -14,7 +14,7 @@
   padding: 12px 14px;
   border-radius: 14px;
   background: var(--cp-surface-soft);
-  border: 1px solid rgba(99, 102, 241, 0.14);
+  border: 1px solid rgba(var(--cp-accent-rgb), 0.14);
   transition:
     border-color 0.2s ease,
     transform 0.2s ease;
@@ -25,7 +25,7 @@
 }
 
 .chaospace-history-item[data-detail-trigger='group']:hover {
-  background: rgba(99, 102, 241, 0.08);
+  background: rgba(var(--cp-accent-rgb), 0.08);
 }
 
 .chaospace-history-item:hover {
@@ -35,12 +35,12 @@
 
 .chaospace-history-item.is-current {
   border-color: var(--cp-accent);
-  box-shadow: 0 12px 28px rgba(99, 102, 241, 0.18);
+  box-shadow: 0 12px 28px rgba(var(--cp-accent-rgb), 0.18);
 }
 
 .chaospace-history-item.is-selected {
-  border-color: rgba(99, 102, 241, 0.42);
-  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(var(--cp-accent-rgb), 0.42);
+  background: rgba(var(--cp-accent-rgb), 0.12);
 }
 
 .chaospace-history-selector {
@@ -110,8 +110,8 @@
 button.chaospace-history-poster,
 button.chaospace-history-season-poster {
   padding: 0;
-  border: 1px solid rgba(99, 102, 241, 0.4);
-  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(var(--cp-accent-rgb), 0.4);
+  background: rgba(var(--cp-accent-rgb), 0.12);
   cursor: zoom-in;
   transition:
     border-color 0.2s ease,
@@ -121,8 +121,8 @@ button.chaospace-history-season-poster {
 
 button.chaospace-history-poster:hover,
 button.chaospace-history-season-poster:hover {
-  border-color: rgba(99, 102, 241, 0.7);
-  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.24);
+  border-color: rgba(var(--cp-accent-rgb), 0.7);
+  box-shadow: 0 8px 24px rgba(var(--cp-accent-rgb), 0.24);
   transform: translateY(-1px);
 }
 
@@ -208,7 +208,7 @@ button.chaospace-history-season-poster:hover {
 }
 
 .chaospace-history-season-item[data-detail-trigger='season']:hover {
-  background: rgba(99, 102, 241, 0.12);
+  background: rgba(var(--cp-accent-rgb), 0.12);
   border-radius: 14px;
   transform: translateY(-1px);
 }
@@ -297,7 +297,7 @@ button.chaospace-history-season-poster:hover {
 }
 
 .chaospace-history-season-toggle:focus-visible {
-  outline: 2px solid rgba(99, 102, 241, 0.5);
+  outline: 2px solid rgba(var(--cp-accent-rgb), 0.5);
   outline-offset: 2px;
 }
 
@@ -370,7 +370,7 @@ button.chaospace-history-season-poster:hover {
 }
 
 .chaospace-history-action:hover {
-  background: rgba(99, 102, 241, 0.22);
+  background: rgba(var(--cp-accent-rgb), 0.22);
   border-color: var(--cp-accent);
   color: var(--cp-text-primary);
   transform: translateY(-1px);
@@ -389,7 +389,7 @@ button.chaospace-history-season-poster:hover {
 }
 
 .chaospace-float-panel.theme-light .chaospace-history-action:hover {
-  background: rgba(99, 102, 241, 0.16);
+  background: rgba(var(--cp-accent-rgb), 0.16);
   color: #1e293b;
 }
 
@@ -417,25 +417,25 @@ button.chaospace-history-season-poster:hover {
 }
 
 .chaospace-history-action-pan {
-  border-color: rgba(14, 165, 233, 0.45);
-  background: rgba(14, 165, 233, 0.14);
-  color: rgba(14, 165, 233, 0.92);
+  border-color: rgba(var(--cp-accent-contrast-rgb), 0.45);
+  background: rgba(var(--cp-accent-contrast-rgb), 0.14);
+  color: rgba(var(--cp-accent-contrast-rgb), 0.92);
 }
 
 .chaospace-history-action-pan:hover {
-  background: rgba(14, 165, 233, 0.26);
-  border-color: rgba(14, 165, 233, 0.6);
+  background: rgba(var(--cp-accent-contrast-rgb), 0.26);
+  border-color: rgba(var(--cp-accent-contrast-rgb), 0.6);
   color: #0369a1;
 }
 
 .chaospace-float-panel.theme-light .chaospace-history-action-pan {
   background: rgba(224, 242, 254, 0.9);
-  border-color: rgba(14, 165, 233, 0.4);
+  border-color: rgba(var(--cp-accent-contrast-rgb), 0.4);
   color: #0369a1;
 }
 
 .chaospace-float-panel.theme-light .chaospace-history-action-pan:hover {
-  background: rgba(14, 165, 233, 0.32);
+  background: rgba(var(--cp-accent-contrast-rgb), 0.32);
   color: #0c4a6e;
 }
 

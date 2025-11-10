@@ -93,6 +93,7 @@ pan-transfer/
 - Provider-specific Vitest suites cover detection/resource parsing, and Playwright (or manual Chrome devtools) confirms the floating panel shows the provider badge plus resources on the target site.
 - Background hooks (`collectHistorySnapshot`, `collectHistoryDetail`) are implemented or intentionally skipped with `[Pan Transfer]` logs so history refreshes remain predictable.
 - README/docs note any new permissions, toggles, or manual QA steps introduced by the provider.
+- Capture the manual override steps outlined in `docs/provider-override-guide.md` (accent checks, badge state, enable/disable flow) before asking for review.
 
 ### Adding Storage Providers
 
@@ -179,6 +180,7 @@ pan-transfer/
 - Provider 对应的 Vitest 套件覆盖检测/解析逻辑，并通过 Playwright 或人工在 Chrome DevTools 中确认页面浮窗显示正确的站点徽标与资源列表。
 - 如实现了历史刷新，确保 `collectHistorySnapshot` / `collectHistoryDetail` 可用；若暂不支持，也要输出 `[Pan Transfer]` 日志说明跳过原因。
 - README / 文档需补充 Provider 引入的新权限、开关或 QA 流程。
+- 在合并前参考 `docs/provider-override-guide.md` 记录一次手动验证流程（含 Provider 徽标、主题色切换、启用/禁用行为），确保 QA 可以复现。
 
 ### 扩展存储 Provider
 

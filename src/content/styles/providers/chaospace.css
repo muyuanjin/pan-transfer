@@ -1,0 +1,6 @@
+.chaospace-float-panel[data-pan-provider='chaospace'] {
+  --cp-accent-rgb: 99, 102, 241;
+  --cp-accent-strong-rgb: 79, 70, 229;
+  --cp-accent-highlight-rgb: 129, 140, 248;
+  --cp-accent-contrast-rgb: 14, 165, 233;
+}

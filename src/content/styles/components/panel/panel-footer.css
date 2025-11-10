@@ -177,7 +177,7 @@
 .chaospace-float-panel.theme-light .chaospace-float-btn:focus-visible {
   outline: none;
   box-shadow:
-    0 0 0 2px rgba(99, 102, 241, 0.22),
+    0 0 0 2px rgba(var(--cp-accent-rgb), 0.22),
     0 8px 20px rgba(148, 163, 184, 0.3);
 }
 

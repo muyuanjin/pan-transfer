@@ -19,13 +19,13 @@
 }
 
 .chaospace-history-tab:hover {
-  background: rgba(99, 102, 241, 0.16);
+  background: rgba(var(--cp-accent-rgb), 0.16);
   color: var(--cp-text-primary);
 }
 
 .chaospace-history-tab.is-active {
-  background: rgba(99, 102, 241, 0.26);
-  border-color: rgba(99, 102, 241, 0.46);
+  background: rgba(var(--cp-accent-rgb), 0.26);
+  border-color: rgba(var(--cp-accent-rgb), 0.46);
   color: var(--cp-text-primary);
   font-weight: 600;
 }
@@ -63,14 +63,14 @@
 }
 
 .chaospace-season-tab:hover {
-  background: rgba(99, 102, 241, 0.16);
+  background: rgba(var(--cp-accent-rgb), 0.16);
   border-color: var(--cp-accent);
   transform: translateY(-1px);
 }
 
 .chaospace-season-tab:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.35);
+  box-shadow: 0 0 0 3px rgba(var(--cp-accent-rgb), 0.35);
 }
 
 .chaospace-season-tab.is-active {
@@ -88,7 +88,7 @@
   min-width: 22px;
   padding: 2px 6px;
   border-radius: 999px;
-  background: rgba(99, 102, 241, 0.16);
+  background: rgba(var(--cp-accent-rgb), 0.16);
   color: var(--cp-text-secondary);
   font-size: 11px;
   line-height: 1.1;

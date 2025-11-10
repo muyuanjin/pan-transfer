@@ -1,6 +1,6 @@
 # Pan Transfer Architecture Migration Plan
 
-_Last updated: 2025-11-12_
+_Last updated: 2025-11-13_
 
 ## 1. Goals & Context
 
@@ -104,8 +104,8 @@ src/
 - ✅ Vue panel now exposes the detected provider badge, manual override select, and resource tags via `ProviderStatusBar.vue` + resource list badges; switching providers re-hydrates panel state without reloading the page.
 - ✅ Provider overrides are constrained to the set of providers that successfully detect the current page/resource, preventing users from forcing incompatible analyzers or storage handlers.
 - ✅ Settings overlay includes provider enable/disable controls (no arbitrary storage selector) wired to the new controller, with Playwright coverage for provider switching retained.
-- Ensure modular CSS + `styles.loader` support provider-specific accents without global leaks.
-- Document manual override + verification steps per provider so QA can validate CHAOSPACE vs. future sites before rollout.
+- ✅ Ensure modular CSS + `styles.loader` support provider-specific accents without global leaks. Provider accent themes now live under `src/content/styles/providers/` and load on demand via `ensureProviderAccentStyles`.
+- ✅ Document manual override + verification steps per provider so QA can validate CHAOSPACE vs. future sites before rollout (`docs/provider-override-guide.md` with the Generic Forum sample fixture).
 - Exit criteria: multi-site UI ships by default; docs describe manual verification steps for each provider.
 
 ### Phase 5 – Release & Automation
@@ -129,6 +129,6 @@ src/
 
 ## 6. Tracking & Next Steps
 
-1. File GitHub issues per phase with checklists mirroring the bullets above (Phase 4 tickets should now reference provider preferences + UI toggles as done, and track follow-ups for history/preferences sync).
-2. With provider overrides + settings shipping, focus Phase 4 follow-ups on polishing provider-specific accents (CSS/themes) and documenting manual QA scripts; Phase 3 documentation items remain in flight.
-3. Queue remaining Phase 4 tasks: extend manual verification docs, add storage-provider E2E assertions, and monitor analytics for opt-out provider usage to guide future provider rollouts.
+1. File GitHub issues per phase with checklists mirroring the bullets above (Phase 4 tickets should now mention the provider accent loader + QA guide deliverables, and Phase 3 tickets continue to guard storage modularization follow-ups).
+2. With accent theming + manual override docs checked in, focus Phase 4 follow-ups on (a) Playwright coverage for provider toggle/accent flows and (b) surfacing provider metadata inside analytics dashboards so opt-out trends are observable.
+3. Queue remaining Phase 4 items: add storage-provider E2E assertions, monitor analytics for opt-out provider usage, and capture any manual QA deltas discovered while testing the Generic Forum sample host before broadening real-site access.

@@ -72,7 +72,7 @@
 .chaospace-item:hover {
   border-color: var(--cp-accent);
   transform: translateY(-2px);
-  background: rgba(99, 102, 241, 0.18);
+  background: rgba(var(--cp-accent-rgb), 0.18);
 }
 
 .chaospace-item.is-muted {

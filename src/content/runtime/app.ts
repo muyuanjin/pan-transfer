@@ -1,4 +1,5 @@
 import { chaosLogger } from '@/shared/log'
+import { watch } from 'vue'
 import {
   extractItemsFromDocument,
   extractPosterDetails,
@@ -65,6 +66,8 @@ import { createPageAnalysisRunner } from '../services/page-analysis-runner'
 import { getContentProviderRegistry } from '@/content/providers/registry'
 import { createProviderPreferencesController } from '../controllers/provider-preferences'
 import { TV_SHOW_INITIAL_SEASON_BATCH } from '../constants'
+import { CHAOSPACE_SITE_PROVIDER_ID } from '@/providers/sites/chaospace/chaospace-site-provider'
+import { ensureProviderAccentStyles } from '../styles/provider-accents'
 
 export function createRuntimeApp() {
   const panelState = createPanelRuntimeState()
@@ -110,6 +113,53 @@ export function createRuntimeApp() {
   }
 
   const getFloatingPanel = (): HTMLElement | null => floatingPanel
+
+  const DEFAULT_SITE_PROVIDER_ID = CHAOSPACE_SITE_PROVIDER_ID
+  let lastAppliedProviderId: string | null = null
+
+  const resolvePanelProviderId = (): string => {
+    const active = state.activeSiteProviderId?.trim()
+    if (active) {
+      return active
+    }
+    const manual = state.manualSiteProviderId?.trim()
+    if (manual) {
+      return manual
+    }
+    return DEFAULT_SITE_PROVIDER_ID
+  }
+
+  const applyProviderAccentTheme = ({ force = false }: { force?: boolean } = {}): void => {
+    const providerId = resolvePanelProviderId()
+    const panel = getFloatingPanel()
+    if (!panel) {
+      return
+    }
+    if (
+      !force &&
+      lastAppliedProviderId === providerId &&
+      panel.dataset['panProvider'] === providerId
+    ) {
+      return
+    }
+    panel.dataset['panProvider'] = providerId
+    lastAppliedProviderId = providerId
+    const ensurePromise = ensureProviderAccentStyles(providerId)
+    if (ensurePromise) {
+      ensurePromise.catch((error) => {
+        chaosLogger.warn('[Pan Transfer] Failed to load provider accent styles', {
+          providerId,
+          message: (error as Error)?.message,
+        })
+      })
+    }
+  }
+
+  const stopProviderAccentWatch = watch(
+    () => [state.activeSiteProviderId, state.manualSiteProviderId],
+    () => applyProviderAccentTheme(),
+    { immediate: true },
+  )
 
   type PinUpdateSource = 'user' | 'storage' | 'hydrate'
 
@@ -533,6 +583,7 @@ export function createRuntimeApp() {
   const renderPanelState = (): void => {
     headerPresenter.updateHeader()
     preferences.applyPanelTheme()
+    applyProviderAccentTheme({ force: true })
     preferences.renderPresets()
     preferences.renderPathPreview()
     history.applyHistoryToCurrentPage()
@@ -835,6 +886,7 @@ export function createRuntimeApp() {
     cleanupChromeEvents?.()
     cleanupChromeEvents = null
     teardownStyleObserver()
+    stopProviderAccentWatch()
     initialized = false
   }
 

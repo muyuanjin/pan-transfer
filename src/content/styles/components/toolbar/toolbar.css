@@ -47,7 +47,7 @@
 }
 
 .chaospace-order-btn:hover {
-  background: rgba(99, 102, 241, 0.24);
+  background: rgba(var(--cp-accent-rgb), 0.24);
   transform: translateY(-1px);
 }
 
@@ -80,7 +80,7 @@
 }
 
 .chaospace-select-group button:hover {
-  background: rgba(99, 102, 241, 0.16);
+  background: rgba(var(--cp-accent-rgb), 0.16);
   border-color: var(--cp-accent);
 }
 

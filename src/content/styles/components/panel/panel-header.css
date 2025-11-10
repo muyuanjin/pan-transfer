@@ -133,11 +133,15 @@
 }
 
 .chaospace-float-pin.is-active {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.75), rgba(129, 140, 248, 0.7));
+  background: linear-gradient(
+    135deg,
+    rgba(var(--cp-accent-rgb), 0.75),
+    rgba(var(--cp-accent-highlight-rgb), 0.7)
+  );
   color: #fff;
   border-color: rgba(255, 255, 255, 0.3);
   box-shadow:
-    0 12px 28px rgba(99, 102, 241, 0.35),
+    0 12px 28px rgba(var(--cp-accent-rgb), 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.25);
   transform: rotate(-15deg);
   backdrop-filter: blur(8px);
@@ -172,7 +176,7 @@
   background: rgba(248, 250, 252, 0.12);
   background: color-mix(in srgb, var(--cp-header-bg, rgba(248, 250, 252, 1)) 14%, transparent);
   color: rgba(15, 23, 42, 0.95);
-  border-color: rgba(99, 102, 241, 0.28);
+  border-color: rgba(var(--cp-accent-rgb), 0.28);
   box-shadow:
     0 10px 24px rgba(15, 23, 42, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.78),
@@ -180,11 +184,15 @@
 }
 
 .chaospace-float-panel.theme-light .chaospace-float-pin.is-active {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.75), rgba(129, 140, 248, 0.7));
+  background: linear-gradient(
+    135deg,
+    rgba(var(--cp-accent-rgb), 0.75),
+    rgba(var(--cp-accent-highlight-rgb), 0.7)
+  );
   color: #fff;
   border-color: rgba(255, 255, 255, 0.35);
   box-shadow:
-    0 12px 28px rgba(99, 102, 241, 0.3),
+    0 12px 28px rgba(var(--cp-accent-rgb), 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 

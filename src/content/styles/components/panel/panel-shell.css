@@ -59,7 +59,7 @@
 }
 
 .chaospace-float-panel.theme-light {
-  border-color: rgba(129, 140, 248, 0.32);
+  border-color: rgba(var(--cp-accent-highlight-rgb), 0.32);
   box-shadow: 0 24px 56px rgba(148, 163, 184, 0.32);
 }
 
@@ -122,7 +122,7 @@
 }
 
 .chaospace-float-panel.is-resizing .chaospace-resize-handle {
-  background: rgba(99, 102, 241, 0.32);
-  border-color: rgba(99, 102, 241, 0.55);
+  background: rgba(var(--cp-accent-rgb), 0.32);
+  border-color: rgba(var(--cp-accent-rgb), 0.55);
   opacity: 0.6;
 }

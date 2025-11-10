@@ -32,16 +32,16 @@
 
 .chaospace-segmented-option:hover:not(.is-active):not(:disabled) {
   color: var(--cp-text-primary);
-  background: rgba(99, 102, 241, 0.12);
+  background: rgba(var(--cp-accent-rgb), 0.12);
 }
 
 .chaospace-segmented-option:focus-visible {
-  outline: 2px solid rgba(99, 102, 241, 0.6);
+  outline: 2px solid rgba(var(--cp-accent-rgb), 0.6);
   outline-offset: 2px;
 }
 
 .chaospace-segmented-option.is-active {
-  background: rgba(99, 102, 241, 0.22);
+  background: rgba(var(--cp-accent-rgb), 0.22);
   color: var(--cp-text-primary);
 }
 
@@ -76,5 +76,5 @@
 }
 
 .chaospace-segmented--toolbar .chaospace-segmented-option.is-active {
-  background: rgba(99, 102, 241, 0.2);
+  background: rgba(var(--cp-accent-rgb), 0.2);
 }

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="zh-CN" data-pan-provider="generic-forum">
+  <head>
+    <meta charset="utf-8" />
+    <title>Generic Forum · Pan Transfer Sample</title>
+    <meta
+      name="x-pan-transfer:thread"
+      content='{
+        "title": "开源视频资源分享",
+        "origin": "genericforum.dev",
+        "tags": ["demo", "forum", "sample"],
+        "classification": "forum-thread"
+      }'
+    />
+    <style>
+      body {
+        font-family: 'Inter', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        margin: 0;
+        padding: 32px 24px 48px;
+        background: #0f172a;
+        color: #f8fafc;
+      }
+      header {
+        margin-bottom: 24px;
+      }
+      article {
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 18px;
+        background: rgba(15, 23, 42, 0.75);
+      }
+      h2 {
+        margin: 0 0 8px;
+        font-size: 20px;
+      }
+      p {
+        margin: 0;
+        color: rgba(248, 250, 252, 0.8);
+      }
+      code {
+        font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        background: rgba(148, 163, 184, 0.2);
+        border-radius: 6px;
+        padding: 0 6px;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body data-pan-provider="generic-forum">
+    <header>
+      <h1>Generic Forum 数据标记示例</h1>
+      <p>
+        每个 <code>data-pan-resource</code> 元素都描述了一个论坛帖子附件，Pan Transfer 可以在本地
+        dev host 上解析这些字段。
+      </p>
+    </header>
+
+    <article
+      data-pan-resource
+      data-pan-resource-id="demo-001"
+      data-pan-resource-title="第 1 集 · 4K 修复"
+      data-pan-resource-link="https://pan.baidu.com/s/pan-transfer-demo1"
+      data-pan-resource-passcode="abcd"
+      data-pan-resource-tags="4K,简体字幕"
+      data-pan-resource-season-id="demo-season-1"
+      data-pan-resource-season-label="S01"
+      data-pan-resource-season-index="0"
+    >
+      <h2>第 1 集 · 4K 修复</h2>
+      <p>标签：4K / 简体字幕</p>
+    </article>
+
+    <article
+      data-pan-resource
+      data-pan-resource-id="demo-002"
+      data-pan-resource-title="第 2 集 · 官方中字"
+      data-pan-resource-link="https://pan.baidu.com/s/pan-transfer-demo2"
+      data-pan-resource-passcode="efgh"
+      data-pan-resource-tags="1080p,官方中字"
+      data-pan-resource-season-id="demo-season-1"
+      data-pan-resource-season-label="S01"
+      data-pan-resource-season-index="0"
+    >
+      <h2>第 2 集 · 官方中字</h2>
+      <p>标签：1080p / 官方中字</p>
+    </article>
+  </body>
+</html>
