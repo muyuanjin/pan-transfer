@@ -16,7 +16,11 @@
     </div>
     <label class="chaospace-provider-select">
       <span>首选解析器</span>
-      <select :disabled="isSwitching" :value="selectedProviderId" @change="handleChange">
+      <select
+        :disabled="isSwitching || !canSwitchProviders"
+        :value="selectedProviderId"
+        @change="handleChange"
+      >
         <option value="">自动检测</option>
         <option v-for="option in selectableProviders" :key="option.id" :value="option.id">
           {{ option.label }}
@@ -40,9 +44,16 @@ if (!providerContext) {
 
 const selectableProviders = computed(() => {
   const disabled = store.disabledSiteProviderIds
-  return providerContext.siteProviderOptions.filter((option) =>
-    disabled ? !disabled.has(option.id) : true,
-  )
+  const available = store.availableSiteProviderIds
+  return providerContext.siteProviderOptions.filter((option) => {
+    if (disabled?.has(option.id)) {
+      return false
+    }
+    if (available && available.size > 0 && !available.has(option.id)) {
+      return false
+    }
+    return true
+  })
 })
 
 const providerMap = computed(() => {
@@ -74,6 +85,8 @@ const activeProviderTags = computed(() => activeProviderOption.value?.tags ?? []
 
 const activeProviderHosts = computed(() => activeProviderOption.value?.supportedHosts ?? [])
 
+const availableProviderIds = computed(() => store.availableSiteProviderIds)
+const canSwitchProviders = computed(() => selectableProviders.value.length > 1)
 const modeLabel = computed(() => (store.manualSiteProviderId ? '手动' : '自动'))
 const selectedProviderId = computed(() => store.manualSiteProviderId || '')
 const isSwitching = computed(() => store.providerSwitching)
@@ -84,6 +97,9 @@ const handleChange = (event: Event): void => {
     return
   }
   const value = target.value?.trim() || ''
+  if (value && availableProviderIds.value.size > 0 && !availableProviderIds.value.has(value)) {
+    return
+  }
   void providerContext.switchSiteProvider(value || null)
 }
 </script>

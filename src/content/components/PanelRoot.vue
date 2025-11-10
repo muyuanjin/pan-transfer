@@ -218,18 +218,6 @@
                     可按需禁用暂不需要的站点 Provider，避免在不兼容页面上触发误报。
                   </p>
                 </div>
-                <div class="chaospace-settings-field">
-                  <label class="chaospace-settings-label" for="chaospace-settings-storage-provider"
-                    >默认存储 Provider</label
-                  >
-                  <select
-                    id="chaospace-settings-storage-provider"
-                    data-role="settings-storage-provider"
-                  ></select>
-                  <p class="chaospace-settings-hint">
-                    控制转存任务优先使用的网盘实现，切换后新的转存请求将走对应 Provider。
-                  </p>
-                </div>
               </section>
               <section class="chaospace-settings-section">
                 <h3>文件过滤</h3>

@@ -4,7 +4,6 @@ export interface ProviderPreferencesSnapshot {
   version: number
   disabledSiteProviderIds: string[]
   preferredSiteProviderId: string | null
-  preferredStorageProviderId: string | null
 }
 
 export type ProviderPreferencesUpdate = Partial<Omit<ProviderPreferencesSnapshot, 'version'>>
@@ -19,7 +18,6 @@ const defaultSnapshot: ProviderPreferencesSnapshot = {
   version: PROVIDER_PREFERENCES_VERSION,
   disabledSiteProviderIds: [],
   preferredSiteProviderId: null,
-  preferredStorageProviderId: null,
 }
 
 let cachedSnapshot: ProviderPreferencesSnapshot = cloneSnapshot(defaultSnapshot)
@@ -35,7 +33,6 @@ function cloneSnapshot(snapshot: ProviderPreferencesSnapshot): ProviderPreferenc
     version: snapshot.version,
     disabledSiteProviderIds: [...snapshot.disabledSiteProviderIds],
     preferredSiteProviderId: snapshot.preferredSiteProviderId,
-    preferredStorageProviderId: snapshot.preferredStorageProviderId,
   }
 }
 
@@ -162,7 +159,6 @@ export function normalizeProviderPreferences(input: unknown): ProviderPreference
     version: PROVIDER_PREFERENCES_VERSION,
     disabledSiteProviderIds: Array.from(disabledSet),
     preferredSiteProviderId: normalizeProviderId(record['preferredSiteProviderId']),
-    preferredStorageProviderId: normalizeProviderId(record['preferredStorageProviderId']),
   }
 
   return baseSnapshot
@@ -229,14 +225,12 @@ export function withProviderPreferences<T>(
   callback: (params: {
     disabledSiteProviderIds: Set<string>
     preferredSiteProviderId: string | null
-    preferredStorageProviderId: string | null
   }) => T,
 ): T {
   const disabled = new Set(snapshot.disabledSiteProviderIds)
   return callback({
     disabledSiteProviderIds: disabled,
     preferredSiteProviderId: snapshot.preferredSiteProviderId,
-    preferredStorageProviderId: snapshot.preferredStorageProviderId,
   })
 }
 

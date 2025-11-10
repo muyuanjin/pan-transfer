@@ -247,9 +247,9 @@ export interface ContentState {
   activeSiteProviderLabel: string | null
   disabledSiteProviderIds: Set<string>
   preferredSiteProviderId: string | null
-  preferredStorageProviderId: string | null
   manualSiteProviderId: string | null
   providerSwitching: boolean
+  availableSiteProviderIds: Set<string>
 }
 
 const PANEL_DOM_KEYS = [
@@ -283,7 +283,6 @@ const PANEL_DOM_KEYS = [
   'settingsFilterEditor',
   'settingsRenameEditor',
   'settingsSiteProviderList',
-  'settingsStorageProvider',
   'settingsExportConfig',
   'settingsExportData',
   'settingsImportConfigTrigger',
@@ -346,7 +345,6 @@ export interface PanelDomDefinition {
   settingsFilterEditor: HTMLElement
   settingsRenameEditor: HTMLElement
   settingsSiteProviderList: HTMLElement
-  settingsStorageProvider: HTMLSelectElement
   settingsExportConfig: HTMLButtonElement
   settingsExportData: HTMLButtonElement
   settingsImportConfigTrigger: HTMLButtonElement
@@ -647,7 +645,6 @@ export interface PanelSettingsDomRefs {
   readonly filterEditorRoot: HTMLElement
   readonly renameEditorRoot: HTMLElement
   readonly siteProviderList: HTMLElement
-  readonly storageProviderSelect: HTMLSelectElement
   readonly exportSettingsBtn: HTMLButtonElement
   readonly exportDataBtn: HTMLButtonElement
   readonly importSettingsTrigger: HTMLButtonElement
@@ -703,12 +700,6 @@ export function getPanelSettingsDom(panelDom: PanelDomRefs): PanelSettingsDomRef
       return panelDom.ensure(
         'settingsSiteProviderList',
         'Missing settings site provider list binding',
-      )
-    },
-    get storageProviderSelect() {
-      return panelDom.ensure(
-        'settingsStorageProvider',
-        'Missing settings storage provider select binding',
       )
     },
     get exportSettingsBtn() {

@@ -100,9 +100,10 @@ src/
 
 ### Phase 4 – Multi-Site UX & Settings
 
-- ✅ Introduce a shared provider-preference store (`src/platform/settings/provider-preferences.ts`) so both the background TransferPipeline and content runtime honor disabled site providers and preferred storage targets.
+- ✅ Introduce a shared provider-preference store (`src/platform/settings/provider-preferences.ts`) so both the background TransferPipeline and content runtime honor disabled site providers and apply consistent priority/enablement rules.
 - ✅ Vue panel now exposes the detected provider badge, manual override select, and resource tags via `ProviderStatusBar.vue` + resource list badges; switching providers re-hydrates panel state without reloading the page.
-- ✅ Settings overlay includes provider enable/disable controls and a default storage selector wired to the new controller, with Playwright coverage for provider switching retained.
+- ✅ Provider overrides are constrained to the set of providers that successfully detect the current page/resource, preventing users from forcing incompatible analyzers or storage handlers.
+- ✅ Settings overlay includes provider enable/disable controls (no arbitrary storage selector) wired to the new controller, with Playwright coverage for provider switching retained.
 - Ensure modular CSS + `styles.loader` support provider-specific accents without global leaks.
 - Document manual override + verification steps per provider so QA can validate CHAOSPACE vs. future sites before rollout.
 - Exit criteria: multi-site UI ships by default; docs describe manual verification steps for each provider.

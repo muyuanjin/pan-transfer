@@ -30,6 +30,7 @@ interface PageAnalysisMeta {
   loadedSeasons?: number
   providerId?: string
   providerLabel?: string
+  availableProviders?: Array<{ id?: string; label?: string }>
 }
 
 export interface PageDataHydrator {
@@ -75,6 +76,11 @@ export function createPageDataHydrator(): PageDataHydrator {
     state.activeSiteProviderId = typeof meta.providerId === 'string' ? meta.providerId : null
     state.activeSiteProviderLabel =
       typeof meta.providerLabel === 'string' ? meta.providerLabel : null
+    const availableProviders = Array.isArray(meta.availableProviders) ? meta.availableProviders : []
+    const availableIds = availableProviders
+      .map((provider) => (provider && typeof provider.id === 'string' ? provider.id : null))
+      .filter((id): id is string => Boolean(id))
+    state.availableSiteProviderIds = new Set(availableIds)
 
     const normalizedPoster = sanitizePosterInfo(meta.poster)
     state.poster = normalizedPoster

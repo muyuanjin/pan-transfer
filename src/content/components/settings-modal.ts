@@ -45,7 +45,6 @@ import { createFileRenameEditor, type FileRenameEditor } from './settings/file-r
 import type {
   ProviderPreferencesController,
   SiteProviderOption,
-  StorageProviderOption,
 } from '../controllers/provider-preferences'
 
 const settingsCssUrl = settingsCssHref
@@ -374,8 +373,6 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
 
   const siteProviderOptions: ReadonlyArray<SiteProviderOption> =
     providerPreferences.getSiteProviderOptions()
-  const storageProviderOptions: ReadonlyArray<StorageProviderOption> =
-    providerPreferences.getStorageProviderOptions()
 
   let filterEditor: FileFilterEditor | null = null
   let renameEditor: FileRenameEditor | null = null
@@ -484,7 +481,6 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     filterEditor?.render(serializeFileFilterRules(state.fileFilters))
     renameEditor?.render(serializeFileRenameRules(state.fileRenameRules))
     renderSiteProviderList()
-    renderStorageProviderSelect()
   }
 
   function renderSiteProviderList(): void {
@@ -527,36 +523,6 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
       row.appendChild(body)
       container.appendChild(row)
     })
-  }
-
-  function renderStorageProviderSelect(): void {
-    const select = domRefs.storageProviderSelect
-    if (!select) {
-      return
-    }
-    if (!select.dataset['bound']) {
-      select.dataset['bound'] = 'true'
-      select.addEventListener('change', () => {
-        const value = select.value?.trim() || ''
-        void providerPreferences.setPreferredStorageProvider(value || null)
-      })
-    }
-    const fragment = document.createDocumentFragment()
-    const autoOption = document.createElement('option')
-    autoOption.value = ''
-    autoOption.textContent = '跟随系统默认'
-    fragment.appendChild(autoOption)
-    storageProviderOptions.forEach((option) => {
-      const optionEl = document.createElement('option')
-      optionEl.value = option.id
-      optionEl.textContent = option.label
-      fragment.appendChild(optionEl)
-    })
-    select.innerHTML = ''
-    select.appendChild(fragment)
-    const current = state.preferredStorageProviderId
-    const exists = storageProviderOptions.some((option) => option.id === current)
-    select.value = current && exists ? current : ''
   }
 
   function applySettingsUpdate(

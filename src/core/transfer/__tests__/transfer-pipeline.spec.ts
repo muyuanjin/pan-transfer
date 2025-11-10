@@ -100,25 +100,6 @@ describe('TransferPipeline', () => {
     expect(second.detect).toHaveBeenCalledTimes(1)
   })
 
-  it('prefers user-selected storage provider when available', async () => {
-    const only = createSiteProvider('only')
-    ;(only.detect as ReturnType<typeof vi.fn>).mockResolvedValue(true)
-
-    const registry = new ProviderRegistry({
-      siteProviders: [only],
-      storageProviders: [createStorageProvider('a'), createStorageProvider('b')],
-    })
-
-    const pipeline = new TransferPipeline({
-      registry,
-      getProviderPreferences: () => ({ preferredStorageProviderId: 'b' }),
-    })
-
-    const result = await pipeline.enqueue({ context: { url: 'https://example.com' } }).result
-
-    expect(result).toMatchObject({ storageProviderId: 'b' })
-  })
-
   it('integrates with the Chaospace provider and mock storage', async () => {
     const analysis: PageAnalysisResult = {
       items: [],

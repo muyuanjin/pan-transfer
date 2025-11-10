@@ -79,9 +79,9 @@ function createInitialState(): ContentState {
     activeSiteProviderLabel: null,
     disabledSiteProviderIds: new Set<string>(),
     preferredSiteProviderId: null,
-    preferredStorageProviderId: null,
     manualSiteProviderId: null,
     providerSwitching: false,
+    availableSiteProviderIds: new Set<string>(),
   }
 }
 
@@ -150,6 +150,9 @@ export function resetTransientState(): void {
     draft.lastResult = null
     draft.jobId = null
     draft.toolbarDisabled = false
+    draft.manualSiteProviderId = null
+    draft.availableSiteProviderIds = new Set<string>()
+    draft.providerSwitching = false
   })
 }
 

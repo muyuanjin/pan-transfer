@@ -6,7 +6,6 @@ describe('provider-preferences normalization', () => {
     const snapshot = normalizeProviderPreferences(null)
     expect(snapshot.disabledSiteProviderIds).toEqual([])
     expect(snapshot.preferredSiteProviderId).toBeNull()
-    expect(snapshot.preferredStorageProviderId).toBeNull()
   })
 
   it('deduplicates and trims disabled provider ids', () => {
@@ -19,9 +18,7 @@ describe('provider-preferences normalization', () => {
   it('normalizes preferred provider ids', () => {
     const snapshot = normalizeProviderPreferences({
       preferredSiteProviderId: ' chaospace ',
-      preferredStorageProviderId: ' baidu-netdisk ',
     })
     expect(snapshot.preferredSiteProviderId).toBe('chaospace')
-    expect(snapshot.preferredStorageProviderId).toBe('baidu-netdisk')
   })
 })

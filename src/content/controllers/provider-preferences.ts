@@ -1,5 +1,5 @@
 import type { ProviderRegistry } from '@/platform/registry/provider-registry'
-import type { SiteProvider, StorageProvider } from '@/platform/registry/types'
+import type { SiteProvider } from '@/platform/registry/types'
 import {
   loadProviderPreferences,
   saveProviderPreferencesUpdate,
@@ -17,14 +17,6 @@ export interface SiteProviderOption {
   priority?: number
 }
 
-export interface StorageProviderOption {
-  id: string
-  label: string
-  description?: string
-  tags: string[]
-  priority?: number
-}
-
 interface ProviderPreferencesControllerDeps {
   state: ContentStore
   registry: ProviderRegistry
@@ -34,10 +26,8 @@ export interface ProviderPreferencesController {
   loadPreferences: () => Promise<void>
   getSnapshot: () => ProviderPreferencesSnapshot
   getSiteProviderOptions: () => ReadonlyArray<SiteProviderOption>
-  getStorageProviderOptions: () => ReadonlyArray<StorageProviderOption>
   toggleSiteProvider: (providerId: string, enabled: boolean) => Promise<void>
   setPreferredSiteProvider: (providerId: string | null) => Promise<void>
-  setPreferredStorageProvider: (providerId: string | null) => Promise<void>
 }
 
 export function createProviderPreferencesController({
@@ -45,19 +35,16 @@ export function createProviderPreferencesController({
   registry,
 }: ProviderPreferencesControllerDeps): ProviderPreferencesController {
   const siteOptions = buildSiteProviderOptions(registry.listSiteProviders())
-  const storageOptions = buildStorageProviderOptions(registry.listStorageProviders())
   let snapshot: ProviderPreferencesSnapshot = {
     version: 1,
     disabledSiteProviderIds: [],
     preferredSiteProviderId: null,
-    preferredStorageProviderId: null,
   }
 
   const applySnapshot = (nextSnapshot: ProviderPreferencesSnapshot): void => {
     snapshot = nextSnapshot
     state.disabledSiteProviderIds = new Set(nextSnapshot.disabledSiteProviderIds)
     state.preferredSiteProviderId = nextSnapshot.preferredSiteProviderId
-    state.preferredStorageProviderId = nextSnapshot.preferredStorageProviderId
     if (
       state.manualSiteProviderId &&
       state.disabledSiteProviderIds.has(state.manualSiteProviderId)
@@ -99,22 +86,12 @@ export function createProviderPreferencesController({
     applySnapshot(nextSnapshot)
   }
 
-  const setPreferredStorageProvider = async (providerId: string | null): Promise<void> => {
-    const normalized = normalizePreferenceId(providerId)
-    const nextSnapshot = await saveProviderPreferencesUpdate({
-      preferredStorageProviderId: normalized,
-    })
-    applySnapshot(nextSnapshot)
-  }
-
   return {
     loadPreferences,
     getSnapshot: () => snapshot,
     getSiteProviderOptions: () => siteOptions,
-    getStorageProviderOptions: () => storageOptions,
     toggleSiteProvider,
     setPreferredSiteProvider,
-    setPreferredStorageProvider,
   }
 }
 
@@ -133,25 +110,6 @@ function buildSiteProviderOptions(providers: ReadonlyArray<SiteProvider>): SiteP
       label: provider.metadata.displayName,
       tags: (provider.metadata.tags ?? []).map((tag) => tag.trim()).filter(Boolean),
       supportedHosts: (provider.metadata.supportedHosts ?? []).map((host) => host.trim()),
-    }
-    if (typeof provider.metadata.description === 'string' && provider.metadata.description) {
-      option.description = provider.metadata.description
-    }
-    if (typeof provider.metadata.priority === 'number') {
-      option.priority = provider.metadata.priority
-    }
-    return option
-  })
-}
-
-function buildStorageProviderOptions(
-  providers: ReadonlyArray<StorageProvider>,
-): StorageProviderOption[] {
-  return providers.map((provider) => {
-    const option: StorageProviderOption = {
-      id: provider.id,
-      label: provider.metadata.displayName,
-      tags: (provider.metadata.tags ?? []).map((tag) => tag.trim()).filter(Boolean),
     }
     if (typeof provider.metadata.description === 'string' && provider.metadata.description) {
       option.description = provider.metadata.description

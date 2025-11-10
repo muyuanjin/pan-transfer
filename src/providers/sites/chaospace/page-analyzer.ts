@@ -52,6 +52,11 @@ export interface AnalyzePageOptions {
   initialSeasonBatchSize?: number
 }
 
+export interface PageProviderMeta {
+  id: string
+  label: string
+}
+
 export interface PageAnalysisResult {
   items: ResourceItem[]
   url: string
@@ -68,6 +73,7 @@ export interface PageAnalysisResult {
   classificationDetail: DetailedClassificationResult | null
   providerId?: string
   providerLabel?: string
+  availableProviders?: PageProviderMeta[]
 }
 
 export interface SeasonDetailResult {

@@ -553,6 +553,12 @@ export function createRuntimeApp() {
     if (state.manualSiteProviderId === normalized && state.activeSiteProviderId === normalized) {
       return
     }
+    const available = state.availableSiteProviderIds
+    if (normalized && available && available.size > 0 && !available.has(normalized)) {
+      state.providerSwitching = false
+      showToast('error', '切换解析失败', '当前页面未检测到该解析器支持')
+      return
+    }
     const previousManualId = state.manualSiteProviderId
     state.providerSwitching = true
     state.statusMessage = '正在切换解析引擎...'

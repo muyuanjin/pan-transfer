@@ -47,30 +47,7 @@ export function getBackgroundTransferPipeline(
   }
   const nextPipeline = new TransferPipeline({
     registry: getBackgroundProviderRegistry(storageMode),
-    getProviderPreferences: () => {
-      const snapshot = getProviderPreferencesSnapshot()
-      if (!snapshot && storageMode !== 'mock') {
-        return null
-      }
-      if (snapshot && (snapshot.preferredStorageProviderId || storageMode !== 'mock')) {
-        return snapshot
-      }
-      const base = snapshot
-        ? {
-            disabledSiteProviderIds: snapshot.disabledSiteProviderIds,
-            preferredSiteProviderId: snapshot.preferredSiteProviderId,
-            preferredStorageProviderId: snapshot.preferredStorageProviderId,
-          }
-        : {
-            disabledSiteProviderIds: [],
-            preferredSiteProviderId: null,
-            preferredStorageProviderId: null,
-          }
-      if (!base.preferredStorageProviderId && storageMode === 'mock') {
-        base.preferredStorageProviderId = 'mock-storage'
-      }
-      return base
-    },
+    getProviderPreferences: () => getProviderPreferencesSnapshot(),
   })
   pipelineCache[storageMode] = nextPipeline
   return nextPipeline

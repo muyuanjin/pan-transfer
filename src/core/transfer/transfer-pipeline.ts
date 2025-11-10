@@ -68,6 +68,11 @@ export class TransferPipeline {
   }
 
   async detectSiteProvider(context: TransferContext): Promise<SiteProvider | null> {
+    const [first] = await this.listMatchingSiteProviders(context)
+    return first ?? null
+  }
+
+  async listMatchingSiteProviders(context: TransferContext): Promise<SiteProvider[]> {
     const providers = this.registry.listSiteProviders()
     const preferences = this.getProviderPreferences() ?? null
     const disabledIds = new Set(preferences?.disabledSiteProviderIds ?? [])
@@ -76,24 +81,22 @@ export class TransferPipeline {
       providers.filter((provider) => !disabledIds.has(provider.id)),
       preferredId,
     )
-
+    const matches: SiteProvider[] = []
     for (const provider of candidates) {
-      let matched = false
       try {
-        matched = await provider.detect(context)
+        const matched = await provider.detect(context)
+        if (matched) {
+          matches.push(provider)
+        }
       } catch (error) {
         const err = error as Error
         this.logger.warn('[Pan Transfer] Site provider detection failed', {
           providerId: provider.id,
           message: err?.message,
         })
-        continue
-      }
-      if (matched) {
-        return provider
       }
     }
-    return null
+    return matches
   }
 
   async dispatchToStorage(
@@ -181,14 +184,6 @@ export class TransferPipeline {
       }
       return provider
     }
-    const preferences = this.getProviderPreferences() ?? null
-    const preferredId = preferences?.preferredStorageProviderId?.trim()
-    if (preferredId) {
-      const preferred = this.registry.getStorageProvider(preferredId)
-      if (preferred) {
-        return preferred
-      }
-    }
     const [first] = this.registry.listStorageProviders()
     return first ?? null
   }
@@ -202,7 +197,6 @@ export class TransferPipeline {
 interface ProviderPreferenceSnapshot {
   disabledSiteProviderIds?: ReadonlyArray<string>
   preferredSiteProviderId?: string | null
-  preferredStorageProviderId?: string | null
 }
 
 function reorderSiteProviders(

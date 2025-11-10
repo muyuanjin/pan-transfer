@@ -1,11 +1,17 @@
 import { chaosLogger } from '@/shared/log'
-import type { TransferContext, SiteResourceCollection, SiteResourceItem } from '@/platform/registry'
+import type {
+  TransferContext,
+  SiteProvider,
+  SiteResourceCollection,
+  SiteResourceItem,
+} from '@/platform/registry'
 import { TransferPipeline, type TransferPipelineOptions } from '@/core/transfer'
 import { getContentProviderRegistry } from '@/content/providers/registry'
 import {
   analyzePage as analyzeChaospacePage,
   type AnalyzePageOptions,
   type PageAnalysisResult,
+  type PageProviderMeta,
 } from '@/providers/sites/chaospace/page-analyzer'
 import {
   ANALYSIS_SNAPSHOT_KEY,
@@ -29,7 +35,6 @@ export interface PageAnalysisRunnerOptions {
 interface ProviderPreferenceSnapshot {
   disabledSiteProviderIds?: ReadonlyArray<string>
   preferredSiteProviderId?: string | null
-  preferredStorageProviderId?: string | null
 }
 
 export interface PageAnalysisRequestOptions extends AnalyzePageOptions {
@@ -71,48 +76,50 @@ export function createPageAnalysisRunner(options: PageAnalysisRunnerOptions): Pa
     )
     if (forcedProviderId) {
       context.siteProviderId = forcedProviderId
-      const forcedProvider = registry.getSiteProvider(forcedProviderId)
-      if (forcedProvider) {
-        try {
-          const matched = await forcedProvider.detect(context)
-          if (matched) {
-            const collection = await forcedProvider.collectResources(context)
-            const snapshot = extractAnalysisSnapshot(collection)
-            if (snapshot) {
-              return ensureProviderMetadata(snapshot)
-            }
-            return ensureProviderMetadata(convertCollectionToAnalysis(collection, options.window))
-          }
-        } catch (error) {
-          const err = error as Error
-          chaosLogger.warn('[Pan Transfer] 手动指定 Provider 解析失败，回退自动检测', {
-            providerId: forcedProviderId,
-            message: err?.message,
-          })
-        }
-      }
     }
 
     try {
-      const provider = await getPipeline().detectSiteProvider(context)
+      const matchingProviders = await getPipeline().listMatchingSiteProviders(context)
+      let provider: SiteProvider | null = null
+      if (forcedProviderId) {
+        provider = matchingProviders.find((candidate) => candidate.id === forcedProviderId) ?? null
+        if (!provider) {
+          chaosLogger.warn('[Pan Transfer] 强制选择的 Provider 未匹配当前页面，使用自动检测', {
+            providerId: forcedProviderId,
+            url: context.url ?? options.window.location?.href,
+          })
+        }
+      }
+      if (!provider) {
+        provider = matchingProviders[0] ?? null
+      }
       if (!provider) {
         chaosLogger.debug('[Pan Transfer] 未匹配到站点 Provider，回退到 CHAOSPACE 解析', {
           url: context.url ?? options.window.location?.href,
         })
-        return ensureProviderMetadata(await analyzeChaospacePage(legacyOptions))
+        return withAvailableProviders(
+          ensureProviderMetadata(await analyzeChaospacePage(legacyOptions)),
+          [{ id: CHAOSPACE_SITE_PROVIDER_ID, label: 'CHAOSPACE' }],
+        )
       }
       const collection = await provider.collectResources(context)
       const snapshot = extractAnalysisSnapshot(collection)
-      if (snapshot) {
-        return ensureProviderMetadata(snapshot)
-      }
-      return ensureProviderMetadata(convertCollectionToAnalysis(collection, options.window))
+      const result = snapshot
+        ? ensureProviderMetadata(snapshot)
+        : ensureProviderMetadata(convertCollectionToAnalysis(collection, options.window))
+      const availableProvidersMeta = matchingProviders.length
+        ? matchingProviders.map(mapProviderToMeta)
+        : [mapProviderToMeta(provider)]
+      return withAvailableProviders(result, availableProvidersMeta)
     } catch (error) {
       const err = error as Error
       chaosLogger.warn('[Pan Transfer] Provider-backed analysis failed, using legacy analyzer', {
         message: err?.message,
       })
-      return ensureProviderMetadata(await analyzeChaospacePage(legacyOptions))
+      return withAvailableProviders(
+        ensureProviderMetadata(await analyzeChaospacePage(legacyOptions)),
+        [{ id: CHAOSPACE_SITE_PROVIDER_ID, label: 'CHAOSPACE' }],
+      )
     }
   }
 
@@ -165,8 +172,11 @@ function convertCollectionToAnalysis(
     typeof meta['siteProviderLabel'] === 'string'
       ? (meta['siteProviderLabel'] as string)
       : 'CHAOSPACE'
+  const availableProviders = Array.isArray(meta['availableProviders'])
+    ? (meta['availableProviders'] as PageProviderMeta[])
+    : undefined
 
-  return {
+  const result: PageAnalysisResult = {
     items: collection.items.map(mapSiteResourceToContentResource),
     url: coerceString(meta['pageUrl'], windowRef.location?.href || ''),
     origin: coerceString(meta['origin'], windowRef.location?.origin || ''),
@@ -183,6 +193,10 @@ function convertCollectionToAnalysis(
     providerId,
     providerLabel,
   }
+  if (Array.isArray(availableProviders) && availableProviders.length) {
+    result.availableProviders = availableProviders
+  }
+  return result
 }
 
 function mapSiteResourceToContentResource(item: SiteResourceItem): ResourceItem {
@@ -236,5 +250,28 @@ function ensureProviderMetadata(result: PageAnalysisResult): PageAnalysisResult 
   if (!result.providerLabel) {
     result.providerLabel = 'CHAOSPACE'
   }
+  if (!Array.isArray(result.availableProviders) || !result.availableProviders.length) {
+    result.availableProviders = [
+      {
+        id: result.providerId,
+        label: result.providerLabel,
+      },
+    ]
+  }
   return result
+}
+
+function withAvailableProviders(
+  result: PageAnalysisResult,
+  providers: PageProviderMeta[],
+): PageAnalysisResult {
+  result.availableProviders = providers
+  return result
+}
+
+function mapProviderToMeta(provider: SiteProvider): PageProviderMeta {
+  return {
+    id: provider.id,
+    label: provider.metadata.displayName || provider.id,
+  }
 }
