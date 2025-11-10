@@ -207,6 +207,31 @@
                 </div>
               </section>
               <section class="chaospace-settings-section">
+                <h3>Provider 管理</h3>
+                <div class="chaospace-settings-field">
+                  <div class="chaospace-settings-label">站点解析器</div>
+                  <div
+                    class="chaospace-provider-settings"
+                    data-role="settings-site-provider-list"
+                  ></div>
+                  <p class="chaospace-settings-hint">
+                    可按需禁用暂不需要的站点 Provider，避免在不兼容页面上触发误报。
+                  </p>
+                </div>
+                <div class="chaospace-settings-field">
+                  <label class="chaospace-settings-label" for="chaospace-settings-storage-provider"
+                    >默认存储 Provider</label
+                  >
+                  <select
+                    id="chaospace-settings-storage-provider"
+                    data-role="settings-storage-provider"
+                  ></select>
+                  <p class="chaospace-settings-hint">
+                    控制转存任务优先使用的网盘实现，切换后新的转存请求将走对应 Provider。
+                  </p>
+                </div>
+              </section>
+              <section class="chaospace-settings-section">
                 <h3>文件过滤</h3>
                 <div class="chaospace-settings-field">
                   <label class="chaospace-settings-label" for="chaospace-settings-filter-mode"
@@ -317,6 +342,7 @@
               <div class="chaospace-section-title" data-role="resource-title"></div>
               <div class="chaospace-section-caption" data-role="resource-summary"></div>
             </div>
+            <ProviderStatusBar />
             <div class="chaospace-season-tabs" data-role="season-tabs" hidden></div>
             <PanelToolbar />
             <div class="chaospace-items-scroll" data-role="items"></div>
@@ -387,6 +413,7 @@ import HistoryFilterTabs from './history/HistoryFilterTabs.vue'
 import HistorySearchBar from './history/HistorySearchBar.vue'
 import HistoryToolbar from './history/HistoryToolbar.vue'
 import PresetList from './PresetList.vue'
+import ProviderStatusBar from './ProviderStatusBar.vue'
 
 type PanelTheme = 'light' | 'dark'
 

@@ -42,6 +42,11 @@ import {
 } from '@/shared/settings'
 import { createFileFilterEditor, type FileFilterEditor } from './settings/file-filter-editor'
 import { createFileRenameEditor, type FileRenameEditor } from './settings/file-rename-editor'
+import type {
+  ProviderPreferencesController,
+  SiteProviderOption,
+  StorageProviderOption,
+} from '../controllers/provider-preferences'
 
 const settingsCssUrl = settingsCssHref
 let settingsCssPromise: Promise<void> | null = null
@@ -111,6 +116,7 @@ export interface CreateSettingsModalOptions {
   closeHistoryDetail: ((options?: Record<string, unknown>) => void) | undefined
   onResetLayout: (() => void | Promise<void>) | undefined
   handleSeasonDefaultChange: (value: boolean) => void
+  providerPreferences: ProviderPreferencesController
 }
 
 export interface SettingsModalHandles {
@@ -357,6 +363,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     closeHistoryDetail,
     onResetLayout,
     handleSeasonDefaultChange,
+    providerPreferences,
   } = options
 
   const domRefs: SettingsDomRefs = {
@@ -364,6 +371,11 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     filterEditor: null,
     renameEditor: null,
   }
+
+  const siteProviderOptions: ReadonlyArray<SiteProviderOption> =
+    providerPreferences.getSiteProviderOptions()
+  const storageProviderOptions: ReadonlyArray<StorageProviderOption> =
+    providerPreferences.getStorageProviderOptions()
 
   let filterEditor: FileFilterEditor | null = null
   let renameEditor: FileRenameEditor | null = null
@@ -471,6 +483,80 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     }
     filterEditor?.render(serializeFileFilterRules(state.fileFilters))
     renameEditor?.render(serializeFileRenameRules(state.fileRenameRules))
+    renderSiteProviderList()
+    renderStorageProviderSelect()
+  }
+
+  function renderSiteProviderList(): void {
+    const container = domRefs.siteProviderList
+    if (!container) {
+      return
+    }
+    container.innerHTML = ''
+    siteProviderOptions.forEach((option) => {
+      const row = document.createElement('label')
+      row.className = 'chaospace-provider-toggle'
+      const checkbox = document.createElement('input')
+      checkbox.type = 'checkbox'
+      checkbox.checked = !state.disabledSiteProviderIds.has(option.id)
+      checkbox.addEventListener('change', () => {
+        void providerPreferences.toggleSiteProvider(option.id, checkbox.checked)
+      })
+      const body = document.createElement('div')
+      body.className = 'chaospace-provider-toggle__body'
+      const title = document.createElement('div')
+      title.className = 'chaospace-provider-toggle__title'
+      title.textContent = option.label
+      const meta = document.createElement('div')
+      meta.className = 'chaospace-provider-toggle__meta'
+      const parts: string[] = []
+      if (option.tags.length) {
+        parts.push(`标签：${option.tags.join('、')}`)
+      }
+      if (option.supportedHosts.length) {
+        parts.push(`域名：${option.supportedHosts.join(', ')}`)
+      }
+      meta.textContent = parts.join(' · ')
+      const description = document.createElement('p')
+      description.className = 'chaospace-provider-toggle__description'
+      description.textContent = option.description || '—'
+      body.appendChild(title)
+      body.appendChild(meta)
+      body.appendChild(description)
+      row.appendChild(checkbox)
+      row.appendChild(body)
+      container.appendChild(row)
+    })
+  }
+
+  function renderStorageProviderSelect(): void {
+    const select = domRefs.storageProviderSelect
+    if (!select) {
+      return
+    }
+    if (!select.dataset['bound']) {
+      select.dataset['bound'] = 'true'
+      select.addEventListener('change', () => {
+        const value = select.value?.trim() || ''
+        void providerPreferences.setPreferredStorageProvider(value || null)
+      })
+    }
+    const fragment = document.createDocumentFragment()
+    const autoOption = document.createElement('option')
+    autoOption.value = ''
+    autoOption.textContent = '跟随系统默认'
+    fragment.appendChild(autoOption)
+    storageProviderOptions.forEach((option) => {
+      const optionEl = document.createElement('option')
+      optionEl.value = option.id
+      optionEl.textContent = option.label
+      fragment.appendChild(optionEl)
+    })
+    select.innerHTML = ''
+    select.appendChild(fragment)
+    const current = state.preferredStorageProviderId
+    const exists = storageProviderOptions.some((option) => option.id === current)
+    select.value = current && exists ? current : ''
   }
 
   function applySettingsUpdate(

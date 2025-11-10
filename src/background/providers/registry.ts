@@ -23,11 +23,8 @@ export function getBackgroundProviderRegistry(
   const nextRegistry = createProviderRegistry({
     siteProviders: [createChaospaceSiteProvider(), createGenericForumSiteProvider()],
   })
-  if (storageMode === 'mock') {
-    nextRegistry.registerStorageProvider(createMockStorageProvider())
-  } else {
-    nextRegistry.registerStorageProvider(createBaiduNetdiskProvider())
-  }
+  nextRegistry.registerStorageProvider(createBaiduNetdiskProvider())
+  nextRegistry.registerStorageProvider(createMockStorageProvider())
   registryCache[storageMode] = nextRegistry
   return nextRegistry
 }

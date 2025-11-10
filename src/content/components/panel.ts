@@ -550,6 +550,12 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
   const settingsRenameEditor = panel.querySelector<HTMLElement>(
     '[data-role="settings-rename-editor"]',
   )
+  const settingsSiteProviderList = panel.querySelector<HTMLElement>(
+    '[data-role="settings-site-provider-list"]',
+  )
+  const settingsStorageProvider = panel.querySelector<HTMLSelectElement>(
+    '[data-role="settings-storage-provider"]',
+  )
   const settingsExportConfig = panel.querySelector<HTMLButtonElement>(
     '[data-role="settings-export-config"]',
   )
@@ -620,6 +626,8 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     settingsFilterMode,
     settingsFilterEditor,
     settingsRenameEditor,
+    settingsSiteProviderList,
+    settingsStorageProvider,
     settingsExportConfig,
     settingsExportData,
     settingsImportConfigTrigger,

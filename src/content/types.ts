@@ -78,6 +78,7 @@ export interface ResourceItem {
   seasonCompletion?: CompletionStatus | null
   quality?: string
   subtitle?: string
+  tags?: string[]
   [key: string]: unknown
 }
 
@@ -244,6 +245,11 @@ export interface ContentState {
   fileRenameRules: FileRenameRule[]
   activeSiteProviderId: string | null
   activeSiteProviderLabel: string | null
+  disabledSiteProviderIds: Set<string>
+  preferredSiteProviderId: string | null
+  preferredStorageProviderId: string | null
+  manualSiteProviderId: string | null
+  providerSwitching: boolean
 }
 
 const PANEL_DOM_KEYS = [
@@ -276,6 +282,8 @@ const PANEL_DOM_KEYS = [
   'settingsFilterMode',
   'settingsFilterEditor',
   'settingsRenameEditor',
+  'settingsSiteProviderList',
+  'settingsStorageProvider',
   'settingsExportConfig',
   'settingsExportData',
   'settingsImportConfigTrigger',
@@ -337,6 +345,8 @@ export interface PanelDomDefinition {
   settingsFilterMode: HTMLSelectElement
   settingsFilterEditor: HTMLElement
   settingsRenameEditor: HTMLElement
+  settingsSiteProviderList: HTMLElement
+  settingsStorageProvider: HTMLSelectElement
   settingsExportConfig: HTMLButtonElement
   settingsExportData: HTMLButtonElement
   settingsImportConfigTrigger: HTMLButtonElement
@@ -636,6 +646,8 @@ export interface PanelSettingsDomRefs {
   readonly filterModeSelect: HTMLSelectElement
   readonly filterEditorRoot: HTMLElement
   readonly renameEditorRoot: HTMLElement
+  readonly siteProviderList: HTMLElement
+  readonly storageProviderSelect: HTMLSelectElement
   readonly exportSettingsBtn: HTMLButtonElement
   readonly exportDataBtn: HTMLButtonElement
   readonly importSettingsTrigger: HTMLButtonElement
@@ -686,6 +698,18 @@ export function getPanelSettingsDom(panelDom: PanelDomRefs): PanelSettingsDomRef
     },
     get renameEditorRoot() {
       return panelDom.ensure('settingsRenameEditor', 'Missing settings rename editor binding')
+    },
+    get siteProviderList() {
+      return panelDom.ensure(
+        'settingsSiteProviderList',
+        'Missing settings site provider list binding',
+      )
+    },
+    get storageProviderSelect() {
+      return panelDom.ensure(
+        'settingsStorageProvider',
+        'Missing settings storage provider select binding',
+      )
     },
     get exportSettingsBtn() {
       return panelDom.ensure('settingsExportConfig', 'Missing settings export config binding')

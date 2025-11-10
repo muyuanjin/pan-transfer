@@ -5,6 +5,7 @@ import {
   extractSeasonPageCompletion,
   fetchHtmlDocument,
   isSupportedDetailPage,
+  suggestDirectoryFromClassification,
 } from '@/providers/sites/chaospace/page-analyzer'
 import { state, panelDom, detailDom } from '../state'
 import { createPanelRuntimeState } from './panel-state'
@@ -58,8 +59,12 @@ import { loadStoredPinState, persistPinState } from '../utils/panel-pin'
 import { loadStoredEdgeState, persistEdgeState } from '../utils/panel-edge'
 import { toolbarContextKey, type ToolbarContext } from './ui/toolbar-context'
 import { historyContextKey } from './ui/history-context'
+import { providerPanelContextKey } from './ui/provider-context'
 import { panelPreferencesContextKey } from './ui/panel-preferences-context'
 import { createPageAnalysisRunner } from '../services/page-analysis-runner'
+import { getContentProviderRegistry } from '@/content/providers/registry'
+import { createProviderPreferencesController } from '../controllers/provider-preferences'
+import { TV_SHOW_INITIAL_SEASON_BATCH } from '../constants'
 
 export function createRuntimeApp() {
   const panelState = createPanelRuntimeState()
@@ -78,6 +83,12 @@ export function createRuntimeApp() {
   const panelSeasonDom = getPanelSeasonDom(panelDom)
   const panelHistoryDom = getPanelHistoryDom(panelDom)
   const panelSettingsDom = getPanelSettingsDom(panelDom)
+
+  const providerRegistry = getContentProviderRegistry()
+  const providerPreferences = createProviderPreferencesController({
+    state,
+    registry: providerRegistry,
+  })
 
   bindSeasonManagerDomRefs({
     baseDir: panelBaseDirDom,
@@ -516,9 +527,74 @@ export function createRuntimeApp() {
     showToast,
     seasonPreference: tabSeasonPreference!,
     panelDom: panelSettingsDom,
+    providerPreferences,
   })
 
-  const analysisRunner = createPageAnalysisRunner({ document, window })
+  const renderPanelState = (): void => {
+    headerPresenter.updateHeader()
+    preferences.applyPanelTheme()
+    preferences.renderPresets()
+    preferences.renderPathPreview()
+    history.applyHistoryToCurrentPage()
+    history.renderHistoryCard()
+    history.updateHistoryExpansion()
+    resourceRenderer.renderResourceList()
+    logging.resetLogs()
+    logging.setStatus('idle', state.statusMessage)
+    headerPresenter.updateTransferButton()
+  }
+
+  const switchSiteProvider = async (providerId: string | null): Promise<void> => {
+    if (state.providerSwitching) {
+      return
+    }
+    const normalized =
+      typeof providerId === 'string' && providerId.trim() ? providerId.trim() : null
+    if (state.manualSiteProviderId === normalized && state.activeSiteProviderId === normalized) {
+      return
+    }
+    const previousManualId = state.manualSiteProviderId
+    state.providerSwitching = true
+    state.statusMessage = '正在切换解析引擎...'
+    try {
+      const data = await analysisRunner.analyzePage({
+        deferTvSeasons: true,
+        initialSeasonBatchSize: TV_SHOW_INITIAL_SEASON_BATCH,
+        siteProviderId: normalized,
+      })
+      seasonLoader.resetSeasonLoader()
+      const deferredSeasons = pageDataHydrator.normalizeDeferredSeasons(data.deferredSeasons)
+      pageDataHydrator.hydrate(data.items || [], deferredSeasons, data)
+      state.autoSuggestedDir = suggestDirectoryFromClassification(
+        state.classificationDetails || state.classification,
+      )
+      state.logs = []
+      state.transferStatus = 'idle'
+      state.statusMessage = '准备就绪 ✨'
+      state.manualSiteProviderId = normalized
+      renderPanelState()
+      if (state.deferredSeasonInfos.length) {
+        void seasonLoader.ensureDeferredSeasonLoading().catch((error) => {
+          chaosLogger.error('[Pan Transfer] Failed to resume deferred season loading', error)
+        })
+      }
+    } catch (error) {
+      state.manualSiteProviderId = previousManualId
+      const err = error as Error
+      chaosLogger.error('[Pan Transfer] Failed to switch provider', err)
+      showToast('error', '切换解析失败', err?.message || '无法切换解析 Provider')
+      state.statusMessage = '切换解析失败'
+    } finally {
+      state.providerSwitching = false
+    }
+  }
+
+  const analysisRunner = createPageAnalysisRunner({
+    document,
+    window,
+    getProviderPreferences: () => providerPreferences.getSnapshot(),
+    getManualSiteProviderId: () => state.manualSiteProviderId,
+  })
 
   const panelFactory = createPanelFactory({
     document,
@@ -526,12 +602,9 @@ export function createRuntimeApp() {
     state,
     panelDom,
     panelState,
-    logging,
     preferences,
     edgeController,
     history,
-    headerPresenter,
-    resourceRenderer,
     seasonLoader,
     hydrator: pageDataHydrator,
     analyzePage: (options) => analysisRunner.analyzePage(options),
@@ -576,7 +649,13 @@ export function createRuntimeApp() {
       app.provide(toolbarContextKey, toolbarContext)
       app.provide(historyContextKey, history)
       app.provide(panelPreferencesContextKey, preferences)
+      app.provide(providerPanelContextKey, {
+        siteProviderOptions: providerPreferences.getSiteProviderOptions(),
+        switchSiteProvider,
+      })
     },
+    providerPreferences,
+    renderPanelState,
   })
 
   const domLifecycle = createDomLifecycle({

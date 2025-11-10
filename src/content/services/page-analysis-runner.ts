@@ -1,6 +1,6 @@
 import { chaosLogger } from '@/shared/log'
 import type { TransferContext, SiteResourceCollection, SiteResourceItem } from '@/platform/registry'
-import { TransferPipeline } from '@/core/transfer'
+import { TransferPipeline, type TransferPipelineOptions } from '@/core/transfer'
 import { getContentProviderRegistry } from '@/content/providers/registry'
 import {
   analyzePage as analyzeChaospacePage,
@@ -16,12 +16,24 @@ import type { PosterInfo } from '@/shared/utils/sanitizers'
 import type { CompletionStatus } from '@/shared/utils/completion-status'
 
 export interface PageAnalysisRunner {
-  analyzePage: (options?: AnalyzePageOptions) => Promise<PageAnalysisResult>
+  analyzePage: (options?: PageAnalysisRequestOptions) => Promise<PageAnalysisResult>
 }
 
 export interface PageAnalysisRunnerOptions {
   document: Document
   window: Window & typeof globalThis
+  getProviderPreferences?: () => ProviderPreferenceSnapshot | null
+  getManualSiteProviderId?: () => string | null
+}
+
+interface ProviderPreferenceSnapshot {
+  disabledSiteProviderIds?: ReadonlyArray<string>
+  preferredSiteProviderId?: string | null
+  preferredStorageProviderId?: string | null
+}
+
+export interface PageAnalysisRequestOptions extends AnalyzePageOptions {
+  siteProviderId?: string | null
 }
 
 export function createPageAnalysisRunner(options: PageAnalysisRunnerOptions): PageAnalysisRunner {
@@ -30,21 +42,55 @@ export function createPageAnalysisRunner(options: PageAnalysisRunnerOptions): Pa
 
   const getPipeline = (): TransferPipeline => {
     if (!pipeline) {
-      pipeline = new TransferPipeline({ registry })
+      const pipelineOptions: TransferPipelineOptions = {
+        registry,
+      }
+      if (typeof options.getProviderPreferences === 'function') {
+        pipelineOptions.getProviderPreferences = options.getProviderPreferences
+      }
+      pipeline = new TransferPipeline(pipelineOptions)
     }
     return pipeline
   }
 
   const analyzeWithProviders = async (
-    analysisOptions?: AnalyzePageOptions,
+    analysisOptions?: PageAnalysisRequestOptions,
   ): Promise<PageAnalysisResult> => {
+    const { siteProviderId, ...legacyOptions } = analysisOptions ?? {}
     const context: TransferContext = {
       url: options.window.location?.href,
       document: options.document,
       timestamp: Date.now(),
     }
-    if (analysisOptions && Object.keys(analysisOptions).length > 0) {
-      context.extras = { analysisOptions }
+    if (legacyOptions && Object.keys(legacyOptions).length > 0) {
+      context.extras = { analysisOptions: legacyOptions }
+    }
+    const forcedProviderId = resolveForcedProviderId(
+      typeof siteProviderId === 'string' ? siteProviderId : null,
+      options.getManualSiteProviderId,
+    )
+    if (forcedProviderId) {
+      context.siteProviderId = forcedProviderId
+      const forcedProvider = registry.getSiteProvider(forcedProviderId)
+      if (forcedProvider) {
+        try {
+          const matched = await forcedProvider.detect(context)
+          if (matched) {
+            const collection = await forcedProvider.collectResources(context)
+            const snapshot = extractAnalysisSnapshot(collection)
+            if (snapshot) {
+              return ensureProviderMetadata(snapshot)
+            }
+            return ensureProviderMetadata(convertCollectionToAnalysis(collection, options.window))
+          }
+        } catch (error) {
+          const err = error as Error
+          chaosLogger.warn('[Pan Transfer] 手动指定 Provider 解析失败，回退自动检测', {
+            providerId: forcedProviderId,
+            message: err?.message,
+          })
+        }
+      }
     }
 
     try {
@@ -53,7 +99,7 @@ export function createPageAnalysisRunner(options: PageAnalysisRunnerOptions): Pa
         chaosLogger.debug('[Pan Transfer] 未匹配到站点 Provider，回退到 CHAOSPACE 解析', {
           url: context.url ?? options.window.location?.href,
         })
-        return ensureProviderMetadata(await analyzeChaospacePage(analysisOptions))
+        return ensureProviderMetadata(await analyzeChaospacePage(legacyOptions))
       }
       const collection = await provider.collectResources(context)
       const snapshot = extractAnalysisSnapshot(collection)
@@ -66,13 +112,27 @@ export function createPageAnalysisRunner(options: PageAnalysisRunnerOptions): Pa
       chaosLogger.warn('[Pan Transfer] Provider-backed analysis failed, using legacy analyzer', {
         message: err?.message,
       })
-      return ensureProviderMetadata(await analyzeChaospacePage(analysisOptions))
+      return ensureProviderMetadata(await analyzeChaospacePage(legacyOptions))
     }
   }
 
   return {
     analyzePage: analyzeWithProviders,
   }
+}
+
+function resolveForcedProviderId(
+  requestedId: string | null,
+  getManualSiteProviderId?: () => string | null,
+): string | null {
+  if (requestedId && requestedId.trim()) {
+    return requestedId.trim()
+  }
+  const manualId = typeof getManualSiteProviderId === 'function' ? getManualSiteProviderId() : null
+  if (manualId && manualId.trim()) {
+    return manualId.trim()
+  }
+  return null
 }
 
 function extractAnalysisSnapshot(collection: SiteResourceCollection): PageAnalysisResult | null {
@@ -159,6 +219,12 @@ function mapSiteResourceToContentResource(item: SiteResourceItem): ResourceItem 
   }
   if (typeof item.passCode === 'string' && item.passCode) {
     resource.passCode = item.passCode
+  }
+  if (Array.isArray(item.tags)) {
+    const tags = item.tags.map((tag) => (typeof tag === 'string' ? tag.trim() : '')).filter(Boolean)
+    if (tags.length) {
+      resource.tags = Array.from(new Set(tags))
+    }
   }
   return resource
 }

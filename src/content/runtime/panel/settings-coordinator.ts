@@ -9,9 +9,11 @@ import type { PanelShellInstance, SettingsModalHandle } from '../types'
 import { PIN_STATE_KEY, POSITION_KEY, SIZE_KEY } from '../../constants'
 import { renderSeasonHint } from '../../services/season-manager'
 import type { TabSeasonPreferenceController } from '../../services/tab-season-preference'
+import type { createProviderPreferencesController } from '../../controllers/provider-preferences'
 
 type PanelPreferencesController = ReturnType<typeof createPanelPreferencesController>
 type HistoryController = ReturnType<typeof createHistoryController>
+type ProviderPreferencesController = ReturnType<typeof createProviderPreferencesController>
 
 interface SettingsCoordinatorDeps {
   document: Document
@@ -22,6 +24,7 @@ interface SettingsCoordinatorDeps {
   showToast: ToastHandler
   seasonPreference: TabSeasonPreferenceController
   panelDom: PanelSettingsDomRefs
+  providerPreferences: ProviderPreferencesController
 }
 
 export interface SettingsCoordinator {
@@ -37,6 +40,7 @@ export function createSettingsCoordinator({
   showToast,
   seasonPreference,
   panelDom,
+  providerPreferences,
 }: SettingsCoordinatorDeps): SettingsCoordinator {
   const attachToShell = (shell: PanelShellInstance): SettingsModalHandle => {
     const {
@@ -113,6 +117,7 @@ export function createSettingsCoordinator({
       closeHistoryDetail: (options) => history.closeHistoryDetail(options),
       onResetLayout: handleResetLayout,
       handleSeasonDefaultChange: (value) => seasonPreference.handleGlobalDefaultChange(value),
+      providerPreferences,
     })
   }
 

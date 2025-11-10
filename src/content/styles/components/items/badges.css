@@ -24,6 +24,12 @@
   color: var(--cp-warning);
 }
 
+.chaospace-badge-tag {
+  background: rgba(148, 163, 184, 0.16);
+  border-color: rgba(148, 163, 184, 0.3);
+  color: var(--cp-text-secondary);
+}
+
 .chaospace-chip-group {
   display: inline-flex;
   align-items: center;

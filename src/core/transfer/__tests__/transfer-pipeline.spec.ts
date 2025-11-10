@@ -77,6 +77,48 @@ describe('TransferPipeline', () => {
     expect(preferred.detect).not.toHaveBeenCalled()
   })
 
+  it('skips disabled providers from preferences', async () => {
+    const first = createSiteProvider('first')
+    const second = createSiteProvider('second')
+    ;(first.detect as ReturnType<typeof vi.fn>).mockResolvedValue(true)
+    ;(second.detect as ReturnType<typeof vi.fn>).mockResolvedValue(true)
+
+    const registry = new ProviderRegistry({
+      siteProviders: [first, second],
+      storageProviders: [createStorageProvider('storage')],
+    })
+
+    const pipeline = new TransferPipeline({
+      registry,
+      getProviderPreferences: () => ({ disabledSiteProviderIds: ['first'] }),
+    })
+
+    const result = await pipeline.enqueue({ context: { url: 'https://example.com' } }).result
+
+    expect(result).toMatchObject({ siteProviderId: 'second' })
+    expect(first.detect).not.toHaveBeenCalled()
+    expect(second.detect).toHaveBeenCalledTimes(1)
+  })
+
+  it('prefers user-selected storage provider when available', async () => {
+    const only = createSiteProvider('only')
+    ;(only.detect as ReturnType<typeof vi.fn>).mockResolvedValue(true)
+
+    const registry = new ProviderRegistry({
+      siteProviders: [only],
+      storageProviders: [createStorageProvider('a'), createStorageProvider('b')],
+    })
+
+    const pipeline = new TransferPipeline({
+      registry,
+      getProviderPreferences: () => ({ preferredStorageProviderId: 'b' }),
+    })
+
+    const result = await pipeline.enqueue({ context: { url: 'https://example.com' } }).result
+
+    expect(result).toMatchObject({ storageProviderId: 'b' })
+  })
+
   it('integrates with the Chaospace provider and mock storage', async () => {
     const analysis: PageAnalysisResult = {
       items: [],

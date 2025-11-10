@@ -33,6 +33,7 @@ export type TransferPipelineJobResult =
 export interface TransferPipelineOptions {
   registry: ProviderRegistry
   taskQueue?: TaskQueue
+  getProviderPreferences?: () => ProviderPreferenceSnapshot | null
 }
 
 export interface StorageDispatchResult {
@@ -47,11 +48,14 @@ export class TransferPipeline {
 
   private readonly logger = createScopedLogger('TransferPipeline')
 
+  private readonly getProviderPreferences: () => ProviderPreferenceSnapshot | null
+
   private sequence = 0
 
   constructor(options: TransferPipelineOptions) {
     this.registry = options.registry
     this.queue = options.taskQueue ?? new InMemoryTaskQueue()
+    this.getProviderPreferences = options.getProviderPreferences ?? (() => null)
   }
 
   enqueue(job: TransferPipelineJob): TaskHandle<TransferPipelineJobResult> {
@@ -65,7 +69,15 @@ export class TransferPipeline {
 
   async detectSiteProvider(context: TransferContext): Promise<SiteProvider | null> {
     const providers = this.registry.listSiteProviders()
-    for (const provider of providers) {
+    const preferences = this.getProviderPreferences() ?? null
+    const disabledIds = new Set(preferences?.disabledSiteProviderIds ?? [])
+    const preferredId = preferences?.preferredSiteProviderId?.trim() || null
+    const candidates = reorderSiteProviders(
+      providers.filter((provider) => !disabledIds.has(provider.id)),
+      preferredId,
+    )
+
+    for (const provider of candidates) {
       let matched = false
       try {
         matched = await provider.detect(context)
@@ -169,6 +181,14 @@ export class TransferPipeline {
       }
       return provider
     }
+    const preferences = this.getProviderPreferences() ?? null
+    const preferredId = preferences?.preferredStorageProviderId?.trim()
+    if (preferredId) {
+      const preferred = this.registry.getStorageProvider(preferredId)
+      if (preferred) {
+        return preferred
+      }
+    }
     const [first] = this.registry.listStorageProviders()
     return first ?? null
   }
@@ -177,4 +197,29 @@ export class TransferPipeline {
     this.sequence += 1
     return `transfer-pipeline-job-${this.sequence}`
   }
+}
+
+interface ProviderPreferenceSnapshot {
+  disabledSiteProviderIds?: ReadonlyArray<string>
+  preferredSiteProviderId?: string | null
+  preferredStorageProviderId?: string | null
+}
+
+function reorderSiteProviders(
+  providers: ReadonlyArray<SiteProvider>,
+  preferredId: string | null,
+): ReadonlyArray<SiteProvider> {
+  if (!preferredId) {
+    return providers
+  }
+  const preferredIndex = providers.findIndex((provider) => provider.id === preferredId)
+  if (preferredIndex <= 0) {
+    return providers
+  }
+  const ordered = [...providers]
+  const [preferred] = ordered.splice(preferredIndex, 1)
+  if (preferred) {
+    ordered.unshift(preferred)
+  }
+  return ordered
 }

@@ -11,15 +11,13 @@ import {
 import type { App } from 'vue'
 import type { ContentStore } from '../../state'
 import type { PanelDomRefs, PanelRuntimeState } from '../../types'
-import type { createLoggingController } from '../../controllers/logging-controller'
 import type { createPanelPreferencesController } from '../../controllers/panel-preferences'
+import type { createProviderPreferencesController } from '../../controllers/provider-preferences'
 import type { createPanelEdgeController } from '../../controllers/panel-edge-controller'
 import type { createHistoryController } from '../../history/controller'
-import type { createResourceListRenderer } from '../../components/resource-list'
 import type { createSeasonLoader } from '../../services/season-loader'
 import type { Binder } from '../ui/binders/types'
 import type { PageDataHydrator } from '../page-data-hydrator'
-import type { HeaderPresenter } from '../ui/header-presenter'
 import type { SettingsCoordinator } from './settings-coordinator'
 import type { PanelShellInstance, SettingsModalHandle } from '../types'
 import type {
@@ -33,12 +31,11 @@ import { formatOriginLabel } from '../../utils/format'
 import { resetPanelRuntimeState } from '../panel-state'
 import type { TabSeasonPreferenceController } from '../../services/tab-season-preference'
 
-type LoggingController = ReturnType<typeof createLoggingController>
 type PanelPreferencesController = ReturnType<typeof createPanelPreferencesController>
 type PanelEdgeController = ReturnType<typeof createPanelEdgeController>
 type HistoryController = ReturnType<typeof createHistoryController>
-type ResourceListRenderer = ReturnType<typeof createResourceListRenderer>
 type SeasonLoader = ReturnType<typeof createSeasonLoader>
+type ProviderPreferencesController = ReturnType<typeof createProviderPreferencesController>
 type AnalyzePageFn = (options?: AnalyzePageOptions) => Promise<PageAnalysisResult>
 interface PanelFactoryDeps {
   document: Document
@@ -46,12 +43,9 @@ interface PanelFactoryDeps {
   state: ContentStore
   panelDom: PanelDomRefs
   panelState: PanelRuntimeState
-  logging: LoggingController
   preferences: PanelPreferencesController
   edgeController: PanelEdgeController
   history: HistoryController
-  headerPresenter: HeaderPresenter
-  resourceRenderer: ResourceListRenderer
   seasonLoader: SeasonLoader
   hydrator: PageDataHydrator
   analyzePage: AnalyzePageFn
@@ -67,6 +61,8 @@ interface PanelFactoryDeps {
   hydrateEdgeState: () => Promise<void>
   applyStoredEdgeState: () => void
   setupPanelApp?: (app: App<Element>) => void
+  providerPreferences: ProviderPreferencesController
+  renderPanelState: () => void
 }
 
 export interface PanelFactory {
@@ -83,12 +79,9 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
     state,
     panelDom,
     panelState,
-    logging,
     preferences,
     edgeController,
     history,
-    headerPresenter,
-    resourceRenderer,
     seasonLoader,
     hydrator,
     analyzePage,
@@ -104,6 +97,8 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
     hydrateEdgeState,
     applyStoredEdgeState,
     setupPanelApp,
+    providerPreferences,
+    renderPanelState,
   } = deps
 
   let panelCreationInProgress = false
@@ -139,6 +134,8 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
     state.transferStatus = 'idle'
     state.statusMessage = '准备就绪 ✨'
     state.toolbarDisabled = false
+    state.manualSiteProviderId = null
+    state.providerSwitching = false
   }
 
   const applyAutoBaseDir = (
@@ -171,20 +168,6 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
 
     preferences.setBaseDir(suggestion, { persist, lockOverride: false })
     return true
-  }
-
-  const renderInitialState = (): void => {
-    headerPresenter.updateHeader()
-    preferences.applyPanelTheme()
-    preferences.renderPresets()
-    preferences.renderPathPreview()
-    history.applyHistoryToCurrentPage()
-    history.renderHistoryCard()
-    history.updateHistoryExpansion()
-    resourceRenderer.renderResourceList()
-    logging.resetLogs()
-    logging.setStatus('idle', state.statusMessage)
-    headerPresenter.updateTransferButton()
   }
 
   const bindPanelInteractions = (shell: PanelShellInstance): void => {
@@ -228,6 +211,10 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
 
     try {
       await preferences.loadSettings()
+      if (token !== lifecycleToken) {
+        return false
+      }
+      await providerPreferences.loadPreferences()
       if (token !== lifecycleToken) {
         return false
       }
@@ -317,7 +304,7 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
 
       history.renderHistoryDetail()
       bindPanelInteractions(panelShell)
-      renderInitialState()
+      renderPanelState()
       applyStoredEdgeState()
 
       if (state.deferredSeasonInfos.length) {

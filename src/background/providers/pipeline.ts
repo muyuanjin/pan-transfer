@@ -1,4 +1,5 @@
 import { TransferPipeline } from '@/core/transfer'
+import { chaosLogger } from '@/shared/log'
 import type { TransferRequestPayload, TransferResponsePayload } from '@/shared/types/transfer'
 import type { TransferContext, StorageTransferResult } from '@/platform/registry/types'
 import {
@@ -6,8 +7,19 @@ import {
   type StorageProviderMode as ResolvedStorageProviderMode,
 } from '@/shared/dev-toggles'
 import { getBackgroundProviderRegistry, type StorageProviderMode } from './registry'
+import {
+  getProviderPreferencesSnapshot,
+  initProviderPreferences,
+} from '@/background/settings/provider-preferences'
 
 const pipelineCache: Partial<Record<ResolvedStorageProviderMode, TransferPipeline>> = {}
+
+void initProviderPreferences().catch((error) => {
+  const err = error as Error
+  chaosLogger.warn('[Pan Transfer] Failed to initialize provider preferences in background', {
+    message: err?.message,
+  })
+})
 
 export class StorageDispatchError extends Error {
   readonly storageResult: StorageTransferResult
@@ -35,6 +47,30 @@ export function getBackgroundTransferPipeline(
   }
   const nextPipeline = new TransferPipeline({
     registry: getBackgroundProviderRegistry(storageMode),
+    getProviderPreferences: () => {
+      const snapshot = getProviderPreferencesSnapshot()
+      if (!snapshot && storageMode !== 'mock') {
+        return null
+      }
+      if (snapshot && (snapshot.preferredStorageProviderId || storageMode !== 'mock')) {
+        return snapshot
+      }
+      const base = snapshot
+        ? {
+            disabledSiteProviderIds: snapshot.disabledSiteProviderIds,
+            preferredSiteProviderId: snapshot.preferredSiteProviderId,
+            preferredStorageProviderId: snapshot.preferredStorageProviderId,
+          }
+        : {
+            disabledSiteProviderIds: [],
+            preferredSiteProviderId: null,
+            preferredStorageProviderId: null,
+          }
+      if (!base.preferredStorageProviderId && storageMode === 'mock') {
+        base.preferredStorageProviderId = 'mock-storage'
+      }
+      return base
+    },
   })
   pipelineCache[storageMode] = nextPipeline
   return nextPipeline

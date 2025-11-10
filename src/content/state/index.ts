@@ -77,6 +77,11 @@ function createInitialState(): ContentState {
     fileRenameRules: [],
     activeSiteProviderId: null,
     activeSiteProviderLabel: null,
+    disabledSiteProviderIds: new Set<string>(),
+    preferredSiteProviderId: null,
+    preferredStorageProviderId: null,
+    manualSiteProviderId: null,
+    providerSwitching: false,
   }
 }
 

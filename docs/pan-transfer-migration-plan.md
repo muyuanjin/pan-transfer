@@ -1,6 +1,6 @@
 # Pan Transfer Architecture Migration Plan
 
-_Last updated: 2025-11-10_
+_Last updated: 2025-11-12_
 
 ## 1. Goals & Context
 
@@ -100,10 +100,11 @@ src/
 
 ### Phase 4 – Multi-Site UX & Settings
 
-- Extend Vue panel to show detected site/provider, allow manual override, and surface provider-specific metadata (e.g., resource tags).
-- Add settings panel under `platform/settings` where users enable/disable providers and configure default storage target.
+- ✅ Introduce a shared provider-preference store (`src/platform/settings/provider-preferences.ts`) so both the background TransferPipeline and content runtime honor disabled site providers and preferred storage targets.
+- ✅ Vue panel now exposes the detected provider badge, manual override select, and resource tags via `ProviderStatusBar.vue` + resource list badges; switching providers re-hydrates panel state without reloading the page.
+- ✅ Settings overlay includes provider enable/disable controls and a default storage selector wired to the new controller, with Playwright coverage for provider switching retained.
 - Ensure modular CSS + `styles.loader` support provider-specific accents without global leaks.
-- Playwright coverage: detection state, provider switch, transfer confirmation.
+- Document manual override + verification steps per provider so QA can validate CHAOSPACE vs. future sites before rollout.
 - Exit criteria: multi-site UI ships by default; docs describe manual verification steps for each provider.
 
 ### Phase 5 – Release & Automation
@@ -127,6 +128,6 @@ src/
 
 ## 6. Tracking & Next Steps
 
-1. File GitHub issues per phase with checklists mirroring the bullets above.
-2. Phase 0 + Phase 1 remain complete; Phase 2b deliverables (history fixtures + UI surfacing) are now validated, so shift attention to the remaining documentation tasks in Phase 3.
-3. With provider-driven history fixtures/tests and UI labels landed, proceed toward Phase 4’s multi-site UX work while tracking any follow-up bugs that emerge from the new coverage.
+1. File GitHub issues per phase with checklists mirroring the bullets above (Phase 4 tickets should now reference provider preferences + UI toggles as done, and track follow-ups for history/preferences sync).
+2. With provider overrides + settings shipping, focus Phase 4 follow-ups on polishing provider-specific accents (CSS/themes) and documenting manual QA scripts; Phase 3 documentation items remain in flight.
+3. Queue remaining Phase 4 tasks: extend manual verification docs, add storage-provider E2E assertions, and monitor analytics for opt-out provider usage to guide future provider rollouts.

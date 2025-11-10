@@ -274,6 +274,13 @@ function toResourceListItemView(
   if (item.subtitle) {
     badges.push({ label: `字幕：${item.subtitle}`, className: 'chaospace-badge' })
   }
+  if (Array.isArray(item.tags) && item.tags.length) {
+    item.tags.slice(0, 4).forEach((tag) => {
+      if (typeof tag === 'string' && tag.trim()) {
+        badges.push({ label: `#${tag.trim()}`, className: 'chaospace-badge chaospace-badge-tag' })
+      }
+    })
+  }
 
   return {
     id: item.id,
