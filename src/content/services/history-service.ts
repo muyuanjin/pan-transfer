@@ -316,12 +316,21 @@ export function buildHistoryGroups(records: ContentHistoryRecord[]): HistoryGrou
       mainRecord.poster && mainRecord.poster.src
         ? mainRecord.poster
         : children.find((record) => record.poster && record.poster.src)?.poster || null
+    const providerId =
+      normalizeProviderField(mainRecord.siteProviderId) ||
+      resolveProviderField(sortedRecords, (record) => record.siteProviderId)
+    const providerLabel =
+      normalizeProviderField(mainRecord.siteProviderLabel) ||
+      resolveProviderField(sortedRecords, (record) => record.siteProviderLabel) ||
+      providerId
     groups.push({
       key,
       title: mainRecord.pageTitle || '未命名资源',
       origin: mainRecord.origin || '',
       poster: posterCandidate,
       updatedAt,
+      siteProviderId: providerId || null,
+      siteProviderLabel: providerLabel || null,
       records: sortedRecords,
       main: mainRecord,
       children,
@@ -526,6 +535,27 @@ function appendSearchCandidates(target: string[], value: unknown): void {
   })
 }
 
+const normalizeProviderField = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null
+  }
+  const trimmed = value.trim()
+  return trimmed || null
+}
+
+function resolveProviderField(
+  records: ContentHistoryRecord[],
+  selector: (record: ContentHistoryRecord) => unknown,
+): string | null {
+  for (const record of records) {
+    const normalized = normalizeProviderField(selector(record))
+    if (normalized) {
+      return normalized
+    }
+  }
+  return null
+}
+
 function buildPinyinVariants(value: string): string[] {
   const variants: string[] = []
   if (!value) {
@@ -570,6 +600,8 @@ function buildHistoryGroupSearchCandidates(group: HistoryGroup | null | undefine
     return []
   }
   const candidates: string[] = []
+  appendSearchCandidates(candidates, group.siteProviderLabel)
+  appendSearchCandidates(candidates, group.siteProviderId)
   appendSearchCandidates(candidates, group.title)
   appendSearchCandidates(candidates, group.origin)
   const main = getHistoryGroupMain(group)

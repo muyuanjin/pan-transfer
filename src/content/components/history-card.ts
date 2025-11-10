@@ -1,7 +1,10 @@
 import { createApp, type App } from 'vue'
 import HistoryListView from './history/HistoryListView.vue'
 import HistorySummaryView from './history/HistorySummaryView.vue'
-import { formatHistoryTimestamp } from './history/history-card.helpers'
+import {
+  formatHistoryTimestamp,
+  resolveHistoryGroupProviderLabel,
+} from './history/history-card.helpers'
 import type { HistoryGroup, PanelHistoryDomRefs } from '../types'
 import type { ContentStore } from '../state'
 import { pinia } from '../state'
@@ -164,6 +167,10 @@ function buildSummaryData(group: HistoryGroup): { title: string; metaParts: stri
   const titleCandidate = typeof mainRecord.pageTitle === 'string' ? mainRecord.pageTitle : ''
   const title = group.title || titleCandidate || '未命名资源'
   const metaParts: string[] = []
+  const providerLabel = resolveHistoryGroupProviderLabel(group)
+  if (providerLabel) {
+    metaParts.push(providerLabel)
+  }
   const completion = mainRecord.completion as { label?: string } | null | undefined
   if (completion?.label) {
     metaParts.push(completion.label)

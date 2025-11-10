@@ -94,6 +94,14 @@ pan-transfer/
 - Background hooks (`collectHistorySnapshot`, `collectHistoryDetail`) are implemented or intentionally skipped with `[Pan Transfer]` logs so history refreshes remain predictable.
 - README/docs note any new permissions, toggles, or manual QA steps introduced by the provider.
 
+### Adding Storage Providers
+
+- Storage implementations live under `src/providers/storage/<provider-id>/`. Use `baidu-netdisk` and `mock-storage-provider` as templates when wiring a new factory.
+- Follow the `StorageProvider` interface in `src/platform/registry/types.ts`: expose `capabilities`, guard uploads with `ensureReady`, and keep provider-specific HTTP/retry logic colocated so errno handling stays isolated.
+- Register the provider with the background registry (`src/background/providers/registry.ts`) and surface it via the pipeline (`src/background/providers/pipeline.ts`). Local testing can flip implementations through `VITE_PAN_STORAGE_PROVIDER=mock` or `window.PAN_TRANSFER_STORAGE_PROVIDER = 'mock'`, so new providers should honor that knob.
+- Add Vitest suites in `src/providers/storage/<provider-id>/__tests__/` that mock `fetch`/`Response` to verify payloads, retries, and telemetry—avoid live API calls.
+- Document any new permissions, env vars, or QA steps here and in `docs/pan-transfer-migration-plan.md`, and keep `npm run check` green to prove Baidu remains the default shipping backend.
+
 ### Release Automation
 
 The `.github/workflows/release.yml` workflow can be triggered manually (`workflow_dispatch`) or by pushing a tag such as `v1.0.0`. It performs `npm ci`, runs `npm run check`, builds the extension, zips the `dist/` output, and uploads `pan-transfer-extension.zip` both as a workflow artifact and as a GitHub Release asset (for tagged runs). Review the workflow logs before distributing any build.
@@ -171,6 +179,14 @@ pan-transfer/
 - Provider 对应的 Vitest 套件覆盖检测/解析逻辑，并通过 Playwright 或人工在 Chrome DevTools 中确认页面浮窗显示正确的站点徽标与资源列表。
 - 如实现了历史刷新，确保 `collectHistorySnapshot` / `collectHistoryDetail` 可用；若暂不支持，也要输出 `[Pan Transfer]` 日志说明跳过原因。
 - README / 文档需补充 Provider 引入的新权限、开关或 QA 流程。
+
+### 扩展存储 Provider
+
+- 存储实现位于 `src/providers/storage/<provider-id>/`，可参考 `baidu-netdisk` 与 `mock-storage-provider` 目录学习 `StorageProvider` 工厂的组织方式。
+- 遵循 `src/platform/registry/types.ts` 中的接口：实现 `capabilities`、`ensureReady`、转存调度与配额函数，并把各云厂商的 HTTP / errno 处理逻辑封装在对应目录。
+- 在 `src/background/providers/registry.ts` 注册 Provider，并在 `src/background/providers/pipeline.ts` 中接入工厂。开发调试可通过 `VITE_PAN_STORAGE_PROVIDER=mock` 或 `window.PAN_TRANSFER_STORAGE_PROVIDER='mock'` 切换实现，因此新 Provider 必须兼容该开关。
+- 在 `src/providers/storage/<provider-id>/__tests__/` 下添加 Vitest，使用 mock `fetch` / `Response` 校验请求体、重试策略和日志，避免调用真实接口。
+- 若新增权限、环境变量或手动验证步骤，请同步更新 README 及 `docs/pan-transfer-migration-plan.md`，并持续跑通 `npm run check`，确保默认的百度网盘路径没有回归问题。
 
 ### 发布与注意事项
 

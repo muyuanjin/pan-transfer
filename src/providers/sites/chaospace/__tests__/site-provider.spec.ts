@@ -1,8 +1,12 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, afterEach } from 'vitest'
 import { createChaospaceSiteProvider } from '../chaospace-site-provider'
 import type { ChaospaceSiteProviderOptions } from '../chaospace-site-provider'
 import type { SiteProvider } from '@/platform/registry'
 import type { PageAnalysisResult } from '../page-analyzer'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import type { HistoryRecord } from '@/shared/types/transfer'
 
 const createProvider = (overrides?: ChaospaceSiteProviderOptions): SiteProvider =>
   createChaospaceSiteProvider(overrides)
@@ -37,7 +41,52 @@ const createAnalysisResult = (): PageAnalysisResult => ({
   classificationDetail: null,
 })
 
+const FIXTURE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures')
+const HISTORY_FIXTURE = readFileSync(path.join(FIXTURE_DIR, 'chaospace-history-page.html'), 'utf8')
+const HISTORY_PAGE_URL = 'https://www.chaospace.cc/tvshows/555555.html'
+const HISTORY_RECORD_STUB: HistoryRecord = {
+  pageUrl: HISTORY_PAGE_URL,
+  pageTitle: '示例剧集',
+  pageType: 'series',
+  origin: 'https://www.chaospace.cc',
+  siteProviderId: 'chaospace',
+  siteProviderLabel: 'CHAOSPACE',
+  poster: null,
+  targetDirectory: '/示例',
+  baseDir: '/示例',
+  useTitleSubdir: true,
+  useSeasonSubdir: false,
+  lastTransferredAt: 0,
+  lastCheckedAt: 0,
+  totalTransferred: 1,
+  completion: null,
+  seasonCompletion: {},
+  seasonDirectory: {},
+  seasonEntries: [],
+  items: {
+    '101': {
+      id: '101',
+      title: '第1集',
+      status: 'success',
+      message: '',
+      linkUrl: 'https://pan.baidu.com/s/sample-link',
+      passCode: '1a2b',
+    },
+  },
+  itemOrder: ['101'],
+  lastResult: null,
+}
+
 describe('createChaospaceSiteProvider', () => {
+  const originalFetch = globalThis.fetch
+
+  afterEach(() => {
+    if (originalFetch) {
+      globalThis.fetch = originalFetch
+    }
+    vi.restoreAllMocks()
+  })
+
   it('detects supported Chaospace urls', async () => {
     const provider = createProvider()
     await expect(provider.detect({ url: 'https://www.chaospace.cc/tvshows/1.html' })).resolves.toBe(
@@ -73,5 +122,66 @@ describe('createChaospaceSiteProvider', () => {
       classification: 'tvshow',
       totalSeasons: 1,
     })
+  })
+
+  it('collects history snapshots from Chaospace detail pages', async () => {
+    const provider = createProvider()
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => HISTORY_FIXTURE,
+    }) as typeof fetch
+
+    if (!provider.collectHistorySnapshot) {
+      throw new Error('Chaospace provider is missing collectHistorySnapshot')
+    }
+    const snapshot = await provider.collectHistorySnapshot({
+      pageUrl: HISTORY_PAGE_URL,
+      historyRecord: HISTORY_RECORD_STUB,
+    })
+
+    expect(snapshot.providerId).toBe('chaospace')
+    expect(snapshot.providerLabel).toBe('CHAOSPACE')
+    expect(snapshot.items).toHaveLength(2)
+    expect(snapshot.items[0]).toMatchObject({
+      id: '101',
+      title: '示例链接 101',
+      linkUrl: 'https://pan.baidu.com/s/sample-link',
+      passCode: '1a2b',
+    })
+    expect(snapshot.seasonEntries[0]).toMatchObject({
+      seasonId: '2001',
+    })
+    expect(snapshot.seasonEntries[0]?.label).toContain('第一季')
+    expect(snapshot.completion?.label).toBe('连载中')
+    expect(snapshot.seasonCompletion['2001']?.label).toBe('已完结')
+    expect(snapshot.seasonCompletion['2002']?.label).toBe('连载中')
+  })
+
+  it('parses history detail payloads using provider hooks', async () => {
+    const provider = createProvider()
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => HISTORY_FIXTURE,
+    }) as typeof fetch
+
+    if (!provider.collectHistoryDetail) {
+      throw new Error('Chaospace provider is missing collectHistoryDetail')
+    }
+    const detail = await provider.collectHistoryDetail({ pageUrl: HISTORY_PAGE_URL })
+
+    expect(detail.title).toBe('示例剧集')
+    expect(detail.poster?.src).toContain('sample-poster')
+    expect(detail.info).toEqual(
+      expect.arrayContaining([
+        { label: '导演', value: '李导演' },
+        { label: '主演', value: '张三、李四' },
+      ]),
+    )
+    expect(detail.stills[0]).toMatchObject({
+      thumb: 'https://www.chaospace.cc/images/still-thumb.jpg',
+      full: 'https://www.chaospace.cc/images/still-full.jpg',
+    })
+    expect(detail.genres).toEqual(expect.arrayContaining(['科幻', '冒险']))
+    expect(detail.completion?.label).toBe('已完结')
   })
 })

@@ -171,6 +171,40 @@ export function resolveHistoryPanInfo(options: ResolvePanOptions = {}): PanInfo 
   }
 }
 
+const normalizeProviderLabel = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null
+  }
+  const trimmed = value.trim()
+  return trimmed || null
+}
+
+export function resolveHistoryGroupProviderLabel(
+  group: HistoryGroup | null | undefined,
+): string | null {
+  if (!group) {
+    return null
+  }
+  const labelFromGroup = normalizeProviderLabel(group.siteProviderLabel)
+  if (labelFromGroup) {
+    return labelFromGroup
+  }
+  const idFromGroup = normalizeProviderLabel(group.siteProviderId)
+  if (idFromGroup) {
+    return idFromGroup
+  }
+  const mainRecord = group.main as Record<string, unknown> | null | undefined
+  const mainLabel = normalizeProviderLabel(mainRecord?.['siteProviderLabel'])
+  if (mainLabel) {
+    return mainLabel
+  }
+  const mainId = normalizeProviderLabel(mainRecord?.['siteProviderId'])
+  if (mainId) {
+    return mainId
+  }
+  return null
+}
+
 export interface DerivedSeasonRow {
   row: HistoryGroupSeasonRow
   timestampLabel: string
@@ -254,6 +288,10 @@ export function deriveHistoryGroupMeta(group: HistoryGroup): DerivedHistoryGroup
   }
   if (targetDir) {
     metaParts.push(targetDir)
+  }
+  const providerLabel = resolveHistoryGroupProviderLabel(group)
+  if (providerLabel) {
+    metaParts.unshift(providerLabel)
   }
 
   return {

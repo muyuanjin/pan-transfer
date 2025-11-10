@@ -38,6 +38,8 @@ export interface HistoryGroup {
   origin: string
   poster: PosterInfo | null
   updatedAt: number
+  siteProviderId?: string | null
+  siteProviderLabel?: string | null
   records: ContentHistoryRecord[]
   main: ContentHistoryRecord
   children: ContentHistoryRecord[]

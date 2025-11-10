@@ -6,9 +6,29 @@ import {
   type Page,
   type Route,
   type ConsoleMessage,
+  type Worker,
 } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
+import type { HistoryRecord } from '../../src/shared/types/transfer'
+import { HISTORY_VERSION, STORAGE_KEYS } from '../../src/background/common/constants'
+
+declare global {
+  interface Window {
+    seedHistory?: (storageKey: string, snapshot: unknown) => Promise<void>
+    clearStorage?: (storageKey: string) => Promise<void>
+  }
+}
+
+type ChromeStorageBridge = {
+  runtime?: { lastError?: { message?: string } }
+  storage?: {
+    local?: {
+      set: (items: Record<string, unknown>, callback: () => void) => void
+      remove: (key: string, callback: () => void) => void
+    }
+  }
+}
 
 const DIST_DIR = path.resolve(__dirname, '../../dist')
 const EXTENSION_ARGS = (extensionPath: string) => [
@@ -258,6 +278,156 @@ const createChaospaceErrorTracker = (page: Page): ChaospaceErrorTracker => {
   }
 }
 
+const HISTORY_STORAGE_KEY = STORAGE_KEYS.history
+
+const findExtensionServiceWorker = (context: BrowserContext): Worker | null => {
+  const worker = context
+    .serviceWorkers()
+    .find((entry) => entry.url().startsWith('chrome-extension://'))
+  return worker ?? null
+}
+
+async function ensureExtensionServiceWorker(context: BrowserContext): Promise<Worker> {
+  const existing = findExtensionServiceWorker(context)
+  if (existing) {
+    return existing
+  }
+  while (true) {
+    const worker = await context.waitForEvent('serviceworker')
+    if (worker.url().startsWith('chrome-extension://')) {
+      return worker
+    }
+  }
+}
+
+let cachedExtensionId: string | null = null
+
+async function resolveExtensionId(context: BrowserContext): Promise<string> {
+  if (cachedExtensionId) {
+    return cachedExtensionId
+  }
+  const worker = await ensureExtensionServiceWorker(context)
+  const url = new URL(worker.url())
+  cachedExtensionId = url.host
+  return cachedExtensionId
+}
+
+async function seedHistoryRecords(
+  context: BrowserContext,
+  records: HistoryRecord[],
+): Promise<void> {
+  const extensionId = await resolveExtensionId(context)
+  const seedPage = await context.newPage()
+  await seedPage.goto(`chrome-extension://${extensionId}/test-hooks.html`, {
+    waitUntil: 'load',
+  })
+  await seedPage.evaluate(() => {
+    if (typeof window.seedHistory === 'function') {
+      return
+    }
+    const invokeStorage = (action: (cb: () => void, chromeApi: ChromeStorageBridge) => void) =>
+      new Promise<void>((resolve, reject) => {
+        try {
+          const chromeApi = (globalThis as typeof globalThis & { chrome?: ChromeStorageBridge })
+            .chrome
+          if (!chromeApi?.storage?.local) {
+            reject(new Error('chrome.storage.local is unavailable'))
+            return
+          }
+          action(() => {
+            const error = chromeApi.runtime?.lastError
+            if (error) {
+              reject(new Error(error.message))
+              return
+            }
+            resolve()
+          }, chromeApi)
+        } catch (error) {
+          reject(error as Error)
+        }
+      })
+    window.seedHistory = (storageKey: string, snapshot: unknown) =>
+      invokeStorage((done, chromeApi) => {
+        chromeApi.storage.local.set({ [storageKey]: snapshot }, done)
+      })
+    window.clearStorage = (storageKey: string) =>
+      invokeStorage((done, chromeApi) => {
+        chromeApi.storage.local.remove(storageKey, done)
+      })
+  })
+  await seedPage.evaluate(
+    ({ storageKey, snapshot }) => {
+      if (typeof window.seedHistory !== 'function') {
+        throw new Error('seedHistory helper is unavailable')
+      }
+      return window.seedHistory(storageKey, snapshot)
+    },
+    {
+      storageKey: HISTORY_STORAGE_KEY,
+      snapshot: {
+        version: HISTORY_VERSION,
+        records,
+      },
+    },
+  )
+  await seedPage.close()
+}
+
+function createHistoryRecordSeed(pageUrl: string): HistoryRecord {
+  const now = Date.now()
+  return {
+    pageUrl,
+    pageTitle: 'Playwright Fixture 剧集',
+    pageType: 'series',
+    origin: 'https://www.chaospace.cc',
+    siteProviderId: 'chaospace',
+    siteProviderLabel: 'CHAOSPACE',
+    poster: null,
+    targetDirectory: '/测试/剧集',
+    baseDir: '/测试',
+    useTitleSubdir: true,
+    useSeasonSubdir: false,
+    lastTransferredAt: now,
+    lastCheckedAt: now,
+    totalTransferred: 2,
+    completion: { label: '连载中', state: 'ongoing' },
+    seasonCompletion: {
+      s1: { label: '连载中', state: 'ongoing' },
+    },
+    seasonDirectory: {
+      s1: '/测试/剧集/第一季',
+    },
+    seasonEntries: [
+      {
+        seasonId: 's1',
+        seasonIndex: 0,
+        label: '第一季',
+        url: `${pageUrl}?season=s1`,
+        completion: { label: '连载中', state: 'ongoing' },
+        poster: null,
+        loaded: true,
+        hasItems: true,
+      },
+    ],
+    items: {
+      'item-1': {
+        id: 'item-1',
+        title: '第1集',
+        status: 'success',
+        message: '',
+      },
+    },
+    itemOrder: ['item-1'],
+    lastResult: {
+      summary: '同步完成',
+      updatedAt: now,
+      success: 1,
+      skipped: 0,
+      failed: 0,
+    },
+  }
+}
+
 type Fixtures = {
   context: BrowserContext
   page: Page
@@ -306,10 +476,14 @@ const chaospacePages = [
 
 test.describe('Chaospace panel overlay', () => {
   for (const targetUrl of chaospacePages) {
-    test(`renders without Chaospace Transfer errors for ${targetUrl}`, async ({ page }) => {
+    test(`renders without Chaospace Transfer errors for ${targetUrl}`, async ({
+      page,
+      context,
+    }) => {
       const errorTracker = createChaospaceErrorTracker(page)
 
       try {
+        await seedHistoryRecords(context, [createHistoryRecordSeed(targetUrl)])
         await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 15000 })
         // 使用 load 而非 networkidle,避免等待所有网络请求完成(可能永远无法满足)
         await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {})
@@ -345,6 +519,32 @@ test.describe('Chaospace panel overlay', () => {
           panel.classList.contains('is-mounted'),
         )
         expect(panelIsMounted, 'Panel should be fully mounted (has `is-mounted` class)').toBe(true)
+        await panelLocator.hover({ position: { x: 10, y: 10 } })
+        await page.waitForTimeout(200)
+        await panelLocator.evaluate((panel) => {
+          panel.classList.add('is-pinned')
+        })
+
+        const historySummaryToggle = page
+          .locator('[data-role="history-summary-entry"] [data-role="history-toggle"]')
+          .first()
+        await expect(
+          historySummaryToggle,
+          'History summary toggle should be available once history loads',
+        ).toBeVisible()
+        await historySummaryToggle.click()
+
+        const historyOverlay = page.locator('[data-role="history-overlay"]')
+        await expect(
+          historyOverlay,
+          'History overlay should be visible after toggling',
+        ).toHaveAttribute('aria-hidden', 'false')
+
+        const historyMeta = page.locator('.chaospace-history-meta').first()
+        await expect(
+          historyMeta,
+          'History entry metadata should include the provider label',
+        ).toContainText('CHAOSPACE')
 
         const chaospaceConsoleErrors = errorTracker.consoleErrors.filter((entry) =>
           entry.includes(CHAOSPACE_LOG_PREFIX),

@@ -43,6 +43,8 @@ interface CreateHistoryGroupOptions {
   origin?: string
   completion?: CompletionStatus | null
   seasonEntries?: SeasonEntry[]
+  siteProviderId?: string | null
+  siteProviderLabel?: string | null
 }
 
 function createHistoryGroup(options: CreateHistoryGroupOptions): HistoryGroup {
@@ -59,6 +61,8 @@ function createHistoryGroup(options: CreateHistoryGroupOptions): HistoryGroup {
       state: 'ongoing',
     },
     seasonEntries = [],
+    siteProviderId = null,
+    siteProviderLabel = null,
   } = options
   const record = createHistoryRecord({
     pageUrl,
@@ -68,6 +72,8 @@ function createHistoryGroup(options: CreateHistoryGroupOptions): HistoryGroup {
     origin,
     completion,
     seasonEntries,
+    siteProviderId: siteProviderId ?? null,
+    siteProviderLabel: siteProviderLabel ?? null,
   })
   return {
     key,
@@ -75,6 +81,8 @@ function createHistoryGroup(options: CreateHistoryGroupOptions): HistoryGroup {
     origin,
     poster: null,
     updatedAt: 1000,
+    siteProviderId,
+    siteProviderLabel,
     records: [record],
     main: record,
     children: [],
@@ -109,6 +117,23 @@ describe('filterHistoryGroups', () => {
 
     expect(result).toHaveLength(1)
     expect(result[0]?.key).toBe('g2')
+  })
+
+  it('matches provider label search tokens', () => {
+    const groups: HistoryGroup[] = [
+      createHistoryGroup({
+        key: 'g-provider',
+        title: '示例剧集',
+        pageUrl: 'https://example.com/tvshows/42.html',
+        siteProviderId: 'chaospace',
+        siteProviderLabel: 'CHAOSPACE',
+      }),
+    ]
+
+    const result = filterHistoryGroups(groups, 'all', { searchTerm: 'chaospace' })
+
+    expect(result).toHaveLength(1)
+    expect(result[0]?.key).toBe('g-provider')
   })
 
   it('combines search filtering with category filters', () => {
