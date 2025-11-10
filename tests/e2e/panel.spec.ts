@@ -7,6 +7,7 @@ import {
   type Route,
   type ConsoleMessage,
   type Worker,
+  type Locator,
 } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -55,9 +56,13 @@ const CHAOSPACE_LINK_PLACEHOLDER = `<!doctype html>
   </body>
 </html>`
 
+const JQUERY_STUB_MARKER = '__pan_transfer_jquery_stub__'
+
 const PANEL_SELECTOR = '.chaospace-panel-host .chaospace-float-panel'
 const PANEL_RENDER_TIMEOUT = 15000 // 降低面板渲染超时从 30s 到 15s
 const CHAOSPACE_LOG_PREFIX = '[Pan Transfer]'
+const CHROME_EXTENSION_URL_PREFIX = 'chrome-extension://'
+const SUPPRESSED_EXTENSION_ERROR_TOKENS = ['net::ERR_FAILED', 'net::ERR_BLOCKED_BY_CLIENT'] as const
 
 function guessContentType(pathname: string): string {
   if (pathname.endsWith('.css')) return 'text/css; charset=utf-8'
@@ -94,6 +99,144 @@ function resolveChaospaceFixture(pathname: string): string | null {
   return null
 }
 
+function applyChaospaceFixtureTransform(url: URL, html: string): string {
+  let output = ensureJqueryStub(html)
+  if (url.searchParams.has('pan-provider-demo')) {
+    output = injectGenericForumDemoMarkup(output)
+  }
+  return output
+}
+
+function injectGenericForumDemoMarkup(html: string): string {
+  let output = html
+  const bodyNeedle = '<body class="archive post-type-archive post-type-archive-tvshows">'
+  if (output.includes(bodyNeedle)) {
+    output = output.replace(
+      bodyNeedle,
+      `${bodyNeedle.slice(0, -1)} data-pan-provider="generic-forum" data-pan-provider-id="generic-forum">`,
+    )
+  }
+  const threadMeta = {
+    title: 'Generic Forum Demo Thread',
+    origin: 'https://forum.example',
+    tags: ['demo', '论坛'],
+    poster: { src: 'https://cdn.example/poster.png' },
+    classification: 'forum-thread',
+  }
+  const metaPayload = escapeHtmlAttribute(JSON.stringify(threadMeta))
+  output = output.replace(
+    '</head>',
+    `    <meta name="x-pan-transfer:thread" content='${metaPayload}' />\n  </head>`,
+  )
+  const resourcePayload = escapeHtmlAttribute(
+    JSON.stringify({
+      id: 'forum-resource-2',
+      title: '论坛资源 2',
+      linkUrl: 'https://pan.baidu.com/s/generic-demo2',
+      passCode: 'gf22',
+      tags: ['teal', 'sample'],
+      seasonLabel: '讨论区',
+    }),
+  )
+  const snippet = `
+    <section id="generic-forum-demo" data-pan-provider="generic-forum" style="padding: 24px; background: rgba(14,165,233,0.12); margin: 24px;">
+      <h2>Generic Forum Demo</h2>
+      <article
+        data-pan-resource
+        data-pan-resource-id="forum-resource-1"
+        data-pan-resource-title="论坛资源 1"
+        data-pan-resource-link="https://pan.baidu.com/s/generic-demo1"
+        data-pan-resource-passcode="gf11"
+        data-pan-resource-tags="demo,论坛"
+        data-pan-resource-season-label="番外"
+        data-pan-resource-season-index="0"
+      ></article>
+      <article
+        data-pan-resource
+        data-pan-resource-json='${resourcePayload}'
+      ></article>
+    </section>
+  `
+  output = output.replace('</body>', `${snippet}\n  </body>`)
+  return output
+}
+
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+function ensureJqueryStub(html: string): string {
+  if (html.includes(JQUERY_STUB_MARKER)) {
+    return html
+  }
+  const script = `
+    <script>
+      (function() {
+        if (window.jQuery) {
+          return
+        }
+        var methodNames = [
+          'ready',
+          'load',
+          'click',
+          'trigger',
+          'hover',
+          'on',
+          'off',
+          'addClass',
+          'removeClass',
+          'mCustomScrollbar',
+          'owlCarousel',
+          'scroll',
+        ]
+        function createChain() {
+          var chain = function chain() {
+            return chain
+          }
+          methodNames.forEach(function(name) {
+            chain[name] = function() {
+              var callback = arguments[0]
+              if ((name === 'ready' || name === 'load') && typeof callback === 'function') {
+                try {
+                  callback(window.jQuery)
+                } catch (error) {
+                  if (typeof console !== 'undefined' && console && console.warn) {
+                    console.warn('[Pan Transfer] jQuery stub callback failed', error)
+                  }
+                }
+              }
+              return chain
+            }
+          })
+          chain.length = 0
+          return chain
+        }
+        var chain = createChain()
+        var stub = function() {
+          return chain
+        }
+        stub.fn = {}
+        stub.ready = chain.ready
+        stub.load = chain.load
+        stub.noConflict = function() {
+          return stub
+        }
+        window.jQuery = window.$ = stub
+        window.__PAN_TRANSFER_JQUERY_STUB__ = true
+      })()
+    </script>
+  `.trim()
+  if (html.includes('</head>')) {
+    return html.replace('</head>', `  <!-- ${JQUERY_STUB_MARKER} -->\n  ${script}\n  </head>`)
+  }
+  return `${html}\n<!-- ${JQUERY_STUB_MARKER} -->\n${script}`
+}
+
 async function fulfillChaospace(route: Route, url: URL): Promise<boolean> {
   const { pathname } = url
   const method = route.request().method()
@@ -117,7 +260,8 @@ async function fulfillChaospace(route: Route, url: URL): Promise<boolean> {
 
   const fixture = resolveChaospaceFixture(pathname)
   if (fixture) {
-    const body = await loadFixture(fixture)
+    let body = await loadFixture(fixture)
+    body = applyChaospaceFixtureTransform(url, body)
     await route.fulfill({
       status: 200,
       headers: {
@@ -175,6 +319,8 @@ async function setupOfflineRoutes(context: BrowserContext): Promise<void> {
 type ChaospaceErrorTracker = {
   consoleErrors: string[]
   runtimeErrors: string[]
+  extensionConsoleErrors: string[]
+  extensionRuntimeErrors: string[]
   waitForFirstChaospaceError: () => Promise<never>
   stopEarlyAbort: () => void
   dispose: () => void
@@ -184,6 +330,8 @@ type ChaospaceErrorTracker = {
 const createChaospaceErrorTracker = (page: Page): ChaospaceErrorTracker => {
   const consoleErrors: string[] = []
   const runtimeErrors: string[] = []
+  const extensionConsoleErrors: string[] = []
+  const extensionRuntimeErrors: string[] = []
   let abortReject: ((error: Error) => void) | null = null
   let earlyAbortActive = true
   let earlyAbortHandled = false
@@ -218,7 +366,10 @@ const createChaospaceErrorTracker = (page: Page): ChaospaceErrorTracker => {
     message: ConsoleMessage,
     locationUrl: string | undefined,
   ) => {
-    if (!locationUrl || !locationUrl.startsWith('chrome-extension://')) {
+    if (!locationUrl || !locationUrl.startsWith(CHROME_EXTENSION_URL_PREFIX)) {
+      return
+    }
+    if (SUPPRESSED_EXTENSION_ERROR_TOKENS.some((token) => message.text().includes(token))) {
       return
     }
     if (message.text().includes(CHAOSPACE_LOG_PREFIX)) {
@@ -242,12 +393,19 @@ const createChaospaceErrorTracker = (page: Page): ChaospaceErrorTracker => {
     const location = message.location()
     const formatted = `[${location.url || 'unknown'}:${location.lineNumber ?? '-'}] ${message.text()}`
     consoleErrors.push(formatted)
+    if (location.url && location.url.startsWith(CHROME_EXTENSION_URL_PREFIX)) {
+      extensionConsoleErrors.push(formatted)
+    }
     failForUnprefixedChaospaceLog(message, location.url)
     maybeAbort()
   }
 
   const pageErrorListener = (error: Error) => {
-    runtimeErrors.push(error.stack ?? error.message)
+    const serialized = error.stack ?? error.message
+    runtimeErrors.push(serialized)
+    if (serialized.includes(CHROME_EXTENSION_URL_PREFIX)) {
+      extensionRuntimeErrors.push(serialized)
+    }
     maybeAbort()
   }
 
@@ -264,6 +422,8 @@ const createChaospaceErrorTracker = (page: Page): ChaospaceErrorTracker => {
   return {
     consoleErrors,
     runtimeErrors,
+    extensionConsoleErrors,
+    extensionRuntimeErrors,
     waitForFirstChaospaceError: () => {
       maybeAbort()
       return earlyAbortPromise
@@ -276,6 +436,99 @@ const createChaospaceErrorTracker = (page: Page): ChaospaceErrorTracker => {
     },
     formatCollectedErrors,
   }
+}
+
+async function mountPanelForUrl(
+  page: Page,
+  context: BrowserContext,
+  targetUrl: string,
+  options: { seedHistory?: boolean } = {},
+): Promise<{ panelLocator: Locator; errorTracker: ChaospaceErrorTracker }> {
+  const errorTracker = createChaospaceErrorTracker(page)
+  try {
+    if (options.seedHistory !== false) {
+      await seedHistoryRecords(context, [createHistoryRecordSeed(targetUrl)])
+    }
+    await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 15000 })
+    await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {})
+    const panelLocator = page.locator(PANEL_SELECTOR)
+    const waitForPanelRender = async () => {
+      try {
+        await expect(panelLocator, 'Chaospace panel should render on the page').toBeVisible({
+          timeout: PANEL_RENDER_TIMEOUT,
+        })
+      } catch {
+        throw new Error(
+          errorTracker.formatCollectedErrors('Chaospace panel failed to render before timing out'),
+        )
+      }
+    }
+    await Promise.race([waitForPanelRender(), errorTracker.waitForFirstChaospaceError()])
+    errorTracker.stopEarlyAbort()
+    return { panelLocator, errorTracker }
+  } catch (error) {
+    errorTracker.dispose()
+    throw error
+  }
+}
+
+async function expectPanelAccentRgb(
+  panelLocator: Locator,
+  expected: string,
+  message: string,
+): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        panelLocator.evaluate((panel) =>
+          getComputedStyle(panel).getPropertyValue('--cp-accent-rgb').trim(),
+        ),
+      { message, timeout: 7000 },
+    )
+    .toBe(expected)
+}
+
+function expectNoPrefixedErrors(errorTracker: ChaospaceErrorTracker): void {
+  const chaospaceConsoleErrors = errorTracker.consoleErrors.filter((entry) =>
+    entry.includes(CHAOSPACE_LOG_PREFIX),
+  )
+  expect(
+    chaospaceConsoleErrors,
+    errorTracker.formatCollectedErrors('Expected no Chaospace Transfer console errors'),
+  ).toHaveLength(0)
+
+  const chaospaceRuntimeErrors = errorTracker.runtimeErrors.filter((message) =>
+    message.includes(CHAOSPACE_LOG_PREFIX),
+  )
+  expect(
+    chaospaceRuntimeErrors,
+    errorTracker.formatCollectedErrors('Expected no Chaospace Transfer runtime errors'),
+  ).toHaveLength(0)
+
+  const actionableExtensionConsoleErrors = errorTracker.extensionConsoleErrors.filter(
+    (entry) => !SUPPRESSED_EXTENSION_ERROR_TOKENS.some((token) => entry.includes(token)),
+  )
+  expect(
+    actionableExtensionConsoleErrors,
+    errorTracker.formatCollectedErrors('Expected no console errors emitted by the extension'),
+  ).toHaveLength(0)
+
+  const extensionRuntimeErrors = errorTracker.extensionRuntimeErrors.filter(
+    (entry) => !SUPPRESSED_EXTENSION_ERROR_TOKENS.some((token) => entry.includes(token)),
+  )
+  expect(
+    extensionRuntimeErrors,
+    errorTracker.formatCollectedErrors('Expected no runtime errors emitted by the extension'),
+  ).toHaveLength(0)
+}
+
+async function ensurePanelPinned(panelLocator: Locator): Promise<void> {
+  await panelLocator.hover({ position: { x: 10, y: 10 } })
+  await panelLocator.evaluate((panel) => {
+    panel.classList.add('is-pinned')
+    panel.classList.add('is-mounted')
+  })
+  await expect(panelLocator).toBeVisible()
 }
 
 const HISTORY_STORAGE_KEY = STORAGE_KEYS.history
@@ -468,102 +721,178 @@ const test = base.extend<Fixtures>({
   },
 })
 
-const chaospacePages = [
-  'https://www.chaospace.cc/tvshows/80348.html',
-  'https://www.chaospace.cc/tvshows/425308.html',
-  'https://www.chaospace.cc/movies/431555.html',
-]
+const CHAOSPACE_BASE_DETAIL_URL = 'https://www.chaospace.cc/tvshows/80348.html'
+const GENERIC_FORUM_DEMO_URL = `${CHAOSPACE_BASE_DETAIL_URL}?pan-provider-demo=1`
 
 test.describe('Chaospace panel overlay', () => {
-  for (const targetUrl of chaospacePages) {
-    test(`renders without Chaospace Transfer errors for ${targetUrl}`, async ({
+  test('renders without Chaospace Transfer errors for CHAOSPACE regression page', async ({
+    page,
+    context,
+  }) => {
+    const { panelLocator, errorTracker } = await mountPanelForUrl(
       page,
       context,
-    }) => {
-      const errorTracker = createChaospaceErrorTracker(page)
+      CHAOSPACE_BASE_DETAIL_URL,
+    )
 
-      try {
-        await seedHistoryRecords(context, [createHistoryRecordSeed(targetUrl)])
-        await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 15000 })
-        // 使用 load 而非 networkidle,避免等待所有网络请求完成(可能永远无法满足)
-        await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {})
+    try {
+      // 使用 load 而非 networkidle,避免等待所有网络请求完成(可能永远无法满足)
+      await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {})
 
-        const panelLocator = page.locator(PANEL_SELECTOR)
-        const waitForPanelRender = async () => {
-          try {
-            await expect(panelLocator, 'Chaospace panel should render on the page').toBeVisible({
-              timeout: PANEL_RENDER_TIMEOUT,
-            })
-          } catch {
-            throw new Error(
-              errorTracker.formatCollectedErrors(
-                'Chaospace panel failed to render before timing out',
-              ),
-            )
-          }
-        }
+      await expect(
+        page.locator('.chaospace-assistant-badge'),
+        'Panel badge should promote the Pan Transfer assistant with provider label',
+      ).toContainText('Pan Transfer 转存助手 · CHAOSPACE')
 
-        await Promise.race([waitForPanelRender(), errorTracker.waitForFirstChaospaceError()])
-        errorTracker.stopEarlyAbort()
+      // 等待面板动画完成(chaospace-panel-in 持续 0.35s)
+      // 额外等待一些时间确保 animationend 事件触发并添加 is-mounted 类
+      await page.waitForTimeout(500)
 
-        await expect(
-          page.locator('.chaospace-assistant-badge'),
-          'Panel badge should promote the Pan Transfer assistant with provider label',
-        ).toContainText('Pan Transfer 转存助手 · CHAOSPACE')
+      const panelIsMounted = await panelLocator.evaluate((panel) =>
+        panel.classList.contains('is-mounted'),
+      )
+      expect(panelIsMounted, 'Panel should be fully mounted (has `is-mounted` class)').toBe(true)
+      await panelLocator.hover({ position: { x: 10, y: 10 } })
+      await page.waitForTimeout(200)
+      await panelLocator.evaluate((panel) => {
+        panel.classList.add('is-pinned')
+      })
 
-        // 等待面板动画完成(chaospace-panel-in 持续 0.35s)
-        // 额外等待一些时间确保 animationend 事件触发并添加 is-mounted 类
-        await page.waitForTimeout(500)
+      const historySummaryToggle = page
+        .locator('[data-role="history-summary-entry"] [data-role="history-toggle"]')
+        .first()
+      await expect(
+        historySummaryToggle,
+        'History summary toggle should be available once history loads',
+      ).toBeVisible()
+      await historySummaryToggle.click()
 
-        const panelIsMounted = await panelLocator.evaluate((panel) =>
-          panel.classList.contains('is-mounted'),
-        )
-        expect(panelIsMounted, 'Panel should be fully mounted (has `is-mounted` class)').toBe(true)
-        await panelLocator.hover({ position: { x: 10, y: 10 } })
-        await page.waitForTimeout(200)
-        await panelLocator.evaluate((panel) => {
-          panel.classList.add('is-pinned')
-        })
+      const historyOverlay = page.locator('[data-role="history-overlay"]')
+      await expect(
+        historyOverlay,
+        'History overlay should be visible after toggling',
+      ).toHaveAttribute('aria-hidden', 'false')
 
-        const historySummaryToggle = page
-          .locator('[data-role="history-summary-entry"] [data-role="history-toggle"]')
-          .first()
-        await expect(
-          historySummaryToggle,
-          'History summary toggle should be available once history loads',
-        ).toBeVisible()
-        await historySummaryToggle.click()
+      const historyMeta = page.locator('.chaospace-history-meta').first()
+      await expect(
+        historyMeta,
+        'History entry metadata should include the provider label',
+      ).toContainText('CHAOSPACE')
 
-        const historyOverlay = page.locator('[data-role="history-overlay"]')
-        await expect(
-          historyOverlay,
-          'History overlay should be visible after toggling',
-        ).toHaveAttribute('aria-hidden', 'false')
+      expectNoPrefixedErrors(errorTracker)
+    } finally {
+      errorTracker.dispose()
+    }
+  })
+})
 
-        const historyMeta = page.locator('.chaospace-history-meta').first()
-        await expect(
-          historyMeta,
-          'History entry metadata should include the provider label',
-        ).toContainText('CHAOSPACE')
+test.describe('Provider overrides', () => {
+  test('switches between CHAOSPACE and Generic Forum and updates accent theme', async ({
+    page,
+    context,
+  }) => {
+    const { panelLocator, errorTracker } = await mountPanelForUrl(
+      page,
+      context,
+      GENERIC_FORUM_DEMO_URL,
+    )
 
-        const chaospaceConsoleErrors = errorTracker.consoleErrors.filter((entry) =>
-          entry.includes(CHAOSPACE_LOG_PREFIX),
-        )
-        expect(
-          chaospaceConsoleErrors,
-          errorTracker.formatCollectedErrors('Expected no Chaospace Transfer console errors'),
-        ).toHaveLength(0)
+    try {
+      await ensurePanelPinned(panelLocator)
+      const providerSelect = page.locator('.chaospace-provider-select select')
+      await expect(providerSelect, 'Provider dropdown should be interactive').toBeEnabled()
+      await expect(
+        providerSelect.locator('option[value="generic-forum"]'),
+        'Generic Forum option should be available when markers are present',
+      ).toHaveCount(1)
 
-        const chaospaceRuntimeErrors = errorTracker.runtimeErrors.filter((message) =>
-          message.includes(CHAOSPACE_LOG_PREFIX),
-        )
-        expect(
-          chaospaceRuntimeErrors,
-          errorTracker.formatCollectedErrors('Expected no Chaospace Transfer runtime errors'),
-        ).toHaveLength(0)
-      } finally {
-        errorTracker.dispose()
-      }
-    })
-  }
+      await providerSelect.selectOption('generic-forum')
+      await expect(providerSelect).toHaveValue('generic-forum')
+      await expect(page.locator('.chaospace-provider-mode')).toContainText('手动')
+      await expect(page.locator('.chaospace-provider-label')).toContainText('Generic Forum')
+      await expect(panelLocator).toHaveAttribute('data-pan-provider', 'generic-forum')
+      await expectPanelAccentRgb(
+        panelLocator,
+        '14, 165, 233',
+        'Generic Forum accent palette should be applied',
+      )
+
+      await providerSelect.selectOption('')
+      await expect(providerSelect).toHaveValue('')
+      await expect(page.locator('.chaospace-provider-mode')).toContainText('自动')
+      expectNoPrefixedErrors(errorTracker)
+    } finally {
+      errorTracker.dispose()
+    }
+
+    const { panelLocator: chaosPanel, errorTracker: chaosTracker } = await mountPanelForUrl(
+      page,
+      context,
+      CHAOSPACE_BASE_DETAIL_URL,
+    )
+    try {
+      await ensurePanelPinned(chaosPanel)
+      await expect(page.locator('.chaospace-provider-mode')).toContainText('自动')
+      await expect(page.locator('.chaospace-provider-label')).toContainText('CHAOSPACE')
+      await expect(chaosPanel).toHaveAttribute('data-pan-provider', 'chaospace')
+      await expectPanelAccentRgb(
+        chaosPanel,
+        '99, 102, 241',
+        'Chaospace accent palette should restore after reloading a native CHAOSPACE page',
+      )
+      expectNoPrefixedErrors(chaosTracker)
+    } finally {
+      chaosTracker.dispose()
+    }
+  })
+
+  test('disabling a provider removes it from overrides and survives reload', async ({
+    page,
+    context,
+  }) => {
+    const { panelLocator, errorTracker } = await mountPanelForUrl(
+      page,
+      context,
+      GENERIC_FORUM_DEMO_URL,
+    )
+
+    try {
+      await ensurePanelPinned(panelLocator)
+      const settingsToggle = page.locator('[data-role="settings-toggle"]')
+      await settingsToggle.click()
+      const settingsOverlay = page.locator('[data-role="settings-overlay"]')
+      await expect(settingsOverlay).toHaveAttribute('aria-hidden', 'false')
+
+      const providerList = settingsOverlay.locator('[data-role="settings-site-provider-list"]')
+      const genericProviderToggle = providerList
+        .locator('label', { hasText: 'Generic Forum' })
+        .first()
+      const checkbox = genericProviderToggle.locator('input[type="checkbox"]')
+      await expect(checkbox).toBeChecked()
+      await checkbox.click()
+      await expect(checkbox).not.toBeChecked()
+
+      await page.locator('[data-role="settings-close"]').click()
+      await expect(settingsOverlay).toHaveAttribute('aria-hidden', 'true')
+
+      const providerSelect = page.locator('.chaospace-provider-select select')
+      await expect(providerSelect.locator('option[value="generic-forum"]')).toHaveCount(0)
+      await expect(providerSelect).toHaveValue('')
+      await expect(panelLocator).toHaveAttribute('data-pan-provider', 'chaospace')
+
+      await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 })
+      await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {})
+      const rehydratedPanel = page.locator(PANEL_SELECTOR)
+      await expect(rehydratedPanel).toBeVisible({ timeout: PANEL_RENDER_TIMEOUT })
+      await expect(
+        page.locator('.chaospace-provider-select select').locator('option[value="generic-forum"]'),
+      ).toHaveCount(0)
+      await expect(page.locator('.chaospace-provider-mode')).toContainText('自动')
+      await expect(rehydratedPanel).toHaveAttribute('data-pan-provider', 'chaospace')
+
+      expectNoPrefixedErrors(errorTracker)
+    } finally {
+      errorTracker.dispose()
+    }
+  })
 })

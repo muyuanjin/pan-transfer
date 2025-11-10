@@ -6,6 +6,7 @@ import {
   subscribeToProviderPreferences,
   type ProviderPreferencesSnapshot,
 } from '@/platform/settings'
+import { createScopedLogger } from '@/shared/log'
 import type { ContentStore } from '../state'
 
 export interface SiteProviderOption {
@@ -35,6 +36,8 @@ export function createProviderPreferencesController({
   registry,
 }: ProviderPreferencesControllerDeps): ProviderPreferencesController {
   const siteOptions = buildSiteProviderOptions(registry.listSiteProviders())
+  const siteOptionMap = new Map(siteOptions.map((option) => [option.id, option]))
+  const logger = createScopedLogger('ProviderPreferences')
   let snapshot: ProviderPreferencesSnapshot = {
     version: 1,
     disabledSiteProviderIds: [],
@@ -76,6 +79,7 @@ export function createProviderPreferencesController({
       disabledSiteProviderIds: Array.from(disabledSet),
     })
     applySnapshot(nextSnapshot)
+    logProviderToggle(providerId, enabled, nextSnapshot)
   }
 
   const setPreferredSiteProvider = async (providerId: string | null): Promise<void> => {
@@ -84,6 +88,7 @@ export function createProviderPreferencesController({
       preferredSiteProviderId: normalized,
     })
     applySnapshot(nextSnapshot)
+    logPreferredProvider(normalized)
   }
 
   return {
@@ -92,6 +97,32 @@ export function createProviderPreferencesController({
     getSiteProviderOptions: () => siteOptions,
     toggleSiteProvider,
     setPreferredSiteProvider,
+  }
+
+  function logProviderToggle(
+    providerId: string,
+    enabled: boolean,
+    nextSnapshot: ProviderPreferencesSnapshot,
+  ): void {
+    const option = siteOptionMap.get(providerId) ?? null
+    logger.info('provider-preference-toggle', {
+      event: 'provider-preference-toggle',
+      providerId,
+      providerLabel: option?.label ?? providerId,
+      enabled,
+      disabledSiteProviderIds: [...nextSnapshot.disabledSiteProviderIds],
+      supportedHosts: option?.supportedHosts ?? [],
+      tags: option?.tags ?? [],
+    })
+  }
+
+  function logPreferredProvider(providerId: string | null): void {
+    const option = providerId ? (siteOptionMap.get(providerId) ?? null) : null
+    logger.info('provider-preference-default', {
+      event: 'provider-preference-default',
+      providerId,
+      providerLabel: option?.label ?? providerId,
+    })
   }
 }
 

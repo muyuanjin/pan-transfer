@@ -1,6 +1,6 @@
 # Pan Transfer Architecture Migration Plan
 
-_Last updated: 2025-11-13_
+_Last updated: 2025-11-10_
 
 ## 1. Goals & Context
 
@@ -130,5 +130,5 @@ src/
 ## 6. Tracking & Next Steps
 
 1. File GitHub issues per phase with checklists mirroring the bullets above (Phase 4 tickets should now mention the provider accent loader + QA guide deliverables, and Phase 3 tickets continue to guard storage modularization follow-ups).
-2. With accent theming + manual override docs checked in, focus Phase 4 follow-ups on (a) Playwright coverage for provider toggle/accent flows and (b) surfacing provider metadata inside analytics dashboards so opt-out trends are observable.
+2. ✅ Playwright coverage for provider toggle/accent flows now lives in `tests/e2e/panel.spec.ts`, and provider preference updates emit analytics-friendly logs so opt-out trends surface in dashboards. Keep refining these signals as new providers graduate from preview.
 3. Queue remaining Phase 4 items: add storage-provider E2E assertions, monitor analytics for opt-out provider usage, and capture any manual QA deltas discovered while testing the Generic Forum sample host before broadening real-site access.

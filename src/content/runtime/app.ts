@@ -606,6 +606,12 @@ export function createRuntimeApp() {
     }
     const available = state.availableSiteProviderIds
     if (normalized && available && available.size > 0 && !available.has(normalized)) {
+      chaosLogger.info('[Pan Transfer] Provider switch blocked (provider unavailable)', {
+        event: 'site-provider-switch-blocked',
+        requestedProviderId: normalized,
+        availableProviderIds: Array.from(available),
+        pageUrl: state.pageUrl,
+      })
       state.providerSwitching = false
       showToast('error', '切换解析失败', '当前页面未检测到该解析器支持')
       return
@@ -630,6 +636,15 @@ export function createRuntimeApp() {
       state.statusMessage = '准备就绪 ✨'
       state.manualSiteProviderId = normalized
       renderPanelState()
+      const availableProviderIds = Array.from(state.availableSiteProviderIds ?? [])
+      chaosLogger.info('[Pan Transfer] Site provider switch completed', {
+        event: 'site-provider-switch',
+        mode: normalized ? 'manual' : 'auto',
+        requestedProviderId: normalized,
+        providerId: state.activeSiteProviderId,
+        providerLabel: state.activeSiteProviderLabel,
+        availableProviderIds,
+      })
       if (state.deferredSeasonInfos.length) {
         void seasonLoader.ensureDeferredSeasonLoading().catch((error) => {
           chaosLogger.error('[Pan Transfer] Failed to resume deferred season loading', error)
