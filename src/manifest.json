@@ -56,6 +56,8 @@
         "assets/*.css",
         "assets/*.js",
         "content/styles/index.css",
+        "chaospace.css",
+        "generic-forum.css",
         "history-detail.css",
         "settings.css"
       ],
