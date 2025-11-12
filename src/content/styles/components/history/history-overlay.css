@@ -129,8 +129,29 @@
 .chaospace-history-toolbar-actions {
   display: flex;
   align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.chaospace-history-toolbar-danger,
+.chaospace-history-toolbar-primary {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.chaospace-history-toolbar-danger {
+  flex-shrink: 0;
+  padding-right: 12px;
+  border-right: 1px solid var(--cp-border);
+}
+
+.chaospace-history-toolbar-primary {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
 .chaospace-history-selection-count {
@@ -165,29 +186,37 @@
   background: var(--cp-accent-strong);
 }
 
-.chaospace-history-ghost-btn {
-  border: 1px solid var(--cp-border);
-  background: transparent;
-  color: var(--cp-text-secondary);
-  padding: 5px 11px;
+.chaospace-history-danger-btn {
+  border: 1px solid rgba(251, 191, 36, 0.65);
+  background: rgba(252, 211, 77, 0.18);
+  color: #a16207;
+  padding: 5px 14px;
   border-radius: 999px;
   font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
   transition:
     background 0.2s ease,
-    color 0.2s ease,
-    border-color 0.2s ease;
+    border-color 0.2s ease,
+    color 0.2s ease;
 }
 
-.chaospace-history-ghost-btn:hover:not(:disabled) {
-  background: rgba(var(--cp-accent-rgb), 0.18);
-  color: var(--cp-text-primary);
-  border-color: rgba(var(--cp-accent-rgb), 0.45);
+.chaospace-history-danger-btn:hover:not(:disabled) {
+  background: rgba(252, 211, 77, 0.32);
+  border-color: rgba(245, 158, 11, 0.85);
+  color: #854d0e;
 }
 
-.chaospace-history-ghost-btn:disabled {
-  opacity: 0.55;
-  cursor: wait;
+.chaospace-history-danger-btn:focus-visible {
+  outline: 2px solid rgba(251, 191, 36, 0.6);
+  outline-offset: 2px;
+}
+
+.chaospace-history-danger-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: rgba(253, 230, 138, 0.3);
+  border-color: rgba(251, 191, 36, 0.35);
 }
 
 .chaospace-history-overlay-title {
@@ -246,6 +275,33 @@
 .chaospace-float-panel.theme-light .chaospace-history-toggle:hover {
   background: rgba(var(--cp-accent-rgb), 0.16);
   color: #1e293b;
+}
+
+@media (max-width: 560px) {
+  .chaospace-history-toolbar-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .chaospace-history-toolbar-danger {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--cp-border);
+    padding-right: 0;
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+  }
+
+  .chaospace-history-toolbar-primary {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+.chaospace-float-panel.theme-light .chaospace-history-danger-btn {
+  background: rgba(254, 249, 195, 0.96);
+  border-color: rgba(250, 204, 21, 0.6);
+  color: #713f12;
 }
 
 .chaospace-history-empty {

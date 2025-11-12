@@ -10,45 +10,49 @@
       <span>全选当前筛选结果</span>
     </label>
     <div class="chaospace-history-toolbar-actions">
-      <span class="chaospace-history-selection-count" data-role="history-selection-count">
-        {{ selectionLabel }}
-      </span>
-      <button
-        type="button"
-        class="chaospace-history-primary-btn"
-        data-role="history-batch-check"
-        :disabled="batchCheckDisabled"
-        @click="handleBatchCheck"
-      >
-        {{ batchCheckLabel }}
-      </button>
-      <button
-        type="button"
-        class="chaospace-history-primary-btn"
-        data-role="history-batch-transfer"
-        :disabled="batchTransferDisabled"
-        @click="handleBatchTransfer"
-      >
-        {{ batchTransferLabel }}
-      </button>
-      <button
-        type="button"
-        class="chaospace-history-ghost-btn"
-        data-role="history-delete-selected"
-        :disabled="deleteDisabled"
-        @click="handleDeleteSelected"
-      >
-        删除选中
-      </button>
-      <button
-        type="button"
-        class="chaospace-history-ghost-btn"
-        data-role="history-clear"
-        :disabled="clearDisabled"
-        @click="handleClear"
-      >
-        清空历史
-      </button>
+      <div class="chaospace-history-toolbar-danger" data-role="history-danger-actions">
+        <button
+          type="button"
+          class="chaospace-history-danger-btn"
+          data-role="history-delete-selected"
+          :disabled="deleteDisabled"
+          @click="handleDeleteSelected"
+        >
+          删除选中
+        </button>
+        <button
+          type="button"
+          class="chaospace-history-danger-btn"
+          data-role="history-clear"
+          :disabled="clearDisabled"
+          @click="handleClear"
+        >
+          清空历史
+        </button>
+      </div>
+      <div class="chaospace-history-toolbar-primary">
+        <span class="chaospace-history-selection-count" data-role="history-selection-count">
+          {{ selectionLabel }}
+        </span>
+        <button
+          type="button"
+          class="chaospace-history-primary-btn"
+          data-role="history-batch-check"
+          :disabled="batchCheckDisabled"
+          @click="handleBatchCheck"
+        >
+          {{ batchCheckLabel }}
+        </button>
+        <button
+          type="button"
+          class="chaospace-history-primary-btn"
+          data-role="history-batch-transfer"
+          :disabled="batchTransferDisabled"
+          @click="handleBatchTransfer"
+        >
+          {{ batchTransferLabel }}
+        </button>
+      </div>
     </div>
   </div>
 </template>

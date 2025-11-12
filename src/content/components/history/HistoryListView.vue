@@ -107,7 +107,7 @@
             <button
               v-if="entry.showCheck"
               type="button"
-              class="chaospace-history-action chaospace-history-action-check"
+              class="chaospace-history-action chaospace-history-action-primary chaospace-history-action-check"
               data-action="check"
               :data-url="entry.mainRecord.pageUrl || ''"
               :disabled="entry.checkDisabled"
@@ -118,11 +118,13 @@
               {{ entry.checkLabel }}
             </button>
             <button
-              v-if="entry.hasPendingTransfer"
+              v-if="entry.showCheck || entry.hasPendingTransfer"
               type="button"
-              class="chaospace-history-action chaospace-history-action-transfer"
+              class="chaospace-history-action chaospace-history-action-primary chaospace-history-action-transfer"
               data-action="transfer"
               :title="entry.pendingSummary || '转存新篇'"
+              :disabled="!entry.hasPendingTransfer"
+              :class="{ 'is-disabled': !entry.hasPendingTransfer }"
               @click.stop.prevent="handleTriggerTransfer(entry, $event)"
             >
               转存新篇
@@ -219,7 +221,7 @@
               </button>
               <button
                 type="button"
-                class="chaospace-history-action chaospace-history-action-check"
+                class="chaospace-history-action chaospace-history-action-primary chaospace-history-action-check"
                 data-action="check"
                 :data-url="season.row.url || ''"
                 :disabled="season.checkDisabled"
@@ -230,11 +232,13 @@
                 {{ season.checkLabel }}
               </button>
               <button
-                v-if="season.hasPendingTransfer"
+                v-if="season.hasPendingTransfer || !season.checkDisabled"
                 type="button"
-                class="chaospace-history-action chaospace-history-action-transfer"
+                class="chaospace-history-action chaospace-history-action-primary chaospace-history-action-transfer"
                 data-action="transfer-season"
                 :title="season.pendingSummary || '转存新篇'"
+                :disabled="!season.hasPendingTransfer"
+                :class="{ 'is-disabled': !season.hasPendingTransfer }"
                 @click.stop.prevent="handleSeasonTriggerTransfer(season, $event)"
               >
                 转存新篇
