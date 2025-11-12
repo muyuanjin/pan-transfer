@@ -207,7 +207,7 @@
                 </div>
               </section>
               <section class="chaospace-settings-section">
-                <h3>Provider 管理</h3>
+                <h3>解析器管理</h3>
                 <div class="chaospace-settings-field">
                   <div class="chaospace-settings-label">站点解析器</div>
                   <div

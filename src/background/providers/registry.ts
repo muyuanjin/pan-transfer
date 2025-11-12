@@ -3,6 +3,7 @@ import { createChaospaceSiteProvider } from '@/providers/sites/chaospace'
 import { createGenericForumSiteProvider } from '@/providers/sites/generic-forum'
 import { createMockStorageProvider } from '@/providers/storage'
 import { createBaiduNetdiskProvider } from '@/providers/storage/baidu-netdisk'
+import { isGenericForumEnabled } from '@/shared/dev-toggles'
 import {
   resolveEffectiveStorageMode,
   type ResolvedStorageProviderMode,
@@ -21,8 +22,12 @@ export function getBackgroundProviderRegistry(
   if (cached) {
     return cached
   }
+  const siteProviders = [createChaospaceSiteProvider()]
+  if (isGenericForumEnabled()) {
+    siteProviders.push(createGenericForumSiteProvider())
+  }
   const nextRegistry = createProviderRegistry({
-    siteProviders: [createChaospaceSiteProvider(), createGenericForumSiteProvider()],
+    siteProviders,
   })
   if (storageMode === 'mock') {
     nextRegistry.registerStorageProvider(createMockStorageProvider())

@@ -29,15 +29,18 @@ When a provider switch succeeds:
    mention `siteProviderId: "chaospace"`.
 3. Toggle to `手动 → CHAOSPACE` and back to `自动`. Each switch should refresh the resource list
    without losing selection state.
-4. Disable CHAOSPACE inside ⚙️ → **站点解析器**. The badge should show `自动` with a warning toast and
-   no provider switch should be allowed until CHAOSPACE is re-enabled.
+4. Disable CHAOSPACE inside ⚙️ → **站点解析器**. A warning toast will explain that all providers are
+   disabled and the toolbar badge switches to **停用**. Reloading the page should skip mounting the
+   panel entirely until you click the browser toolbar icon to restore the defaults.
 5. Re-run `npm run e2e` (or the Playwright chaospace suite) to ensure automated coverage still passes
    after manual overrides.
 
 ## Generic Forum (Sample) Verification
 
 Generic Forum is the reference provider used in docs/tests. It is not part of the production host
-list yet, so manual QA requires a temporary sandbox.
+list yet, so manual QA requires a temporary sandbox. The provider is disabled in production builds;
+enable it with `VITE_ENABLE_GENERIC_FORUM=1` (build/Test) or `window.PAN_TRANSFER_ENABLE_GENERIC_FORUM = true`
+in DevTools before running through the steps below.
 
 1. Add the domain to `src/manifest.json` before building:
    - Append `*://genericforum.dev/*` to both `host_permissions` and the content-script `matches`.

@@ -1,12 +1,14 @@
 import { loadCss } from '../styles.loader'
+import { isGenericForumEnabled } from '@/shared/dev-toggles'
 
 import chaospaceAccentUrl from './providers/chaospace.css?url'
 import genericForumAccentUrl from './providers/generic-forum.css?url'
 
-const PROVIDER_CSS_MAP = new Map<string, string>([
-  ['chaospace', chaospaceAccentUrl],
-  ['generic-forum', genericForumAccentUrl],
-])
+const PROVIDER_CSS_MAP = new Map<string, string>([['chaospace', chaospaceAccentUrl]])
+
+if (isGenericForumEnabled()) {
+  PROVIDER_CSS_MAP.set('generic-forum', genericForumAccentUrl)
+}
 
 const loadCache = new Map<string, Promise<void>>()
 

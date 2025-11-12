@@ -929,6 +929,20 @@ const test = base.extend<Fixtures>({
 const CHAOSPACE_BASE_DETAIL_URL = 'https://www.chaospace.cc/tvshows/80348.html'
 const GENERIC_FORUM_DEMO_URL = `${CHAOSPACE_BASE_DETAIL_URL}?pan-provider-demo=1`
 
+const parseBooleanEnv = (value?: string): boolean => {
+  if (!value) {
+    return false
+  }
+  const normalized = value.trim().toLowerCase()
+  return ['1', 'true', 'yes', 'on', 'enable'].includes(normalized)
+}
+
+const isGenericForumEnabled =
+  parseBooleanEnv(process.env.VITE_ENABLE_GENERIC_FORUM) ||
+  parseBooleanEnv(process.env.PAN_TRANSFER_ENABLE_GENERIC_FORUM)
+
+const describeGenericProviders = isGenericForumEnabled ? test.describe : test.describe.skip
+
 test.describe('Chaospace panel overlay', () => {
   test('renders without Chaospace Transfer errors for CHAOSPACE regression page', async ({
     page,
@@ -991,7 +1005,7 @@ test.describe('Chaospace panel overlay', () => {
   })
 })
 
-test.describe('Provider overrides', () => {
+describeGenericProviders('Provider overrides', () => {
   test('switches between CHAOSPACE and Generic Forum and updates accent theme', async ({
     page,
     context,

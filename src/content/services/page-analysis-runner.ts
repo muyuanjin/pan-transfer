@@ -77,6 +77,10 @@ export function createPageAnalysisRunner(options: PageAnalysisRunnerOptions): Pa
     if (forcedProviderId) {
       context.siteProviderId = forcedProviderId
     }
+    const preferences =
+      typeof options.getProviderPreferences === 'function' ? options.getProviderPreferences() : null
+    const disabledIds = new Set(preferences?.disabledSiteProviderIds ?? [])
+    const chaospaceDisabled = disabledIds.has(CHAOSPACE_SITE_PROVIDER_ID)
 
     try {
       const matchingProviders = await getPipeline().listMatchingSiteProviders(context)
@@ -94,6 +98,18 @@ export function createPageAnalysisRunner(options: PageAnalysisRunnerOptions): Pa
         provider = matchingProviders[0] ?? null
       }
       if (!provider) {
+        if (chaospaceDisabled) {
+          chaosLogger.info(
+            '[Pan Transfer] CHAOSPACE provider disabled via preferences, skipping legacy analyzer',
+            {
+              url: context.url ?? options.window.location?.href,
+            },
+          )
+          return withAvailableProviders(
+            ensureProviderMetadata(createDisabledAnalysisResult(context, options.window)),
+            [],
+          )
+        }
         chaosLogger.debug('[Pan Transfer] 未匹配到站点 Provider，回退到 CHAOSPACE 解析', {
           url: context.url ?? options.window.location?.href,
         })
@@ -125,6 +141,44 @@ export function createPageAnalysisRunner(options: PageAnalysisRunnerOptions): Pa
 
   return {
     analyzePage: analyzeWithProviders,
+  }
+}
+
+function createDisabledAnalysisResult(
+  context: TransferContext,
+  windowRef: Window & typeof globalThis,
+): PageAnalysisResult {
+  const fallbackUrl = windowRef.location?.href || ''
+  const url = typeof context.url === 'string' && context.url ? context.url : fallbackUrl
+  let origin = ''
+  if (url) {
+    try {
+      origin = new URL(url).origin
+    } catch {
+      origin = windowRef.location?.origin || ''
+    }
+  } else {
+    origin = windowRef.location?.origin || ''
+  }
+  const title =
+    (context.document && typeof context.document.title === 'string'
+      ? context.document.title
+      : windowRef.document?.title) || ''
+
+  return {
+    items: [],
+    url,
+    origin,
+    title,
+    poster: null,
+    completion: null,
+    seasonCompletion: {},
+    deferredSeasons: [],
+    totalSeasons: 0,
+    loadedSeasons: 0,
+    seasonEntries: [],
+    classification: 'unknown',
+    classificationDetail: null,
   }
 }
 

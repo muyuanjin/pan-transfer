@@ -22,6 +22,11 @@ import {
 } from './providers/pipeline'
 import { resetBackgroundProviderRegistryCache } from './providers/registry'
 import { setStorageProviderModeOverride, type StorageProviderMode } from './providers/storage-mode'
+import {
+  areAllSiteProvidersDisabled,
+  getProviderPreferencesSnapshot,
+  restoreAllSiteProviders,
+} from '@/background/settings/provider-preferences'
 
 interface JobContext {
   tabId?: number
@@ -168,6 +173,24 @@ const isExtensionSender = (sender?: chrome.runtime.MessageSender): boolean => {
 }
 const jobContexts = new Map<string, JobContext>()
 void getBackgroundTransferPipeline()
+
+if (chrome?.action?.onClicked) {
+  chrome.action.onClicked.addListener(async () => {
+    const snapshot = getProviderPreferencesSnapshot()
+    if (!areAllSiteProvidersDisabled(snapshot)) {
+      return
+    }
+    try {
+      await restoreAllSiteProviders()
+      chaosLogger.info('[Pan Transfer] Site providers restored from toolbar action')
+    } catch (error) {
+      const err = error as Error
+      chaosLogger.warn('[Pan Transfer] Failed to restore site providers from toolbar action', {
+        message: err?.message,
+      })
+    }
+  })
+}
 
 const resolveErrorMessage = (error: unknown, fallback: string): string => {
   if (error instanceof Error && typeof error.message === 'string' && error.message.trim()) {

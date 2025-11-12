@@ -373,6 +373,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
 
   const siteProviderOptions: ReadonlyArray<SiteProviderOption> =
     providerPreferences.getSiteProviderOptions()
+  const siteProviderIdSet = new Set(siteProviderOptions.map((option) => option.id))
 
   let filterEditor: FileFilterEditor | null = null
   let renameEditor: FileRenameEditor | null = null
@@ -483,6 +484,15 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     renderSiteProviderList()
   }
 
+  const getEnabledSiteProviderCount = (): number => {
+    const snapshot = providerPreferences.getSnapshot()
+    if (!snapshot) {
+      return siteProviderOptions.length
+    }
+    const disabled = snapshot.disabledSiteProviderIds.filter((id) => siteProviderIdSet.has(id))
+    return Math.max(0, siteProviderOptions.length - disabled.length)
+  }
+
   function renderSiteProviderList(): void {
     const container = domRefs.siteProviderList
     if (!container) {
@@ -496,7 +506,24 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
       checkbox.type = 'checkbox'
       checkbox.checked = !state.disabledSiteProviderIds.has(option.id)
       checkbox.addEventListener('change', () => {
-        void providerPreferences.toggleSiteProvider(option.id, checkbox.checked)
+        const nextChecked = checkbox.checked
+        void providerPreferences
+          .toggleSiteProvider(option.id, nextChecked)
+          .then(() => {
+            if (!nextChecked && getEnabledSiteProviderCount() === 0) {
+              showToast(
+                'warning',
+                '站点解析器已全部关闭',
+                '如需重新启用，请点击浏览器工具栏中的 Pan Transfer 图标。',
+              )
+            }
+          })
+          .catch((error) => {
+            checkbox.checked = !nextChecked
+            const message =
+              error instanceof Error && error.message ? error.message : '无法更新站点解析器'
+            showToast('error', '更新失败', message)
+          })
       })
       const body = document.createElement('div')
       body.className = 'chaospace-provider-toggle__body'
