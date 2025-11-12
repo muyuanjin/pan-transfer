@@ -753,15 +753,29 @@ export async function ensureDirectoryExists(
   }
 
   const segments = normalized.split('/').filter(Boolean)
+  const totalSegments = segments.length
   let current = ''
-  const contextLabel = context ? `（${context}）` : ''
-  logStage?.(jobId, 'list', `确认目录链：${normalized}${contextLabel}`)
-  for (const segment of segments) {
+  for (let index = 0; index < segments.length; index += 1) {
+    const segment = segments[index]
     current += `/${segment}`
+    const segmentContextParts: string[] = []
+    if (context) {
+      segmentContextParts.push(context)
+    }
+    if (totalSegments > 1) {
+      segmentContextParts.push(`第 ${index + 1}/${totalSegments} 层`)
+    }
+    const segmentContext = segmentContextParts.join(' · ')
+    const segmentContextLabel = segmentContext ? `（${segmentContext}）` : ''
     if (isDirectoryEnsured(current)) {
+      logStage?.(jobId, 'list', `目录已缓存：${current}${segmentContextLabel}`)
       continue
     }
-    const exists = await checkDirectoryExists(current, bdstoken, options)
+    const segmentOptions =
+      segmentContext && segmentContext !== context
+        ? { ...options, context: segmentContext }
+        : options
+    const exists = await checkDirectoryExists(current, bdstoken, segmentOptions)
     if (exists) {
       markDirectoryEnsured(current)
       continue
@@ -774,7 +788,7 @@ export async function ensureDirectoryExists(
       block_list: '[]',
     })
 
-    logStage?.(jobId, 'list', `创建目录：${current}${contextLabel}`)
+    logStage?.(jobId, 'list', `创建目录：${current}${segmentContextLabel}`)
     const data = await fetchJson<{ errno?: number | string }>(
       url,
       {
@@ -792,15 +806,20 @@ export async function ensureDirectoryExists(
       throw createLoginRequiredError()
     }
     if (errno !== 0 && errno !== -8 && errno !== 31039) {
-      logStage?.(jobId, 'list', `创建目录失败：${current}${contextLabel}（errno ${errno}）`, {
-        level: 'error',
-      })
+      logStage?.(
+        jobId,
+        'list',
+        `创建目录失败：${current}${segmentContextLabel}（errno ${errno}）`,
+        {
+          level: 'error',
+        },
+      )
       throw new Error(`创建目录失败(${current})：${errno}`)
     }
     logStage?.(
       jobId,
       'list',
-      `目录创建完成：${current}${contextLabel}${errno === -8 || errno === 31039 ? '（已存在）' : ''}`,
+      `目录创建完成：${current}${segmentContextLabel}${errno === -8 || errno === 31039 ? '（已存在）' : ''}`,
       {
         level: 'success',
       },

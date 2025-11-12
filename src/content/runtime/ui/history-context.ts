@@ -1,8 +1,13 @@
 import { inject, type InjectionKey } from 'vue'
-import type { createHistoryController } from '../../history/controller'
+import type {
+  createHistoryController,
+  TriggerHistoryUpdateOptions,
+  TriggerHistoryTransferOptions,
+} from '../../history/controller'
 import { buildPanDirectoryUrl } from '@/providers/sites/chaospace/page-analyzer'
 import type { HistoryDetailOverrides as HistoryDetailOverridesInput } from '../../components/history-detail'
 import { useContentStore } from '../../state'
+import type { ContentHistoryRecord } from '../../types'
 
 export type HistoryController = ReturnType<typeof createHistoryController>
 
@@ -15,7 +20,13 @@ export interface HistoryListActionHandlers {
   triggerHistoryUpdate: (params: {
     pageUrl?: string | null
     button?: HTMLButtonElement | null
-  }) => void
+    options?: TriggerHistoryUpdateOptions
+  }) => ReturnType<HistoryController['triggerHistoryUpdate']>
+  triggerHistoryTransfer: (params: {
+    record?: ContentHistoryRecord | null
+    button?: HTMLButtonElement | null
+    options?: TriggerHistoryTransferOptions
+  }) => ReturnType<HistoryController['triggerHistoryTransfer']>
   previewHistoryPoster: (params: { src?: string | null; alt?: string | null }) => void
   toggleHistoryExpanded: () => void
 }
@@ -137,12 +148,24 @@ export function createHistoryListActionHandlers(
   const triggerHistoryUpdate = (params: {
     pageUrl?: string | null
     button?: HTMLButtonElement | null
-  }): void => {
+    options?: TriggerHistoryUpdateOptions
+  }): ReturnType<HistoryController['triggerHistoryUpdate']> => {
     const pageUrl = normalizeUrl(params.pageUrl ?? '')
     if (!pageUrl) {
-      return
+      return Promise.resolve(null)
     }
-    history.triggerHistoryUpdate(pageUrl, params.button ?? null)
+    return history.triggerHistoryUpdate(pageUrl, params.button ?? null, params.options)
+  }
+
+  const triggerHistoryTransfer = (params: {
+    record?: ContentHistoryRecord | null
+    button?: HTMLButtonElement | null
+    options?: TriggerHistoryTransferOptions
+  }): ReturnType<HistoryController['triggerHistoryTransfer']> => {
+    if (!params.record) {
+      return Promise.resolve(null)
+    }
+    return history.triggerHistoryTransfer(params.record, params.button ?? null, params.options)
   }
 
   const previewHistoryPoster = (params: { src?: string | null; alt?: string | null }): void => {
@@ -168,6 +191,7 @@ export function createHistoryListActionHandlers(
     openHistoryUrl,
     openHistoryPan,
     triggerHistoryUpdate,
+    triggerHistoryTransfer,
     previewHistoryPoster,
     toggleHistoryExpanded,
   }

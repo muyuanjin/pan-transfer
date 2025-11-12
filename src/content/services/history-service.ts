@@ -10,6 +10,12 @@ import type {
   HistoryRecordsPayload,
 } from '../types'
 import { safeStorageGet } from '../utils/storage'
+import type {
+  HistoryPendingTransfer,
+  TransferItemPayload,
+  TransferJobMeta,
+  TransferRequestPayload,
+} from '@/shared/types/transfer'
 
 type TinyPinyinModule = typeof import('tiny-pinyin')
 
@@ -82,6 +88,22 @@ interface HistorySeasonEntryInput {
 interface StoredHistorySnapshot {
   records?: unknown
   [key: string]: unknown
+}
+
+interface PendingTransferLike {
+  jobId?: unknown
+  detectedAt?: unknown
+  summary?: unknown
+  newItemIds?: unknown
+  payload?: unknown
+}
+
+interface PendingTransferPayloadLike {
+  jobId?: unknown
+  origin?: unknown
+  targetDirectory?: unknown
+  meta?: unknown
+  items?: unknown
 }
 
 const COMPLETION_STATES: ReadonlySet<CompletionStatus['state']> = new Set([
@@ -374,7 +396,12 @@ export function buildHistoryGroupSeasonRows(
   const rows: HistoryGroupSeasonRow[] = []
   const usedKeys = new Set<string>()
   const children = Array.isArray(group.children) ? group.children : []
-  children.forEach((record, index) => {
+  const seasonRecords = [...children]
+  const mainRecord = group.main
+  if (mainRecord && isSeasonHistoryRecord(mainRecord)) {
+    seasonRecords.push(mainRecord)
+  }
+  seasonRecords.forEach((record, index) => {
     const normalizedUrl = normalizePageUrl(record.pageUrl)
     const seasonEntriesList = Array.isArray(record.seasonEntries) ? record.seasonEntries : []
     const entryFromUrl = normalizedUrl ? entryByUrl.get(normalizedUrl) : undefined
@@ -421,6 +448,10 @@ export function buildHistoryGroupSeasonRows(
     }
     const key = normalizedUrl || seasonId || `${group.key}-child-${index}`
     usedKeys.add(key)
+    const hasRecordItems =
+      Boolean(record?.totalTransferred) ||
+      (Array.isArray(record?.itemOrder) && record.itemOrder.length > 0) ||
+      (record?.items && Object.keys(record.items).length > 0)
     rows.push({
       key,
       label,
@@ -432,6 +463,8 @@ export function buildHistoryGroupSeasonRows(
       canCheck: true,
       record,
       recordTimestamp: getHistoryRecordTimestamp(record),
+      hasItems: hasRecordItems,
+      loaded: true,
     })
   })
 
@@ -452,6 +485,8 @@ export function buildHistoryGroupSeasonRows(
       canCheck: false,
       record: null,
       recordTimestamp: 0,
+      hasItems: Boolean(entry.hasItems),
+      loaded: Boolean(entry.loaded),
     })
   })
 
@@ -462,6 +497,16 @@ export function buildHistoryGroupSeasonRows(
     return a.seasonIndex - b.seasonIndex
   })
   return rows
+}
+
+const SEASON_PAGE_PATTERN = /\/seasons\/\d+\.html/i
+
+function isSeasonHistoryRecord(record: ContentHistoryRecord | null | undefined): boolean {
+  if (!record) {
+    return false
+  }
+  const url = typeof record.pageUrl === 'string' ? record.pageUrl : ''
+  return Boolean(url && SEASON_PAGE_PATTERN.test(url))
 }
 
 export function getHistoryGroupMain(
@@ -511,6 +556,25 @@ export function canCheckHistoryGroup(group: HistoryGroup | null | undefined): bo
   return !isHistoryGroupCompleted(group)
 }
 
+export function getHistoryPendingTransfer(
+  record: ContentHistoryRecord | null | undefined,
+): HistoryPendingTransfer | null {
+  if (!record || !record.pendingTransfer) {
+    return null
+  }
+  const items = record.pendingTransfer.payload?.items
+  if (!Array.isArray(items) || items.length === 0) {
+    return null
+  }
+  return record.pendingTransfer
+}
+
+export function hasHistoryPendingTransfer(
+  record: ContentHistoryRecord | null | undefined,
+): boolean {
+  return Boolean(getHistoryPendingTransfer(record))
+}
+
 export function normalizeHistoryFilter(filter: unknown): HistoryFilter {
   return HISTORY_FILTERS.includes(filter as HistoryFilter) ? (filter as HistoryFilter) : 'all'
 }
@@ -533,6 +597,106 @@ function appendSearchCandidates(target: string[], value: unknown): void {
       target.push(variant)
     }
   })
+}
+
+function normalizePendingTransferItems(value: unknown): TransferItemPayload[] {
+  let source: unknown[] = []
+  if (Array.isArray(value)) {
+    source = value
+  } else if (value && typeof value === 'object') {
+    source = Object.values(value as Record<string, unknown>)
+  }
+  return source
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return null
+      }
+      const item = entry as { [key: string]: unknown }
+      const id = item['id']
+      if (typeof id !== 'string' && typeof id !== 'number') {
+        return null
+      }
+      const normalized: TransferItemPayload = {
+        id,
+        title: typeof item['title'] === 'string' ? (item['title'] as string) : '',
+      }
+      if (typeof item['targetPath'] === 'string' && item['targetPath']) {
+        normalized.targetPath = item['targetPath'] as string
+      }
+      if (typeof item['linkUrl'] === 'string' && item['linkUrl']) {
+        normalized.linkUrl = item['linkUrl'] as string
+      }
+      if (typeof item['passCode'] === 'string' && item['passCode']) {
+        normalized.passCode = item['passCode'] as string
+      }
+      return normalized
+    })
+    .filter((entry): entry is TransferItemPayload => Boolean(entry))
+}
+
+function cloneTransferJobMeta(value: unknown): TransferJobMeta | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined
+  }
+  return { ...(value as TransferJobMeta) }
+}
+
+function normalizePendingTransferPayload(
+  payload: unknown,
+  fallbackJobId: string,
+): TransferRequestPayload | null {
+  if (!payload || typeof payload !== 'object') {
+    return null
+  }
+  const raw = payload as PendingTransferPayloadLike
+  const items = normalizePendingTransferItems(raw.items)
+  if (!items.length) {
+    return null
+  }
+  const normalized: TransferRequestPayload = {
+    jobId: typeof raw.jobId === 'string' && raw.jobId ? raw.jobId : fallbackJobId,
+    items,
+  }
+  if (typeof raw.origin === 'string' && raw.origin) {
+    normalized.origin = raw.origin
+  }
+  if (typeof raw.targetDirectory === 'string' && raw.targetDirectory) {
+    normalized.targetDirectory = raw.targetDirectory
+  }
+  const meta = cloneTransferJobMeta(raw.meta)
+  if (meta) {
+    normalized.meta = meta
+  }
+  return normalized
+}
+
+function normalizePendingTransfer(value: unknown): HistoryPendingTransfer | null {
+  if (!value || typeof value !== 'object') {
+    return null
+  }
+  const raw = value as PendingTransferLike
+  const jobId = typeof raw.jobId === 'string' && raw.jobId ? raw.jobId : ''
+  const detectedAt = Number.isFinite(raw.detectedAt as number) ? Number(raw.detectedAt) : 0
+  if (!jobId || detectedAt <= 0) {
+    return null
+  }
+  const payload = normalizePendingTransferPayload(raw.payload, jobId)
+  if (!payload) {
+    return null
+  }
+  const summary = typeof raw.summary === 'string' ? raw.summary : ''
+  const newItemIds = Array.isArray(raw.newItemIds)
+    ? raw.newItemIds.filter(
+        (id): id is string | number => typeof id === 'string' || typeof id === 'number',
+      )
+    : []
+  return {
+    jobId,
+    detectedAt,
+    summary,
+    newItemIds,
+    payload,
+  }
 }
 
 const normalizeProviderField = (value: unknown): string | null => {
@@ -703,6 +867,7 @@ function toContentHistoryRecord(record: unknown): ContentHistoryRecord {
     items: {},
     itemOrder: [],
     lastResult: null,
+    pendingTransfer: null,
     ...(record || {}),
   } as ContentHistoryRecord & Record<string, unknown>
 
@@ -729,6 +894,7 @@ function toContentHistoryRecord(record: unknown): ContentHistoryRecord {
   if (typeof base.baseDir !== 'string' || !base.baseDir) {
     base.baseDir = '/'
   }
+  base.pendingTransfer = normalizePendingTransfer(base.pendingTransfer)
   return base as ContentHistoryRecord
 }
 

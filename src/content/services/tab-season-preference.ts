@@ -196,7 +196,7 @@ export function createTabSeasonPreferenceController({
 
   const applyHistorySelection = async (value: boolean): Promise<void> => {
     await ensureInitialized()
-    const scope = await persistTabPreference(value)
+    const scope: SeasonPreferenceScope = value === state.seasonSubdirDefault ? 'default' : 'history'
     applySeasonPreference(value, scope, {
       forceRender: true,
       getFloatingPanel,

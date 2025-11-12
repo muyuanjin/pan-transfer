@@ -8,6 +8,7 @@ import type {
 } from '@/platform/registry'
 import { summarizeSeasonCompletion, type CompletionStatus } from '@/shared/utils/completion-status'
 import type { HistoryDetail, SiteHistorySnapshot } from '@/shared/types/history'
+import { chaosLogger } from '@/shared/log'
 import {
   analyzePage as analyzeChaospacePage,
   normalizePageUrl,
@@ -23,6 +24,8 @@ import {
   parseCompletionFromHtml,
   parseTvShowSeasonEntriesFromHtml,
   parseHistoryDetailFromHtml,
+  parseLinkPage,
+  type LinkParseResult,
 } from './parser-service'
 import type { ResourceItem } from '@/content/types'
 import { buildTransferPayloadFromSelection } from '../provider-utils'
@@ -77,10 +80,33 @@ export function createChaospaceSiteProvider(
       }
       return collection
     },
-    buildTransferPayload(input) {
-      return buildTransferPayloadFromSelection(input, {
+    async buildTransferPayload(input) {
+      const payload = buildTransferPayloadFromSelection(input, {
         resolvePageUrl: (context, fallbackUrl) => normalizePageUrl(context.url || fallbackUrl),
       })
+      const hydratedDetails = await hydrateShareDetailsForSelection(input.selection, input.context)
+      if (!hydratedDetails.size) {
+        return payload
+      }
+      payload.items = payload.items.map((item) => {
+        const normalizedId = normalizeResourceId(item.id)
+        if (!normalizedId) {
+          return item
+        }
+        const detail = hydratedDetails.get(normalizedId)
+        if (!detail) {
+          return item
+        }
+        const next = { ...item }
+        if (detail.linkUrl) {
+          next.linkUrl = detail.linkUrl
+        }
+        if (detail.passCode) {
+          next.passCode = detail.passCode
+        }
+        return next
+      })
+      return payload
     },
     async collectHistorySnapshot(input: SiteHistorySnapshotInput) {
       const normalizedUrl = normalizeBackgroundPageUrl(input.pageUrl)
@@ -206,6 +232,107 @@ function mapResourceItem(item: ResourceItem): SiteResourceItem {
     resource.passCode = item.passCode
   }
   return resource
+}
+
+interface HydratedShareDetail {
+  linkUrl?: string
+  passCode?: string
+}
+
+const BAIDU_SHARE_HOST_PATTERN = /pan\.baidu\.com/i
+
+async function hydrateShareDetailsForSelection(
+  selection: SiteResourceItem[],
+  context: TransferContext,
+): Promise<Map<string, HydratedShareDetail>> {
+  const hydrated = new Map<string, HydratedShareDetail>()
+  for (const item of selection) {
+    const normalizedId = normalizeResourceId(item.id)
+    if (!normalizedId) {
+      continue
+    }
+    const linkUrl = typeof item.linkUrl === 'string' ? item.linkUrl.trim() : ''
+    const passCode = typeof item.passCode === 'string' ? item.passCode.trim() : ''
+    if (isBaiduShareLink(linkUrl)) {
+      hydrated.set(normalizedId, { linkUrl, passCode })
+      continue
+    }
+    if (!linkUrl) {
+      continue
+    }
+    const detailUrl = resolveDetailUrl(linkUrl, context)
+    if (!detailUrl || !detailUrl.includes('/links/')) {
+      continue
+    }
+    const detail = await fetchShareDetail(detailUrl)
+    if (!detail) {
+      continue
+    }
+    hydrated.set(normalizedId, {
+      linkUrl: detail.linkUrl,
+      passCode: detail.passCode || passCode,
+    })
+  }
+  return hydrated
+}
+
+function isBaiduShareLink(linkUrl: string | null | undefined): boolean {
+  if (!linkUrl) {
+    return false
+  }
+  return BAIDU_SHARE_HOST_PATTERN.test(linkUrl)
+}
+
+function normalizeResourceId(id: unknown): string | null {
+  if (typeof id === 'string' && id.trim()) {
+    return id.trim()
+  }
+  if (typeof id === 'number' && Number.isFinite(id)) {
+    return String(id)
+  }
+  return null
+}
+
+function resolveDetailUrl(linkUrl: string, context: TransferContext): string | null {
+  const baseUrl =
+    (typeof context.url === 'string' && context.url) ||
+    (typeof window !== 'undefined' && typeof window.location?.href === 'string'
+      ? window.location.href
+      : '')
+  try {
+    const resolved = baseUrl ? new URL(linkUrl, baseUrl) : new URL(linkUrl)
+    resolved.hash = ''
+    return resolved.toString()
+  } catch {
+    return linkUrl || null
+  }
+}
+
+async function fetchShareDetail(detailUrl: string): Promise<LinkParseResult | null> {
+  try {
+    const response = await fetch(detailUrl, { credentials: 'include' })
+    if (!response.ok) {
+      chaosLogger.warn('[Pan Transfer] Chaospace detail request failed', {
+        detailUrl,
+        status: response.status,
+      })
+      return null
+    }
+    const html = await response.text()
+    const parsed = parseLinkPage(html)
+    if (!parsed || !parsed.linkUrl) {
+      chaosLogger.warn('[Pan Transfer] Chaospace detail missing Baidu share link', { detailUrl })
+      return null
+    }
+    return parsed
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    chaosLogger.warn('[Pan Transfer] Failed to hydrate Chaospace share link', {
+      detailUrl,
+      message,
+    })
+    return null
+  }
 }
 
 async function collectChaospaceHistorySnapshot(

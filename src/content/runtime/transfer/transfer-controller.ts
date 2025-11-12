@@ -7,6 +7,11 @@ import { computeItemTargetPath, getTargetPath } from '../../services/season-mana
 import { normalizePageUrl } from '@/providers/sites/chaospace/page-analyzer'
 import { showToast } from '../../components/toast'
 import type { TabSeasonPreferenceController } from '../../services/tab-season-preference'
+import { getContentProviderRegistry } from '@/content/providers/registry'
+import type { SiteResourceItem, TransferContext } from '@/platform/registry'
+import type { TransferJobMeta, TransferRequestPayload } from '@/shared/types/transfer'
+import { chaosLogger } from '@/shared/log'
+import { CHAOSPACE_SITE_PROVIDER_ID } from '@/providers/sites/chaospace/chaospace-site-provider'
 
 export interface TransferController {
   handleTransfer: () => Promise<void>
@@ -14,9 +19,250 @@ export interface TransferController {
   setControlsDisabled: (disabled: boolean) => void
 }
 
+async function composeTransferRequestPayload(
+  selectedItems: ResourceItem[],
+  targetDirectory: string,
+): Promise<TransferRequestPayload> {
+  const providerPayload = await buildSiteProviderPayload(selectedItems)
+  const items = buildTransferItems(selectedItems, targetDirectory, providerPayload)
+  const origin = resolveTransferOrigin(providerPayload?.origin)
+  const meta = buildTransferMeta(selectedItems.length, targetDirectory, providerPayload?.meta)
+  const payload: TransferRequestPayload = {
+    origin,
+    items,
+    targetDirectory,
+    meta,
+  }
+  if (state.jobId) {
+    payload.jobId = state.jobId
+  }
+  return payload
+}
+
+async function buildSiteProviderPayload(
+  selectedItems: ResourceItem[],
+): Promise<TransferRequestPayload | null> {
+  if (!selectedItems.length) {
+    return null
+  }
+  const providerId = resolveTransferSiteProviderId()
+  if (!providerId) {
+    return null
+  }
+  const provider = providerRegistry.getSiteProvider(providerId)
+  if (!provider || typeof provider.buildTransferPayload !== 'function') {
+    return null
+  }
+  const documentRef = typeof document !== 'undefined' ? document : null
+  const selection: SiteResourceItem[] = selectedItems.map((item, index) =>
+    mapResourceItemToSiteResource(item, index),
+  )
+  const context: TransferContext = {
+    url: coerceString(state.pageUrl) ?? (typeof window !== 'undefined' ? window.location.href : ''),
+    document: documentRef,
+    timestamp: Date.now(),
+    siteProviderId: providerId,
+    extras: {
+      origin: resolveTransferOrigin(),
+      pageTitle: coerceString(state.pageTitle) || (documentRef?.title ?? ''),
+    },
+  }
+  try {
+    return (await provider.buildTransferPayload({ context, selection })) ?? null
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'unknown error'
+    chaosLogger.warn('[Pan Transfer] Provider transfer payload build failed', {
+      providerId,
+      message,
+    })
+    return null
+  }
+}
+
+function buildTransferItems(
+  selectedItems: ResourceItem[],
+  targetDirectory: string,
+  providerPayload: TransferRequestPayload | null,
+): TransferRequestPayload['items'] {
+  const providerItems = buildProviderItemMap(providerPayload?.items)
+  return selectedItems.map((item) => {
+    const normalizedId = normalizeItemId(item.id)
+    const providerItem = normalizedId ? providerItems.get(normalizedId) : null
+    const linkUrl = coerceString(providerItem?.linkUrl) ?? coerceString(item.linkUrl)
+    const passCode = coerceString(providerItem?.passCode) ?? coerceString(item.passCode)
+    const payloadItem: TransferRequestPayload['items'][number] = {
+      id: item.id,
+      title: item.title,
+      targetPath: computeItemTargetPath(item, targetDirectory),
+    }
+    if (linkUrl) {
+      payloadItem.linkUrl = linkUrl
+    }
+    if (passCode) {
+      payloadItem.passCode = passCode
+    }
+    return payloadItem
+  })
+}
+
+function buildProviderItemMap(
+  items: TransferRequestPayload['items'] | undefined,
+): Map<string, TransferRequestPayload['items'][number]> {
+  const map = new Map<string, TransferRequestPayload['items'][number]>()
+  if (!items) {
+    return map
+  }
+  items.forEach((item) => {
+    const normalizedId = normalizeItemId(item.id)
+    if (normalizedId) {
+      map.set(normalizedId, item)
+    }
+  })
+  return map
+}
+
+function buildTransferMeta(
+  total: number,
+  targetDirectory: string,
+  providerMeta: TransferRequestPayload['meta'] | undefined,
+): TransferJobMeta {
+  const meta: TransferJobMeta = {
+    ...(providerMeta ?? {}),
+    total,
+  }
+  meta.baseDir = state.baseDir
+  meta.useTitleSubdir = state.useTitleSubdir
+  meta.useSeasonSubdir = state.useSeasonSubdir
+  meta.pageTitle = meta.pageTitle || coerceString(state.pageTitle) || (document?.title ?? '')
+  meta.pageUrl =
+    meta.pageUrl || coerceString(state.pageUrl) || normalizePageUrl(window.location.href)
+  meta.pageType = meta.pageType || (state.items.length > 1 ? 'series' : 'movie')
+  meta.targetDirectory = targetDirectory
+  meta.seasonDirectory = state.useSeasonSubdir ? { ...(state.seasonDirMap || {}) } : null
+  const mergedSeasonCompletion = {
+    ...(providerMeta?.seasonCompletion ?? {}),
+    ...(state.seasonCompletion ?? {}),
+  }
+  meta.seasonCompletion = mergedSeasonCompletion
+  if (state.completion !== undefined) {
+    meta.completion = state.completion ?? null
+  } else if (meta.completion === undefined) {
+    meta.completion = null
+  }
+  if (Array.isArray(state.seasonEntries) && state.seasonEntries.length) {
+    meta.seasonEntries = [...state.seasonEntries]
+  } else if (!meta.seasonEntries) {
+    meta.seasonEntries = providerMeta?.seasonEntries ?? []
+  }
+  if (state.poster?.src) {
+    meta.poster = { src: state.poster.src, alt: state.poster.alt || '' }
+  } else if (!meta.poster) {
+    meta.poster = null
+  }
+  const providerId =
+    coerceString(meta.siteProviderId) ||
+    coerceString(state.activeSiteProviderId) ||
+    coerceString(state.manualSiteProviderId)
+  if (providerId) {
+    meta.siteProviderId = providerId
+  } else {
+    delete meta.siteProviderId
+  }
+  const providerLabel =
+    coerceString(meta.siteProviderLabel) || coerceString(state.activeSiteProviderLabel)
+  if (providerLabel) {
+    meta.siteProviderLabel = providerLabel
+  } else {
+    delete meta.siteProviderLabel
+  }
+  return meta
+}
+
+function resolveTransferOrigin(candidate?: string): string {
+  const resolved = coerceString(candidate)
+  if (resolved) {
+    return resolved
+  }
+  if (coerceString(state.origin)) {
+    return state.origin
+  }
+  return typeof window !== 'undefined' && window.location?.origin ? window.location.origin : ''
+}
+
+function resolveTransferSiteProviderId(): string | null {
+  const active = coerceString(state.activeSiteProviderId)
+  if (active) {
+    return active
+  }
+  const manual = coerceString(state.manualSiteProviderId)
+  if (manual) {
+    return manual
+  }
+  return CHAOSPACE_SITE_PROVIDER_ID
+}
+
+function mapResourceItemToSiteResource(item: ResourceItem, index: number): SiteResourceItem {
+  const resource: SiteResourceItem = {
+    id: normalizeItemId(item.id) ?? `resource-${index + 1}`,
+    title: coerceString(item.title) || `资源 ${index + 1}`,
+  }
+  const linkUrl = coerceString(item.linkUrl)
+  if (linkUrl) {
+    resource.linkUrl = linkUrl
+  }
+  const passCode = coerceString(item.passCode)
+  if (passCode) {
+    resource.passCode = passCode
+  }
+  if (Array.isArray(item.tags) && item.tags.length) {
+    resource.tags = item.tags
+      .map((tag) => coerceString(tag))
+      .filter((tag): tag is string => Boolean(tag))
+  }
+  const meta: Record<string, unknown> = {}
+  if (typeof item.order === 'number' && Number.isFinite(item.order)) {
+    meta['order'] = item.order
+  }
+  if (item.seasonId) {
+    meta['seasonId'] = item.seasonId
+  }
+  if (item.seasonLabel) {
+    meta['seasonLabel'] = item.seasonLabel
+  }
+  if (typeof item.seasonIndex === 'number' && Number.isFinite(item.seasonIndex)) {
+    meta['seasonIndex'] = item.seasonIndex
+  }
+  if (item.seasonUrl) {
+    meta['seasonUrl'] = item.seasonUrl
+  }
+  if (item.seasonCompletion !== undefined) {
+    meta['seasonCompletion'] = item.seasonCompletion
+  }
+  if (Object.keys(meta).length) {
+    resource.meta = meta
+  }
+  return resource
+}
+
+function normalizeItemId(id: unknown): string | null {
+  if (typeof id === 'string' && id.trim()) {
+    return id.trim()
+  }
+  if (typeof id === 'number' && Number.isFinite(id)) {
+    return String(id)
+  }
+  return null
+}
+
+function coerceString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
 type HistoryController = ReturnType<typeof createHistoryController>
 type PanelPreferencesController = ReturnType<typeof createPanelPreferencesController>
 type LoggingController = ReturnType<typeof createLoggingController>
+
+const providerRegistry = getContentProviderRegistry()
 
 interface TransferResponsePayload {
   ok: boolean
@@ -140,35 +386,7 @@ export function createTransferController(deps: {
     setControlsDisabled(true)
 
     try {
-      const payload = {
-        jobId: state.jobId,
-        origin: state.origin || window.location.origin,
-        items: selectedItems.map((item) => ({
-          id: item.id,
-          title: item.title,
-          targetPath: computeItemTargetPath(item, targetDirectory),
-        })),
-        targetDirectory,
-        meta: {
-          total: selectedItems.length,
-          baseDir: state.baseDir,
-          useTitleSubdir: state.useTitleSubdir,
-          useSeasonSubdir: state.useSeasonSubdir,
-          pageTitle: state.pageTitle,
-          pageUrl: state.pageUrl || normalizePageUrl(window.location.href),
-          pageType: state.items.length > 1 ? 'series' : 'movie',
-          targetDirectory,
-          seasonDirectory: state.useSeasonSubdir ? { ...state.seasonDirMap } : null,
-          completion: state.completion || null,
-          seasonCompletion: state.seasonCompletion || {},
-          seasonEntries: Array.isArray(state.seasonEntries) ? state.seasonEntries : [],
-          poster: state.poster?.src?.length
-            ? { src: state.poster.src, alt: state.poster.alt || '' }
-            : null,
-          siteProviderId: state.activeSiteProviderId || undefined,
-          siteProviderLabel: state.activeSiteProviderLabel || undefined,
-        },
-      }
+      const payload = await composeTransferRequestPayload(selectedItems, targetDirectory)
 
       logging.pushLog(`向后台发送 ${selectedItems.length} 条转存请求`, {
         stage: 'dispatch',

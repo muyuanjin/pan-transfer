@@ -42,6 +42,14 @@ export interface TransferRequestPayload {
   meta?: TransferJobMeta
 }
 
+export interface HistoryPendingTransfer {
+  jobId: string
+  detectedAt: number
+  summary: string
+  newItemIds: Array<string | number>
+  payload: TransferRequestPayload
+}
+
 export interface TransferResultEntry {
   id: string | number
   title: string
@@ -105,4 +113,5 @@ export interface HistoryRecord {
     skipped: number
     failed: number
   } | null
+  pendingTransfer: HistoryPendingTransfer | null
 }

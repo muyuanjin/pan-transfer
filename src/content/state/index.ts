@@ -54,6 +54,7 @@ function createInitialState(): ContentState {
     historySearchTerm: '',
     historySelectedKeys: new Set<string>(),
     historyBatchRunning: false,
+    historyBatchMode: null,
     historyBatchProgressLabel: '',
     historyRateLimitMs: HISTORY_BATCH_RATE_LIMIT_MS,
     historyDetail: {

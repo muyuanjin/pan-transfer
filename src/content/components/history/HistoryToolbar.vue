@@ -24,6 +24,15 @@
       </button>
       <button
         type="button"
+        class="chaospace-history-primary-btn"
+        data-role="history-batch-transfer"
+        :disabled="batchTransferDisabled"
+        @click="handleBatchTransfer"
+      >
+        {{ batchTransferLabel }}
+      </button>
+      <button
+        type="button"
         class="chaospace-history-ghost-btn"
         data-role="history-delete-selected"
         :disabled="deleteDisabled"
@@ -48,7 +57,11 @@
 import { computed, inject, ref, watch } from 'vue'
 import { useContentStore } from '../../state'
 import { historyContextKey } from '../../runtime/ui/history-context'
-import { filterHistoryGroups, canCheckHistoryGroup } from '../../services/history-service'
+import {
+  filterHistoryGroups,
+  canCheckHistoryGroup,
+  hasHistoryPendingTransfer,
+} from '../../services/history-service'
 import type { HistoryGroup } from '../../types'
 
 const history = inject(historyContextKey)
@@ -98,12 +111,36 @@ const selectableSelectedCount = computed(
     ).length,
 )
 
-const batchCheckLabel = computed(() =>
-  store.historyBatchRunning ? store.historyBatchProgressLabel || '检测中...' : '批量检测更新',
-)
+const batchCheckLabel = computed(() => {
+  if (store.historyBatchRunning && store.historyBatchMode === 'check') {
+    return store.historyBatchProgressLabel || '检测中...'
+  }
+  return '批量检测新篇'
+})
 
 const batchCheckDisabled = computed(
   () => store.historyBatchRunning || selectableSelectedCount.value === 0,
+)
+
+const transferableSelectedCount = computed(
+  () =>
+    filteredGroups.value.filter((group) => {
+      if (!selectedKeys.value.has(group.key)) {
+        return false
+      }
+      return group.records.some((record) => hasHistoryPendingTransfer(record))
+    }).length,
+)
+
+const batchTransferLabel = computed(() => {
+  if (store.historyBatchRunning && store.historyBatchMode === 'transfer') {
+    return store.historyBatchProgressLabel || '转存中...'
+  }
+  return '批量转存新篇'
+})
+
+const batchTransferDisabled = computed(
+  () => store.historyBatchRunning || transferableSelectedCount.value === 0,
 )
 
 const deleteDisabled = computed(() => store.historyBatchRunning || selectedKeys.value.size === 0)
@@ -162,6 +199,13 @@ const handleBatchCheck = (): void => {
     return
   }
   history.handleHistoryBatchCheck()
+}
+
+const handleBatchTransfer = (): void => {
+  if (batchTransferDisabled.value) {
+    return
+  }
+  history.handleHistoryBatchTransfer()
 }
 
 const handleDeleteSelected = (): void => {

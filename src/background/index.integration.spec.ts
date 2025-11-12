@@ -709,6 +709,7 @@ describe('background/content messaging integration', () => {
         skipped: 0,
         failed: 0,
       },
+      pendingTransfer: overrides.pendingTransfer ?? null,
     }
   }
 

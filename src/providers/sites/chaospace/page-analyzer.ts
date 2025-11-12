@@ -17,6 +17,7 @@ import {
   normalizeSeasonLabel as normalizeSeasonLabelUtil,
   resolveSeasonOrdinalValue,
 } from '@/shared/utils/chinese-numeral'
+import { canonicalizePageUrl, getDefaultChaospaceBaseUrl } from '@/shared/utils/url'
 import type { DeferredSeasonInfo, ResourceItem } from '@/content/types'
 
 export type MediaClassification = 'movie' | 'tvshow' | 'anime' | 'unknown'
@@ -903,16 +904,13 @@ export function buildPanDirectoryUrl(path: string): string {
 }
 
 export function normalizePageUrl(url: string | null | undefined): string {
-  if (!url) {
-    return window.location.href
-  }
-  try {
-    const normalized = new URL(url, window.location.href)
-    normalized.hash = ''
-    return normalized.toString()
-  } catch {
-    return window.location.href
-  }
+  const baseUrl =
+    (typeof window !== 'undefined' && window.location?.href) || getDefaultChaospaceBaseUrl()
+  return (
+    canonicalizePageUrl(url, { baseUrl, allowFallback: true }) ??
+    canonicalizePageUrl(baseUrl, { baseUrl, allowFallback: true }) ??
+    baseUrl
+  )
 }
 
 export function isTvShowUrl(url: string | null | undefined): boolean {

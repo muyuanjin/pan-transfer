@@ -117,6 +117,16 @@
             >
               {{ entry.checkLabel }}
             </button>
+            <button
+              v-if="entry.hasPendingTransfer"
+              type="button"
+              class="chaospace-history-action chaospace-history-action-transfer"
+              data-action="transfer"
+              :title="entry.pendingSummary || '转存新篇'"
+              @click.stop.prevent="handleTriggerTransfer(entry, $event)"
+            >
+              转存新篇
+            </button>
           </div>
         </div>
         <div
@@ -219,6 +229,16 @@
               >
                 {{ season.checkLabel }}
               </button>
+              <button
+                v-if="season.hasPendingTransfer"
+                type="button"
+                class="chaospace-history-action chaospace-history-action-transfer"
+                data-action="transfer-season"
+                :title="season.pendingSummary || '转存新篇'"
+                @click.stop.prevent="handleSeasonTriggerTransfer(season, $event)"
+              >
+                转存新篇
+              </button>
             </div>
           </div>
         </div>
@@ -229,14 +249,18 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { buildHistoryGroupSeasonRows } from '../../services/history-service'
-import type { HistoryGroup, HistoryGroupSeasonRow } from '../../types'
+import {
+  buildHistoryGroupSeasonRows,
+  getHistoryPendingTransfer,
+} from '../../services/history-service'
+import type { ContentHistoryRecord, HistoryGroup, HistoryGroupSeasonRow } from '../../types'
 import {
   deriveHistoryGroupMeta,
   deriveSeasonRow,
   resolveHistoryPanInfo,
   type HistoryStatusBadge,
 } from './history-card.helpers'
+import { resolveHistoryCheckTargets } from '@/content/history/history-check.helpers'
 import { useHistoryListActions } from '../../runtime/ui/history-context'
 
 const props = defineProps<{
@@ -263,6 +287,10 @@ interface DerivedSeasonView {
   checkDisabled: boolean
   checkDisabledReason: string | null
   poster: HistoryGroupSeasonRow['poster'] | null
+  hasItems: boolean
+  loaded: boolean
+  hasPendingTransfer: boolean
+  pendingSummary: string | null
 }
 
 interface DerivedEntryView {
@@ -282,6 +310,9 @@ interface DerivedEntryView {
   checkDisabled: boolean
   checkDisabledReason: string | null
   poster: HistoryGroup['poster'] | null
+  hasPendingTransfer: boolean
+  pendingSummary: string | null
+  pendingRecord: ContentHistoryRecord | null
 }
 
 const derivedEntries = computed<DerivedEntryView[]>(() => {
@@ -312,6 +343,7 @@ const derivedEntries = computed<DerivedEntryView[]>(() => {
         checkDisabledReason = 'completed'
       }
       const badgeClass = buildStatusBadgeClass(derived.statusBadge)
+      const pendingTransfer = getHistoryPendingTransfer(row.record)
       return {
         row,
         timestampLabel: derived.timestampLabel ? `更新于 ${derived.timestampLabel}` : '',
@@ -322,6 +354,10 @@ const derivedEntries = computed<DerivedEntryView[]>(() => {
         checkDisabled,
         checkDisabledReason,
         poster: row.poster || null,
+        hasItems: Boolean(row.hasItems),
+        loaded: Boolean(row.loaded),
+        hasPendingTransfer: Boolean(pendingTransfer),
+        pendingSummary: pendingTransfer?.summary || null,
       }
     })
     const seasonExpanded = expandedSet.value.has(group.key)
@@ -345,6 +381,38 @@ const derivedEntries = computed<DerivedEntryView[]>(() => {
       }
     }
 
+    const mainPendingTransfer = getHistoryPendingTransfer(mainRecord)
+    let pendingRecord: ContentHistoryRecord | null = null
+    let pendingSummary: string | null = null
+    if (mainPendingTransfer) {
+      pendingRecord = mainRecord
+      pendingSummary = mainPendingTransfer.summary || null
+    } else {
+      const pendingSeason = seasonRows.find(
+        (season) => season.hasPendingTransfer && season.row.record,
+      )
+      if (pendingSeason && pendingSeason.row.record) {
+        pendingRecord = pendingSeason.row.record
+        pendingSummary =
+          pendingSeason.pendingSummary && pendingSeason.row.label
+            ? `${pendingSeason.row.label} · ${pendingSeason.pendingSummary}`
+            : pendingSeason.pendingSummary || pendingSeason.row.label || null
+      }
+    }
+    if (!pendingRecord && Array.isArray(group.children)) {
+      for (const childRecord of group.children) {
+        if (!childRecord || childRecord === mainRecord) {
+          continue
+        }
+        const childPending = getHistoryPendingTransfer(childRecord)
+        if (childPending) {
+          pendingRecord = childRecord
+          pendingSummary = childPending.summary || null
+          break
+        }
+      }
+    }
+
     return {
       group,
       title:
@@ -365,6 +433,9 @@ const derivedEntries = computed<DerivedEntryView[]>(() => {
       checkDisabled,
       checkDisabledReason,
       poster: group.poster || null,
+      hasPendingTransfer: Boolean(pendingRecord),
+      pendingSummary: pendingSummary,
+      pendingRecord,
     }
   })
 })
@@ -431,14 +502,71 @@ function handleHeaderClick(entry: DerivedEntryView, event: Event): void {
   handleGroupDetail(entry, event)
 }
 
-function handleTriggerUpdate(entry: DerivedEntryView, event: Event): void {
+async function handleTriggerUpdate(entry: DerivedEntryView, event: Event): Promise<void> {
   const button = event.currentTarget as HTMLButtonElement | null
-  const pageUrl =
-    typeof entry.mainRecord.pageUrl === 'string' ? entry.mainRecord.pageUrl.trim() : ''
-  if (!pageUrl) {
+  const targets = resolveHistoryCheckTargets({
+    pageUrl: typeof entry.mainRecord.pageUrl === 'string' ? entry.mainRecord.pageUrl : '',
+    seasons: entry.seasonRows.map((season) => ({
+      url: season.row.url,
+      seasonIndex: season.row.seasonIndex,
+      recordTimestamp: season.row.recordTimestamp,
+      disabled: season.checkDisabled,
+      hasItems: season.hasItems,
+      loaded: season.loaded,
+    })),
+  })
+  const uniqueTargets = Array.from(new Set(targets.filter(Boolean)))
+  if (!uniqueTargets.length) {
     return
   }
-  historyActions.triggerHistoryUpdate({ pageUrl, button })
+  let previousText = ''
+  if (button) {
+    previousText = button.textContent || ''
+    button.disabled = true
+    button.textContent = '检测中...'
+  }
+  type HistoryUpdateResult = Awaited<ReturnType<typeof historyActions.triggerHistoryUpdate>>
+  let finalResponse: HistoryUpdateResult | null = null
+  try {
+    for (let index = 0; index < uniqueTargets.length; index += 1) {
+      const pageUrl = uniqueTargets[index]!
+      const response = await historyActions.triggerHistoryUpdate({
+        pageUrl,
+        button: null,
+      })
+      if (!response) {
+        continue
+      }
+      finalResponse = response
+      if (response.ok === false) {
+        continue
+      }
+      if (response.hasUpdates || response.reason === 'completed') {
+        break
+      }
+    }
+  } finally {
+    if (button) {
+      if (finalResponse?.reason === 'completed') {
+        button.disabled = true
+        button.textContent = '已完结'
+      } else {
+        button.disabled = false
+        button.textContent = previousText || '检测新篇'
+      }
+    }
+  }
+}
+
+async function handleTriggerTransfer(entry: DerivedEntryView, event: Event): Promise<void> {
+  if (!entry.hasPendingTransfer || !entry.pendingRecord) {
+    return
+  }
+  const button = event.currentTarget as HTMLButtonElement | null
+  await historyActions.triggerHistoryTransfer({
+    record: entry.pendingRecord,
+    button,
+  })
 }
 
 function handleSeasonTriggerUpdate(season: DerivedSeasonView, event: Event): void {
@@ -448,6 +576,17 @@ function handleSeasonTriggerUpdate(season: DerivedSeasonView, event: Event): voi
     return
   }
   historyActions.triggerHistoryUpdate({ pageUrl, button })
+}
+
+async function handleSeasonTriggerTransfer(season: DerivedSeasonView, event: Event): Promise<void> {
+  if (!season.hasPendingTransfer || !season.row.record) {
+    return
+  }
+  const button = event.currentTarget as HTMLButtonElement | null
+  await historyActions.triggerHistoryTransfer({
+    record: season.row.record,
+    button,
+  })
 }
 
 function handlePosterPreview(

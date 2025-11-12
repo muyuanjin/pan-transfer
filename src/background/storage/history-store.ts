@@ -21,12 +21,15 @@ import {
 import { sanitizePosterInfo, type PosterInput } from '@/shared/utils/sanitizers'
 import { normalizePath } from '../utils/path'
 import { buildSurl } from '../utils/share'
+import { canonicalizePageUrl } from '@/shared/utils/url'
 import type {
   HistoryRecord,
   HistoryRecordItem,
+  TransferItemPayload,
   TransferRequestPayload,
   TransferResponsePayload,
   TransferResultEntry,
+  TransferJobMeta,
 } from '@/shared/types/transfer'
 
 const nowTs = (): number => Date.now()
@@ -44,6 +47,19 @@ interface HistoryIndexEntry {
 let historyState: HistoryState | null = null
 let historyLoadPromise: Promise<void> | null = null
 const historyIndexByUrl = new Map<string, HistoryIndexEntry>()
+const HISTORY_URL_FALLBACK = 'https://www.chaospace.cc/'
+
+const toHistoryIndexKey = (value: unknown): string | null => {
+  if (typeof value !== 'string' || !value.trim()) {
+    return null
+  }
+  return (
+    canonicalizePageUrl(value, {
+      baseUrl: HISTORY_URL_FALLBACK,
+      allowFallback: false,
+    }) ?? null
+  )
+}
 
 function createDefaultHistoryRecord(pageUrl: string): HistoryRecord {
   return {
@@ -68,6 +84,7 @@ function createDefaultHistoryRecord(pageUrl: string): HistoryRecord {
     items: {},
     itemOrder: [],
     lastResult: null,
+    pendingTransfer: null,
   }
 }
 
@@ -78,15 +95,46 @@ function createDefaultHistoryState(): HistoryState {
   }
 }
 
+function appendIndexEntry(
+  record: HistoryRecord,
+  candidateUrl: string | null | undefined,
+  index: number,
+  seen: Set<string>,
+): void {
+  const key = toHistoryIndexKey(candidateUrl)
+  if (!key || seen.has(key)) {
+    return
+  }
+  seen.add(key)
+  historyIndexByUrl.set(key, { index, record })
+}
+
+function collectRecordAliasUrls(record: HistoryRecord): string[] {
+  const urls: string[] = []
+  if (Array.isArray(record.seasonEntries)) {
+    record.seasonEntries.forEach((entry) => {
+      if (entry?.url) {
+        urls.push(entry.url)
+      }
+    })
+  }
+  return urls
+}
+
 function rebuildHistoryIndex(): void {
   historyIndexByUrl.clear()
   if (!historyState || !Array.isArray(historyState.records)) {
     return
   }
+  const seen = new Set<string>()
   historyState.records.forEach((record, index) => {
-    if (record && typeof record.pageUrl === 'string' && record.pageUrl) {
-      historyIndexByUrl.set(record.pageUrl, { index, record })
+    if (!record) {
+      return
     }
+    appendIndexEntry(record, record.pageUrl, index, seen)
+    collectRecordAliasUrls(record).forEach((url) => {
+      appendIndexEntry(record, url, index, seen)
+    })
   })
 }
 
@@ -302,6 +350,78 @@ export function ensureHistoryRecordStructure(
     }
   }
 
+  const pending = record?.pendingTransfer
+  if (pending && typeof pending === 'object') {
+    const jobId = typeof pending.jobId === 'string' ? pending.jobId : ''
+    const detectedAt = Number.isFinite((pending as { detectedAt?: unknown }).detectedAt as number)
+      ? Number((pending as { detectedAt: number }).detectedAt)
+      : 0
+    const summary = typeof pending.summary === 'string' ? pending.summary : ''
+    const newItemIds = Array.isArray(pending.newItemIds)
+      ? pending.newItemIds.filter(
+          (value): value is string | number =>
+            typeof value === 'string' || typeof value === 'number',
+        )
+      : []
+    const payload = pending.payload && typeof pending.payload === 'object' ? pending.payload : null
+    if (jobId && detectedAt > 0 && payload) {
+      const items = Array.isArray(payload.items)
+        ? payload.items
+            .map((item) => {
+              if (!item || typeof item !== 'object') {
+                return null
+              }
+              const idValue = (item as { id?: unknown }).id
+              const titleValue = (item as { title?: unknown }).title
+              const normalizedItemId =
+                typeof idValue === 'string' || typeof idValue === 'number' ? idValue : null
+              if (normalizedItemId === null) {
+                return null
+              }
+              const normalizedItem: TransferItemPayload = {
+                id: normalizedItemId,
+                title: typeof titleValue === 'string' ? titleValue : '',
+              }
+              const targetPath = (item as { targetPath?: unknown }).targetPath
+              if (typeof targetPath === 'string' && targetPath) {
+                normalizedItem.targetPath = targetPath
+              }
+              const linkUrl = (item as { linkUrl?: unknown }).linkUrl
+              if (typeof linkUrl === 'string' && linkUrl) {
+                normalizedItem.linkUrl = linkUrl
+              }
+              const passCode = (item as { passCode?: unknown }).passCode
+              if (typeof passCode === 'string' && passCode) {
+                normalizedItem.passCode = passCode
+              }
+              return normalizedItem
+            })
+            .filter((value): value is TransferItemPayload => Boolean(value))
+        : []
+
+      const normalizedPayload: TransferRequestPayload = {
+        jobId: typeof payload.jobId === 'string' && payload.jobId ? payload.jobId : jobId,
+        items,
+      }
+      if (typeof payload.origin === 'string' && payload.origin) {
+        normalizedPayload.origin = payload.origin
+      }
+      if (typeof payload.targetDirectory === 'string' && payload.targetDirectory) {
+        normalizedPayload.targetDirectory = payload.targetDirectory
+      }
+      if (payload.meta && typeof payload.meta === 'object') {
+        normalizedPayload.meta = { ...(payload.meta as TransferJobMeta) }
+      }
+      normalized.pendingTransfer = {
+        jobId,
+        detectedAt,
+        summary,
+        newItemIds,
+        payload: normalizedPayload,
+      }
+    }
+  }
+
   return normalized
 }
 
@@ -410,15 +530,28 @@ function upsertHistoryRecord(pageUrl: string): { record: HistoryRecord; index: n
   if (!historyState) {
     historyState = createDefaultHistoryState()
   }
-  const existing = historyIndexByUrl.get(pageUrl)
-  if (existing) {
-    return { record: ensureHistoryRecordStructure(existing.record), index: existing.index }
+  const key = toHistoryIndexKey(pageUrl)
+  if (key) {
+    const existing = historyIndexByUrl.get(key)
+    if (existing) {
+      const stored = historyState.records[existing.index]
+      if (stored) {
+        return { record: stored, index: existing.index }
+      }
+      const normalized = ensureHistoryRecordStructure(existing.record)
+      historyState.records[existing.index] = normalized
+      historyIndexByUrl.set(key, { index: existing.index, record: normalized })
+      return { record: normalized, index: existing.index }
+    }
   }
   const record = ensureHistoryRecordStructure(createDefaultHistoryRecord(pageUrl))
   historyState.records.push(record)
-  rebuildHistoryIndex()
   const index = historyState.records.length - 1
-  historyIndexByUrl.set(pageUrl, { index, record })
+  if (key) {
+    historyIndexByUrl.set(key, { index, record })
+  } else {
+    rebuildHistoryIndex()
+  }
   return { record, index }
 }
 
@@ -472,7 +605,11 @@ export async function persistHistoryNow(): Promise<void> {
 }
 
 export function getHistoryRecord(pageUrl: string): HistoryRecord | null {
-  const entry = historyIndexByUrl.get(pageUrl)
+  const key = toHistoryIndexKey(pageUrl)
+  if (!key) {
+    return null
+  }
+  const entry = historyIndexByUrl.get(key)
   return entry ? ensureHistoryRecordStructure(entry.record) : null
 }
 
@@ -592,6 +729,7 @@ export async function recordTransferHistory(
     skipped: skippedCount,
     failed: failedCount,
   }
+  record.pendingTransfer = null
 
   historyState!.records.sort((a, b) => {
     const tsA = a.lastTransferredAt || a.lastCheckedAt || 0

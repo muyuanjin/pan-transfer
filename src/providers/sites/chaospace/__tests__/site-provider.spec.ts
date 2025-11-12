@@ -75,6 +75,7 @@ const HISTORY_RECORD_STUB: HistoryRecord = {
   },
   itemOrder: ['101'],
   lastResult: null,
+  pendingTransfer: null,
 }
 
 describe('createChaospaceSiteProvider', () => {
@@ -121,6 +122,92 @@ describe('createChaospaceSiteProvider', () => {
       pageTitle: 'Sample Show',
       classification: 'tvshow',
       totalSeasons: 1,
+    })
+  })
+
+  it('hydrates share links when building transfer payloads', async () => {
+    const provider = createProvider()
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () =>
+        '<button data-clipboard-text="https://pan.baidu.com/s/1abcDEF?pwd=2333">copy</button>',
+    }) as typeof fetch
+
+    if (!provider.buildTransferPayload) {
+      throw new Error('Chaospace provider is missing buildTransferPayload')
+    }
+    const payload = await provider.buildTransferPayload({
+      context: { url: 'https://www.chaospace.cc/tvshows/1.html' },
+      selection: [
+        {
+          id: '101',
+          title: '示例链接',
+          linkUrl: 'https://www.chaospace.cc/links/101.html',
+        },
+      ],
+    })
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      'https://www.chaospace.cc/links/101.html',
+      expect.objectContaining({ credentials: 'include' }),
+    )
+    expect(payload.items[0]).toMatchObject({
+      linkUrl: 'https://pan.baidu.com/s/1abcDEF?pwd=2333',
+      passCode: '2333',
+    })
+  })
+
+  it('keeps existing Baidu share links without rehydrating', async () => {
+    const provider = createProvider()
+    globalThis.fetch = vi.fn() as typeof fetch
+
+    if (!provider.buildTransferPayload) {
+      throw new Error('Chaospace provider is missing buildTransferPayload')
+    }
+    const payload = await provider.buildTransferPayload({
+      context: { url: 'https://www.chaospace.cc/tvshows/1.html' },
+      selection: [
+        {
+          id: '101',
+          title: '示例链接',
+          linkUrl: 'https://pan.baidu.com/s/existing-share?pwd=7788',
+          passCode: '7788',
+        },
+      ],
+    })
+
+    expect(globalThis.fetch).not.toHaveBeenCalled()
+    expect(payload.items[0]).toMatchObject({
+      linkUrl: 'https://pan.baidu.com/s/existing-share?pwd=7788',
+      passCode: '7788',
+    })
+  })
+
+  it('falls back to the original link if hydration fails', async () => {
+    const provider = createProvider()
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      text: async () => '',
+    }) as typeof fetch
+
+    if (!provider.buildTransferPayload) {
+      throw new Error('Chaospace provider is missing buildTransferPayload')
+    }
+    const payload = await provider.buildTransferPayload({
+      context: { url: 'https://www.chaospace.cc/tvshows/1.html' },
+      selection: [
+        {
+          id: '101',
+          title: '示例链接',
+          linkUrl: 'https://www.chaospace.cc/links/101.html',
+        },
+      ],
+    })
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+    expect(payload.items[0]).toMatchObject({
+      linkUrl: 'https://www.chaospace.cc/links/101.html',
     })
   })
 

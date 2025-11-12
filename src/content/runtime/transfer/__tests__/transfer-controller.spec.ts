@@ -14,6 +14,7 @@ import type { createLoggingController } from '../../../controllers/logging-contr
 import type { TabSeasonPreferenceController } from '../../../services/tab-season-preference'
 import * as toastModule from '../../../components/toast'
 import { bindSeasonManagerDomRefs } from '../../../services/season-manager'
+import type { TransferRequestPayload } from '@/shared/types/transfer'
 
 type LoggingController = ReturnType<typeof createLoggingController>
 type PanelPreferencesController = ReturnType<typeof createPanelPreferencesController>
@@ -260,6 +261,32 @@ describe('transfer-controller', () => {
       expect.stringContaining('转存成功'),
       expect.stringContaining('/Volumes/transfer'),
       expect.objectContaining({ success: 1, failed: 0, skipped: 0 }),
+    )
+  })
+
+  it('includes cached provider payload fields when dispatching transfers', async () => {
+    const { controller } = setupController()
+    const resource: ResourceItem = {
+      id: 'item-link',
+      title: 'Episode Link',
+      order: 1,
+      linkUrl: 'https://pan.baidu.com/s/1abc',
+      passCode: 'a1b2',
+    }
+    seedSelectedItems([resource], ['item-link'])
+    chromeSendMessage.mockResolvedValue({
+      ok: true,
+      summary: 'done',
+      results: [{ status: 'success' }],
+    })
+
+    await controller.handleTransfer()
+
+    const firstCall = chromeSendMessage.mock.calls[0]?.[0] as
+      | { payload?: TransferRequestPayload }
+      | undefined
+    expect(firstCall?.payload?.items?.[0]).toEqual(
+      expect.objectContaining({ linkUrl: resource.linkUrl, passCode: resource.passCode }),
     )
   })
 

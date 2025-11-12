@@ -10,7 +10,7 @@ function createHistoryStub() {
     setHistorySelection: vi.fn(),
     setHistorySeasonExpanded: vi.fn(),
     openHistoryDetail: vi.fn(),
-    triggerHistoryUpdate: vi.fn(),
+    triggerHistoryUpdate: vi.fn().mockResolvedValue(null),
     toggleHistoryExpanded: vi.fn(),
   }
   return {
@@ -82,11 +82,15 @@ describe('history-context action handlers', () => {
     expect(openWindow).toHaveBeenCalledWith('https://pan.example.com/root', '_blank', 'noopener')
   })
 
-  it('triggers update checks with sanitized URLs', () => {
+  it('triggers update checks with sanitized URLs', async () => {
     const handlers = buildHandlers()
     const button = document.createElement('button')
-    handlers.triggerHistoryUpdate({ pageUrl: ' https://example.com ', button })
-    expect(spies.triggerHistoryUpdate).toHaveBeenCalledWith('https://example.com', button)
+    await handlers.triggerHistoryUpdate({ pageUrl: ' https://example.com ', button })
+    expect(spies.triggerHistoryUpdate).toHaveBeenCalledWith(
+      'https://example.com',
+      button,
+      undefined,
+    )
   })
 
   it('previews posters only when src exists', () => {

@@ -7,14 +7,18 @@ import {
   persistHistoryNow,
 } from '../storage/history-store'
 import type { SiteProvider } from '@/platform/registry'
-import type { HistoryDetail, SiteHistorySnapshot } from '@/shared/types/history'
+import type {
+  HistoryDetail,
+  HistorySnapshotItem,
+  SiteHistorySnapshot,
+} from '@/shared/types/history'
 import {
   mergeCompletionStatus,
   mergeSeasonCompletionMap,
   normalizeSeasonEntries,
   type CompletionStatus,
 } from '@/shared/utils/completion-status'
-import { dispatchTransferPayload } from '../providers/pipeline'
+import { canonicalizePageUrl } from '@/shared/utils/url'
 import { getBackgroundProviderRegistry } from '../providers/registry'
 import { CHAOSPACE_SITE_PROVIDER_ID } from '@/providers/sites/chaospace/chaospace-site-provider'
 import type {
@@ -31,6 +35,108 @@ interface HistoryProviderDescriptor {
 }
 
 const nowTs = (): number => Date.now()
+const SEASON_URL_PATTERN = /\/seasons\/(\d+)\.html/i
+
+const coerceSeasonId = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null
+  }
+  const trimmed = value.trim()
+  return trimmed || null
+}
+
+const matchSeasonIdFromUrl = (url: string | null | undefined): string | null => {
+  if (!url) {
+    return null
+  }
+  const match = SEASON_URL_PATTERN.exec(url)
+  return match?.[1] || null
+}
+
+const normalizeHistoryLookupKey = (url: string | null | undefined): string | null => {
+  if (typeof url !== 'string') {
+    return null
+  }
+  return canonicalizePageUrl(url, { allowFallback: false })
+}
+
+const buildSeasonIdHints = (record: HistoryRecord, snapshot: SiteHistorySnapshot): string[] => {
+  const hints = new Set<string>()
+  const add = (candidate: unknown): void => {
+    const id = coerceSeasonId(candidate)
+    if (id) {
+      hints.add(id)
+    }
+  }
+  add(matchSeasonIdFromUrl(snapshot.pageUrl || record.pageUrl))
+  ;(snapshot.seasonEntries || []).forEach((entry) => add(entry?.seasonId))
+  ;(record.seasonEntries || []).forEach((entry) => add(entry?.seasonId))
+  Object.keys(record.seasonDirectory || {}).forEach((key) => add(key))
+  return Array.from(hints)
+}
+
+const joinSeasonPath = (baseDir: string, segment: string): string => {
+  const normalizedBase = normalizeHistoryPath(baseDir || '/', '/')
+  const cleanedSegment = segment
+    .replace(/\\/g, '/')
+    .replace(/\/+/g, '/')
+    .replace(/^\/+/g, '')
+    .replace(/\/+$/g, '')
+  if (!cleanedSegment) {
+    return normalizedBase
+  }
+  return normalizedBase === '/' ? `/${cleanedSegment}` : `${normalizedBase}/${cleanedSegment}`
+}
+
+const resolveSeasonDirectoryPath = (
+  record: HistoryRecord,
+  seasonId: string,
+  defaultTarget: string,
+): string | null => {
+  if (!record.seasonDirectory || !seasonId) {
+    return null
+  }
+  const raw = record.seasonDirectory[seasonId]
+  if (typeof raw !== 'string') {
+    return null
+  }
+  const trimmed = raw.trim()
+  if (!trimmed) {
+    return null
+  }
+  if (trimmed.startsWith('/')) {
+    return normalizeHistoryPath(trimmed, defaultTarget || '/')
+  }
+  return joinSeasonPath(defaultTarget || '/', trimmed)
+}
+
+const computeHistoryItemTargetPath = (
+  item: HistorySnapshotItem,
+  record: HistoryRecord,
+  defaultTarget: string,
+  seasonHints: string[],
+): string => {
+  if (!record.useSeasonSubdir) {
+    return defaultTarget
+  }
+  const candidates: string[] = []
+  const seasonId = coerceSeasonId((item as { seasonId?: string }).seasonId)
+  if (seasonId) {
+    candidates.push(seasonId)
+  }
+  seasonHints.forEach((id) => {
+    if (!seasonId || id !== seasonId) {
+      candidates.push(id)
+    }
+  })
+  for (const candidate of candidates) {
+    const mapped = resolveSeasonDirectoryPath(record, candidate, defaultTarget)
+    if (mapped) {
+      return mapped
+    }
+  }
+  return defaultTarget
+}
 
 interface HistoryDetailPayload {
   pageUrl?: string
@@ -47,13 +153,14 @@ export async function handleHistoryDetail(payload: HistoryDetailPayload = {}): P
   }
   await ensureHistoryLoaded()
   const historyIndex = getHistoryIndexMap()
-  const entry = historyIndex.get(pageUrl)
+  const lookupKey = normalizeHistoryLookupKey(pageUrl)
+  const entry = lookupKey ? historyIndex.get(lookupKey) : undefined
   const record = entry?.record ? ensureHistoryRecordStructure(entry.record) : null
   const providerInfo = await resolveHistoryRecordProvider(record, pageUrl)
   const detail = await collectHistoryDetailForPage(pageUrl, providerInfo)
   return {
     ok: true,
-    pageUrl,
+    pageUrl: record?.pageUrl || pageUrl,
     detail,
   }
 }
@@ -143,6 +250,24 @@ async function resolveHistoryRecordProvider(
   }
 }
 
+type SnapshotCollector = (
+  pageUrl: string,
+  record: HistoryRecord,
+  providerInfo: HistoryProviderDescriptor,
+) => Promise<SiteHistorySnapshot>
+
+let snapshotCollectorOverride: SnapshotCollector | null = null
+
+export const historyServiceTestHooks = {
+  setSnapshotCollector(collector: SnapshotCollector | null): void {
+    snapshotCollectorOverride = collector
+  },
+}
+
+function getSnapshotCollector(): SnapshotCollector {
+  return snapshotCollectorOverride ?? collectHistorySnapshotForRecord
+}
+
 async function collectHistorySnapshotForRecord(
   pageUrl: string,
   record: HistoryRecord,
@@ -197,20 +322,26 @@ export async function handleCheckUpdates(
   }
   await ensureHistoryLoaded()
   const historyIndex = getHistoryIndexMap()
-  const entry = historyIndex.get(pageUrl)
+  const lookupKey = normalizeHistoryLookupKey(pageUrl)
+  const entry = lookupKey ? historyIndex.get(lookupKey) : undefined
   if (!entry || !entry.record) {
     throw new Error('未找到该页面的历史记录')
   }
-  const record = ensureHistoryRecordStructure(entry.record)
+  const record = entry.record
   const knownIds = new Set(Object.keys(record.items || {}))
   const timestamp = nowTs()
   const providerInfo = await resolveHistoryRecordProvider(record, pageUrl)
+  chaosLogger.info('[Pan Transfer] Detection started', {
+    pageUrl: record.pageUrl || pageUrl,
+    providerId: providerInfo.providerId,
+    knownItems: knownIds.size,
+  })
   let snapshot: SiteHistorySnapshot
   try {
-    snapshot = await collectHistorySnapshotForRecord(pageUrl, record, providerInfo)
+    snapshot = await getSnapshotCollector()(pageUrl, record, providerInfo)
   } catch (error) {
     chaosLogger.info('[Pan Transfer] Provider snapshot unavailable, skipping history update', {
-      pageUrl,
+      pageUrl: record.pageUrl || pageUrl,
       providerId: providerInfo.providerId,
       error,
     })
@@ -219,7 +350,7 @@ export async function handleCheckUpdates(
     return {
       ok: true,
       hasUpdates: false,
-      pageUrl,
+      pageUrl: record.pageUrl || pageUrl,
       pageTitle: record.pageTitle || '',
       totalKnown: knownIds.size,
       latestCount: knownIds.size,
@@ -265,26 +396,18 @@ export async function handleCheckUpdates(
   }
 
   const newItems = snapshot.items.filter((item) => !knownIds.has(String(item.id)))
+  const hasNewItems = newItems.length > 0
 
-  if (record.completion && record.completion.state === 'completed') {
+  if (!hasNewItems) {
     record.lastCheckedAt = timestamp
     await persistHistoryNow()
-    return {
-      ok: true,
-      hasUpdates: false,
-      pageUrl,
-      pageTitle: snapshot.pageTitle || record.pageTitle || '',
-      totalKnown: knownIds.size,
+    chaosLogger.info('[Pan Transfer] Detection finished with no updates', {
+      pageUrl: record.pageUrl || pageUrl,
+      providerId: normalizedProviderId,
+      knownItems: knownIds.size,
       latestCount: snapshot.items.length,
-      reason: 'completed',
-      completion: record.completion,
-    }
-  }
-
-  if (!newItems.length) {
-    record.lastCheckedAt = timestamp
-    await persistHistoryNow()
-    return {
+    })
+    const result: CheckUpdatesResult = {
       ok: true,
       hasUpdates: false,
       pageUrl,
@@ -293,6 +416,10 @@ export async function handleCheckUpdates(
       latestCount: snapshot.items.length,
       completion: record.completion,
     }
+    if (record.completion && record.completion.state === 'completed') {
+      result.reason = 'completed'
+    }
+    return result
   }
 
   const targetDirectory = normalizeHistoryPath(
@@ -308,10 +435,12 @@ export async function handleCheckUpdates(
     }
   }
 
+  const seasonHints = buildSeasonIdHints(record, snapshot)
   const jobId = `update-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
   const meta: TransferJobMeta & { trigger: string; total: number } = {
     baseDir: normalizeHistoryPath(record.baseDir || targetDirectory),
-    useTitleSubdir: false,
+    useTitleSubdir: Boolean(record.useTitleSubdir),
+    useSeasonSubdir: Boolean(record.useSeasonSubdir),
     pageTitle: snapshot.pageTitle || record.pageTitle || '',
     pageUrl,
     pageType: record.pageType || snapshot.pageType || 'series',
@@ -321,6 +450,19 @@ export async function handleCheckUpdates(
     poster: record.poster || null,
     trigger: 'history-update',
     total: newItems.length,
+  }
+  if (
+    record.useSeasonSubdir &&
+    record.seasonDirectory &&
+    Object.keys(record.seasonDirectory).length
+  ) {
+    meta.seasonDirectory = { ...record.seasonDirectory }
+  }
+  const snapshotSeasonEntries = Array.isArray(snapshot.seasonEntries) ? snapshot.seasonEntries : []
+  if (snapshotSeasonEntries.length) {
+    meta.seasonEntries = snapshotSeasonEntries.slice()
+  } else if (Array.isArray(record.seasonEntries) && record.seasonEntries.length) {
+    meta.seasonEntries = record.seasonEntries.slice()
   }
   const providerIdForMeta = snapshot.providerId || normalizedProviderId
   const providerLabelForMeta = snapshot.providerLabel || normalizedProviderLabel
@@ -337,7 +479,7 @@ export async function handleCheckUpdates(
     items: newItems.map((item) => ({
       id: item.id,
       title: item.title,
-      targetPath: targetDirectory,
+      targetPath: computeHistoryItemTargetPath(item, record, targetDirectory, seasonHints),
       linkUrl: item.linkUrl || '',
       passCode: item.passCode || '',
     })),
@@ -345,22 +487,35 @@ export async function handleCheckUpdates(
     meta,
   }
 
-  const { response: transferResult } = await dispatchTransferPayload(transferPayload)
+  record.lastCheckedAt = timestamp
+  record.pendingTransfer = {
+    jobId,
+    detectedAt: timestamp,
+    summary: `检测到 ${newItems.length} 项待转存`,
+    newItemIds: newItems.map((item) => item.id),
+    payload: transferPayload,
+  }
+  await persistHistoryNow()
+
+  chaosLogger.info('[Pan Transfer] Detection staged new items (no transfer enqueued)', {
+    pageUrl: record.pageUrl || pageUrl,
+    providerId: normalizedProviderId,
+    jobId,
+    stagedItems: newItems.length,
+    targetDirectory,
+  })
 
   const updateResult: CheckUpdatesResult = {
     ok: true,
     hasUpdates: true,
-    pageUrl,
+    pageUrl: record.pageUrl || pageUrl,
     pageTitle: meta.pageTitle || '',
     newItems: newItems.length,
-    summary: transferResult.summary,
-    results: transferResult.results || [],
+    summary: `检测到 ${newItems.length} 项，等待转存`,
     completion: record.completion,
     totalKnown: knownIds.size,
     latestCount: snapshot.items.length,
-  }
-  if (transferResult.jobId) {
-    updateResult.jobId = transferResult.jobId
+    jobId,
   }
   return updateResult
 }

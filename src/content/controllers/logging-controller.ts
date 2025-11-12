@@ -32,6 +32,12 @@ const STAGE_LABEL_MAP: Record<string, string> = {
   rename: '✏️ 重命名',
 }
 
+const LEVEL_EMOJI_MAP: Partial<Record<LogLevel, string>> = {
+  success: '✅',
+  warning: '⚠️',
+  error: '⛔',
+}
+
 const STATUS_EMOJI_MAP: Record<TransferStatus, string> = {
   idle: '🌙',
   running: '⚙️',
@@ -39,13 +45,45 @@ const STATUS_EMOJI_MAP: Record<TransferStatus, string> = {
   error: '⚠️',
 }
 
-function formatStageLabel(stage?: string | null): string {
+function formatStageLabel(stage?: string | null, level?: LogLevel): string {
   if (!stage) {
-    return '📡 进度'
+    return `${resolveLevelEmoji(level) ?? '📡'} 进度`
   }
   const stageKey = String(stage)
-  const base = stageKey.split(':')[0] || stageKey
-  return STAGE_LABEL_MAP[stageKey] || STAGE_LABEL_MAP[base] || stageKey
+  const baseKey = stageKey.split(':')[0] || stageKey
+  const mapped = STAGE_LABEL_MAP[stageKey] || STAGE_LABEL_MAP[baseKey]
+  const parsed = parseStageLabel(mapped, baseKey)
+  const emoji = resolveLevelEmoji(level) ?? parsed.emoji ?? '📡'
+  return `${emoji} ${parsed.label}`
+}
+
+function parseStageLabel(
+  value: string | undefined,
+  fallback: string,
+): { emoji?: string; label: string } {
+  if (!value) {
+    return { label: fallback }
+  }
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return { label: fallback }
+  }
+  const firstSpace = trimmed.indexOf(' ')
+  if (firstSpace > 0) {
+    const emoji = trimmed.slice(0, firstSpace).trim()
+    const label = trimmed.slice(firstSpace + 1).trim() || fallback
+    const normalizedEmoji = emoji || undefined
+    return normalizedEmoji ? { emoji: normalizedEmoji, label } : { label }
+  }
+  return { label: trimmed }
+}
+
+function resolveLevelEmoji(level?: LogLevel): string | undefined {
+  if (!level) {
+    return undefined
+  }
+  const normalized = level as keyof typeof LEVEL_EMOJI_MAP
+  return LEVEL_EMOJI_MAP[normalized]
 }
 
 export function createLoggingController({ state, panelDom, document }: LoggingControllerDeps) {
@@ -66,7 +104,7 @@ export function createLoggingController({ state, panelDom, document }: LoggingCo
       li.className = `chaospace-log-item chaospace-log-${entry.level}`
       li.dataset['logId'] = entry.id
       li.dataset['stage'] = entry.stage || ''
-      const stageLabel = formatStageLabel(entry.stage)
+      const stageLabel = formatStageLabel(entry.stage, entry.level)
       const animationDelay = `${Math.min(index * 40, 200)}ms`
       li.style.setProperty('--chaospace-log-delay', animationDelay)
       li.innerHTML = `

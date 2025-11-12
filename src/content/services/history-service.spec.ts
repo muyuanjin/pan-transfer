@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { ensureHistorySearchTransliterationReady, filterHistoryGroups } from './history-service'
+import {
+  ensureHistorySearchTransliterationReady,
+  filterHistoryGroups,
+  buildHistoryGroupSeasonRows,
+  prepareHistoryRecords,
+} from './history-service'
 import type { HistoryGroup, ContentHistoryRecord } from '../types'
 import type { CompletionStatus, SeasonEntry } from '@/shared/utils/completion-status'
 
@@ -28,6 +33,7 @@ function createHistoryRecord(overrides: Partial<ContentHistoryRecord> = {}): Con
     items: {},
     itemOrder: [],
     lastResult: null,
+    pendingTransfer: null,
     ...overrides,
   }
   return record
@@ -235,5 +241,129 @@ describe('filterHistoryGroups', () => {
 
     expect(result).toHaveLength(1)
     expect(result[0]?.key).toBe('g2')
+  })
+})
+
+describe('prepareHistoryRecords', () => {
+  it('preserves pending transfer payloads so the UI can trigger transfers without reloading', () => {
+    const pending = {
+      jobId: 'job-123',
+      detectedAt: 1710000000000,
+      summary: '检测到 1 项待转存',
+      newItemIds: ['ep-1'],
+      payload: {
+        jobId: 'job-123',
+        origin: 'https://example.com',
+        targetDirectory: '/视频/番剧/示例剧',
+        items: [
+          {
+            id: 'ep-1',
+            title: '第1集',
+            targetPath: '/视频/番剧/示例剧/第1集',
+            linkUrl: 'https://pan.baidu.com/s/abcdef',
+            passCode: '1234',
+          },
+        ],
+      },
+    }
+    const snapshot = JSON.parse(
+      JSON.stringify({
+        records: [
+          {
+            ...createHistoryRecord(),
+            pendingTransfer: pending,
+          },
+        ],
+      }),
+    ) as { records: ContentHistoryRecord[] }
+    const { records } = prepareHistoryRecords(snapshot)
+    const revived = records[0]?.pendingTransfer
+    expect(revived?.jobId).toBe('job-123')
+    expect(revived?.detectedAt).toBe(pending.detectedAt)
+    expect(revived?.payload.items).toHaveLength(1)
+    expect(revived?.payload.items[0]).toMatchObject({ id: 'ep-1', title: '第1集' })
+  })
+
+  it('revives pending transfer payloads stored as object maps instead of arrays', () => {
+    const pending = {
+      jobId: 'job-map',
+      detectedAt: 1720000000000,
+      summary: '检测到 2 项待转存',
+      newItemIds: ['ep-10', 'ep-11'],
+      payload: {
+        jobId: 'job-map',
+        items: {
+          first: {
+            id: 'ep-10',
+            title: '第10集',
+            targetPath: '/视频/番剧/示例剧/第10集',
+            linkUrl: 'https://pan.baidu.com/s/ep10',
+            passCode: 'a10b',
+          },
+          second: {
+            id: 'ep-11',
+            title: '第11集',
+            targetPath: '/视频/番剧/示例剧/第11集',
+            linkUrl: 'https://pan.baidu.com/s/ep11',
+            passCode: 'a11b',
+          },
+        },
+      },
+    }
+    const snapshot = JSON.parse(
+      JSON.stringify({
+        records: [
+          {
+            ...createHistoryRecord(),
+            pendingTransfer: pending,
+          },
+        ],
+      }),
+    ) as { records: ContentHistoryRecord[] }
+    const { records } = prepareHistoryRecords(snapshot)
+    const revived = records[0]?.pendingTransfer
+    expect(revived?.payload.items).toHaveLength(2)
+    expect(revived?.payload.items[0]).toMatchObject({ id: 'ep-10', title: '第10集' })
+  })
+})
+
+describe('buildHistoryGroupSeasonRows', () => {
+  it('includes main record rows when grouped record is a season page', () => {
+    const seasonRecord = createHistoryRecord({
+      pageUrl: 'https://example.com/seasons/101.html',
+      pageTitle: 'S01',
+      seasonEntries: [
+        {
+          seasonId: 's01',
+          seasonIndex: 1,
+          label: '第一季',
+          url: 'https://example.com/seasons/101.html',
+          completion: null,
+          poster: null,
+          loaded: true,
+          hasItems: true,
+        },
+      ] satisfies SeasonEntry[],
+    })
+    const group: HistoryGroup = {
+      key: 'season-group',
+      title: '测试剧集',
+      origin: 'https://example.com',
+      poster: null,
+      updatedAt: Date.now(),
+      siteProviderId: null,
+      siteProviderLabel: null,
+      records: [seasonRecord],
+      main: seasonRecord,
+      children: [],
+      urls: [seasonRecord.pageUrl],
+      seasonEntries: seasonRecord.seasonEntries ?? [],
+    }
+
+    const rows = buildHistoryGroupSeasonRows(group)
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.canCheck).toBe(true)
+    expect(rows[0]?.record).toBe(seasonRecord)
   })
 })

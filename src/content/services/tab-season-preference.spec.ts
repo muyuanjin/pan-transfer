@@ -127,6 +127,41 @@ describe('tab-season-preference controller', () => {
     expect(state.seasonPreferenceScope).toBe('tab')
   })
 
+  it('keeps history-driven preference changes scoped to the current page', async () => {
+    sendMessageMock.mockImplementation((message) => {
+      if ((message as { type?: string }).type === 'chaospace:season-pref:init') {
+        return Promise.resolve({ ok: true, tabId: 11, value: null })
+      }
+      if ((message as { type?: string }).type === 'chaospace:season-pref:update') {
+        return Promise.resolve({ ok: true })
+      }
+      return Promise.resolve({ ok: true })
+    })
+
+    const renderResourceList = vi.fn()
+    const renderPathPreview = vi.fn()
+
+    const controller = createTabSeasonPreferenceController({
+      getFloatingPanel: () => document.createElement('div'),
+      renderResourceList,
+      renderPathPreview,
+      panelDom: panelBaseDirDom,
+    })
+
+    await controller.applyHistorySelection(true)
+
+    expect(sendMessageMock).toHaveBeenCalledTimes(1)
+    expect(sendMessageMock).toHaveBeenCalledWith({ type: 'chaospace:season-pref:init' })
+    expect(sendMessageMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'chaospace:season-pref:update' }),
+    )
+    expect(state.useSeasonSubdir).toBe(true)
+    expect(state.seasonPreferenceScope).toBe('history')
+    expect(panelDom.get('useSeasonCheckbox')?.checked).toBe(true)
+    expect(renderResourceList).toHaveBeenCalled()
+    expect(renderPathPreview).toHaveBeenCalled()
+  })
+
   it('clears session override when matching global default', async () => {
     state.seasonSubdirDefault = false
     sendMessageMock.mockImplementation((message) => {

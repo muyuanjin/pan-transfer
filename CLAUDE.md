@@ -448,8 +448,8 @@ import { normalizePath } from '../utils/path.ts'
 统一使用 `[Pan Transfer]` 前缀:
 
 ```javascript
-console.log('[Pan Transfer] bdstoken response', data)
-console.warn('[Pan Transfer] Failed to load persistent cache', error)
+chaosLogger.log('[Pan Transfer] bdstoken response', data)
+chaosLogger.warn('[Pan Transfer] Failed to load persistent cache', error)
 ```
 
 ### 错误处理

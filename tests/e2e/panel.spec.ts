@@ -742,6 +742,7 @@ function createHistoryRecordSeed(pageUrl: string): HistoryRecord {
       skipped: 0,
       failed: 0,
     },
+    pendingTransfer: null,
   }
 }
 

@@ -45,6 +45,7 @@
   max-height: none;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-gutter: stable;
   border-radius: 14px;
   background: var(--cp-surface-soft);
   border: 1px solid var(--cp-border);

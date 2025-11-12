@@ -58,12 +58,16 @@ export interface HistoryGroupSeasonRow {
   canCheck: boolean
   record: ContentHistoryRecord | null
   recordTimestamp: number
+  hasItems: boolean
+  loaded: boolean
 }
 
 export interface HistoryRecordsPayload {
   records: ContentHistoryRecord[]
   groups: HistoryGroup[]
 }
+
+export type HistoryBatchMode = 'check' | 'transfer' | null
 
 export interface ResourceItem {
   id: string | number
@@ -94,7 +98,7 @@ export interface DeferredSeasonInfo {
 
 export type PanelDockSide = 'left' | 'right'
 
-export type SeasonPreferenceScope = 'default' | 'tab'
+export type SeasonPreferenceScope = 'default' | 'tab' | 'history'
 
 export interface PanelEdgeState {
   isHidden: boolean
@@ -232,6 +236,7 @@ export interface ContentState {
   historySearchTerm: string
   historySelectedKeys: Set<string>
   historyBatchRunning: boolean
+  historyBatchMode: HistoryBatchMode
   historyBatchProgressLabel: string
   historyRateLimitMs: number
   historyDetail: HistoryDetailState

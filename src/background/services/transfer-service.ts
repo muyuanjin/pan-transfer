@@ -945,9 +945,6 @@ export async function handleTransfer(
             total,
             level: 'warning',
           })
-          if (surl) {
-            recordCompletedShare(surl)
-          }
           const skippedEntry: TransferResultEntry = {
             id: item.id,
             title: item.title,

@@ -49,6 +49,7 @@ export interface HistorySnapshotItem {
   title: string
   linkUrl?: string
   passCode?: string
+  seasonId?: string
 }
 
 export interface SiteHistorySnapshot {
