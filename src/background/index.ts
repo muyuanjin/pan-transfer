@@ -17,6 +17,7 @@ import type { TransferRequestPayload } from '../shared/types/transfer'
 import {
   dispatchTransferPayload,
   getBackgroundTransferPipeline,
+  getLastTransferDispatchSnapshot,
   resetBackgroundTransferPipelineCache,
 } from './providers/pipeline'
 import { resetBackgroundProviderRegistryCache } from './providers/registry'
@@ -87,6 +88,10 @@ interface DevStorageModeMessage {
   }
 }
 
+interface DevLastTransferMessage {
+  type: 'pan-transfer:dev:last-transfer'
+}
+
 type BackgroundMessage =
   | HistoryDeleteMessage
   | HistoryClearMessage
@@ -98,6 +103,7 @@ type BackgroundMessage =
   | SeasonPreferenceUpdateMessage
   | SeasonPreferenceClearMessage
   | DevStorageModeMessage
+  | DevLastTransferMessage
   | {
       type?: string
       payload?: unknown
@@ -135,6 +141,9 @@ const isSeasonPreferenceClearMessage = (
 
 const isDevStorageModeMessage = (message: BackgroundMessage): message is DevStorageModeMessage =>
   message?.type === 'pan-transfer:dev:set-storage-mode'
+
+const isDevLastTransferMessage = (message: BackgroundMessage): message is DevLastTransferMessage =>
+  message?.type === 'pan-transfer:dev:last-transfer'
 
 const normalizeStorageMode = (value: unknown): StorageProviderMode | null => {
   if (typeof value !== 'string') {
@@ -293,6 +302,16 @@ chrome.runtime.onMessage.addListener((message: BackgroundMessage, sender, sendRe
       mode: requestedMode,
     })
     sendResponse({ ok: true, mode: requestedMode })
+    return true
+  }
+
+  if (isDevLastTransferMessage(message)) {
+    if (!isExtensionSender(sender)) {
+      sendResponse({ ok: false, error: '无权查看调试状态' })
+      return false
+    }
+    const snapshot = getLastTransferDispatchSnapshot()
+    sendResponse({ ok: true, snapshot })
     return true
   }
 

@@ -14,6 +14,7 @@ import {
 } from '@/background/settings/provider-preferences'
 
 let pipelineCache: Partial<Record<ResolvedStorageProviderMode, TransferPipeline>> = {}
+let lastTransferSnapshot: TransferDispatchSnapshot | null = null
 
 void initProviderPreferences().catch((error) => {
   const err = error as Error
@@ -63,6 +64,16 @@ export interface BackgroundTransferDispatchResult {
   storageProviderId: string
 }
 
+export interface TransferDispatchSnapshot {
+  payload: TransferRequestPayload
+  storageProviderId: string
+  timestamp: number
+}
+
+export function getLastTransferDispatchSnapshot(): TransferDispatchSnapshot | null {
+  return lastTransferSnapshot
+}
+
 export async function dispatchTransferPayload(
   payload: TransferRequestPayload,
   options: { context?: TransferContext; mode?: StorageProviderMode } = {},
@@ -87,6 +98,11 @@ export async function dispatchTransferPayload(
     })
   }
   const response = extractTransferResponse(result, payload)
+  lastTransferSnapshot = {
+    payload: cloneTransferPayload(payload),
+    storageProviderId,
+    timestamp: Date.now(),
+  }
   return {
     response,
     storageResult: result,
@@ -132,4 +148,11 @@ function extractTransferResponse(
     fallback.jobId = payload.jobId
   }
   return fallback
+}
+
+function cloneTransferPayload(payload: TransferRequestPayload): TransferRequestPayload {
+  if (typeof structuredClone === 'function') {
+    return structuredClone(payload)
+  }
+  return JSON.parse(JSON.stringify(payload)) as TransferRequestPayload
 }

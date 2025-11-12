@@ -142,4 +142,55 @@ describe('history-store index map', () => {
     expect(seasonEntry).toBeDefined()
     expect(seasonEntry?.record.pageUrl).toBe(baseKey)
   })
+
+  it('resolves relative season urls against each record origin', async () => {
+    storageGetMock.mockResolvedValue({
+      [STORAGE_KEYS.history]: {
+        version: HISTORY_VERSION,
+        records: [
+          {
+            pageUrl: 'https://forum.example/thread/98765',
+            pageTitle: '论坛示例贴',
+            pageType: 'series',
+            origin: 'https://forum.example',
+            siteProviderId: 'generic-forum',
+            siteProviderLabel: 'Generic Forum',
+            poster: null,
+            targetDirectory: '/论坛/讨论区',
+            baseDir: '/论坛',
+            useTitleSubdir: false,
+            useSeasonSubdir: false,
+            lastTransferredAt: 0,
+            lastCheckedAt: 0,
+            totalTransferred: 0,
+            completion: null,
+            seasonCompletion: {},
+            seasonDirectory: {},
+            seasonEntries: [
+              {
+                seasonId: 'forum-season-1',
+                url: '/thread/98765/season-1',
+                label: '番外 1',
+                seasonIndex: 0,
+                completion: null,
+                loaded: true,
+                hasItems: true,
+                poster: null,
+              },
+            ],
+            items: {},
+            itemOrder: [],
+            lastResult: null,
+            pendingTransfer: null,
+          },
+        ],
+      },
+    })
+    await reloadHistoryFromStorage()
+    const index = getHistoryIndexMap()
+    const seasonKey = 'https://forum.example/thread/98765/season-1'
+    const entry = index.get(seasonKey)
+    expect(entry).toBeDefined()
+    expect(entry?.record.siteProviderId).toBe('generic-forum')
+  })
 })

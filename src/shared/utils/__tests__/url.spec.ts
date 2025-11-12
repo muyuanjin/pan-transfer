@@ -26,4 +26,12 @@ describe('canonicalizePageUrl', () => {
     })
     expect(result).toBe('https://example.com/tvshows/9.html')
   })
+
+  it('accepts non-Chaospace origins when resolving relative paths', () => {
+    const input = '../season/extra.html#anchor'
+    const result = canonicalizePageUrl(input, {
+      baseUrl: 'https://forum.example/thread/98',
+    })
+    expect(result).toBe('https://forum.example/season/extra.html')
+  })
 })

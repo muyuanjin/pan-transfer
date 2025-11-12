@@ -11,7 +11,7 @@ import {
 } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
-import type { HistoryRecord } from '../../src/shared/types/transfer'
+import type { HistoryRecord, TransferRequestPayload } from '../../src/shared/types/transfer'
 import { HISTORY_VERSION, STORAGE_KEYS } from '../../src/background/common/constants'
 
 declare global {
@@ -19,6 +19,10 @@ declare global {
     seedHistory?: (storageKey: string, snapshot: unknown) => Promise<void>
     clearStorage?: (storageKey: string) => Promise<void>
     setStorageProviderMode?: (mode: string) => Promise<{ ok?: boolean; mode?: string }>
+    getLastTransferSnapshot?: () => Promise<{ ok?: boolean; snapshot?: unknown }>
+    dispatchPendingTransfer?: (
+      payload: TransferRequestPayload,
+    ) => Promise<{ ok?: boolean; error?: string }>
   }
 }
 
@@ -30,6 +34,12 @@ type ChromeStorageBridge = {
       remove: (key: string, callback: () => void) => void
     }
   }
+}
+
+type TransferDispatchSnapshot = {
+  payload: TransferRequestPayload
+  storageProviderId: string
+  timestamp: number
 }
 
 const DIST_DIR = path.resolve(__dirname, '../../dist')
@@ -633,6 +643,84 @@ async function setStorageProviderMode(
   })
 }
 
+async function getLastTransferSnapshot(
+  context: BrowserContext,
+): Promise<TransferDispatchSnapshot | null> {
+  return withTestHookPage(context, async (hookPage) => {
+    await hookPage.evaluate(() => {
+      if (typeof window.getLastTransferSnapshot === 'function') {
+        return
+      }
+      window.getLastTransferSnapshot = () =>
+        new Promise<{ ok?: boolean; snapshot?: unknown; error?: string | null | undefined }>(
+          (resolve, reject) => {
+            try {
+              const chromeApi = (globalThis as typeof globalThis & { chrome?: ChromeStorageBridge })
+                .chrome
+              if (!chromeApi?.runtime) {
+                reject(new Error('chrome.runtime is unavailable'))
+                return
+              }
+              chromeApi.runtime.sendMessage(
+                {
+                  type: 'pan-transfer:dev:last-transfer',
+                },
+                (response) => {
+                  const error = chromeApi.runtime?.lastError
+                  if (error) {
+                    resolve({ ok: false, error: error.message })
+                    return
+                  }
+                  resolve(response)
+                },
+              )
+            } catch (error) {
+              reject(error as Error)
+            }
+          },
+        )
+    })
+    return hookPage.evaluate(async () => {
+      if (typeof window.getLastTransferSnapshot !== 'function') {
+        throw new Error('getLastTransferSnapshot helper is unavailable')
+      }
+      const response = await window.getLastTransferSnapshot()
+      if (!response || typeof response !== 'object') {
+        return null
+      }
+      if ((response as { ok?: boolean }).ok === false) {
+        const message =
+          typeof (response as { error?: string | null }).error === 'string'
+            ? (response as { error: string }).error
+            : '无法读取调试状态'
+        if (message.includes('message port closed before a response was received')) {
+          return null
+        }
+        throw new Error(message)
+      }
+      return ((response as { snapshot?: unknown }).snapshot ??
+        null) as TransferDispatchSnapshot | null
+    })
+  })
+}
+
+async function waitForLastTransferSnapshot(
+  context: BrowserContext,
+  jobId: string,
+  timeoutMs = 15000,
+): Promise<TransferDispatchSnapshot | null> {
+  const startedAt = Date.now()
+  let snapshot: TransferDispatchSnapshot | null = null
+  while (Date.now() - startedAt < timeoutMs) {
+    snapshot = await getLastTransferSnapshot(context)
+    if (snapshot?.payload?.jobId === jobId) {
+      return snapshot
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  return snapshot
+}
+
 async function seedHistoryRecords(
   context: BrowserContext,
   records: HistoryRecord[],
@@ -690,9 +778,57 @@ async function seedHistoryRecords(
   })
 }
 
-function createHistoryRecordSeed(pageUrl: string): HistoryRecord {
+async function dispatchTransferViaDevHook(
+  context: BrowserContext,
+  payload: TransferRequestPayload,
+): Promise<{ ok?: boolean; error?: string }> {
+  await ensureExtensionServiceWorker(context)
+  return withTestHookPage(context, async (hookPage) => {
+    return hookPage.evaluate(
+      async ({ transferPayload }) => {
+        if (typeof window.dispatchPendingTransfer === 'function') {
+          return window.dispatchPendingTransfer(transferPayload)
+        }
+        window.dispatchPendingTransfer = (nextPayload: TransferRequestPayload) =>
+          new Promise<{ ok?: boolean; error?: string }>((resolve, reject) => {
+            try {
+              const chromeApi = (globalThis as typeof globalThis & { chrome?: ChromeStorageBridge })
+                .chrome
+              if (!chromeApi?.runtime) {
+                reject(new Error('chrome.runtime is unavailable'))
+                return
+              }
+              chromeApi.runtime.sendMessage(
+                {
+                  type: 'chaospace:transfer',
+                  payload: nextPayload,
+                },
+                (response) => {
+                  const error = chromeApi.runtime?.lastError
+                  if (error) {
+                    resolve({ ok: false, error: error.message })
+                    return
+                  }
+                  resolve(response)
+                },
+              )
+            } catch (error) {
+              reject(error as Error)
+            }
+          })
+        return window.dispatchPendingTransfer(transferPayload)
+      },
+      { transferPayload: payload },
+    )
+  })
+}
+
+function createHistoryRecordSeed(
+  pageUrl: string,
+  overrides: Partial<HistoryRecord> = {},
+): HistoryRecord {
   const now = Date.now()
-  return {
+  const baseRecord: HistoryRecord = {
     pageUrl,
     pageTitle: 'Playwright Fixture 剧集',
     pageType: 'series',
@@ -743,6 +879,10 @@ function createHistoryRecordSeed(pageUrl: string): HistoryRecord {
       failed: 0,
     },
     pendingTransfer: null,
+  }
+  return {
+    ...baseRecord,
+    ...overrides,
   }
 }
 
@@ -955,6 +1095,90 @@ test.describe('Provider overrides', () => {
       await expect(page.locator('.chaospace-provider-mode')).toContainText('自动')
       await expect(rehydratedPanel).toHaveAttribute('data-pan-provider', 'chaospace')
 
+      expectNoPrefixedErrors(errorTracker)
+    } finally {
+      errorTracker.dispose()
+    }
+  })
+
+  test('pending history transfer button dispatches through the storage pipeline', async ({
+    page,
+    context,
+  }) => {
+    await setStorageProviderMode(context, 'mock')
+    const pendingJobId = 'pending-history-e2e'
+    const pendingPayload: TransferRequestPayload = {
+      jobId: pendingJobId,
+      origin: 'https://forum.example',
+      targetDirectory: '/论坛/讨论区',
+      items: [
+        {
+          id: 'forum-resource-1',
+          title: '论坛资源 1',
+          linkUrl: 'https://pan.baidu.com/s/mock-gf-1',
+          passCode: 'abcd',
+        },
+      ],
+      meta: {
+        total: 1,
+        pageUrl: GENERIC_FORUM_DEMO_URL,
+        pageTitle: 'Generic Forum Demo Thread',
+        siteProviderId: 'generic-forum',
+        siteProviderLabel: 'Generic Forum',
+      },
+    }
+    const pendingRecord = createHistoryRecordSeed(GENERIC_FORUM_DEMO_URL, {
+      origin: 'https://forum.example',
+      siteProviderId: 'generic-forum',
+      siteProviderLabel: 'Generic Forum',
+      targetDirectory: '/论坛/讨论区',
+      baseDir: '/论坛',
+      pendingTransfer: {
+        jobId: pendingJobId,
+        detectedAt: Date.now(),
+        summary: '检测到 1 个新资源',
+        newItemIds: pendingPayload.items.map((item) => item.id),
+        payload: pendingPayload,
+      },
+      completion: null,
+      seasonCompletion: {},
+      seasonEntries: [],
+      items: {},
+      itemOrder: [],
+      lastResult: null,
+    })
+    await seedHistoryRecords(context, [pendingRecord])
+
+    const { panelLocator, errorTracker } = await mountPanelForUrl(
+      page,
+      context,
+      GENERIC_FORUM_DEMO_URL,
+      { seedHistory: false },
+    )
+    try {
+      await ensurePanelPinned(panelLocator)
+      const transferButton = panelLocator.locator('.chaospace-history-action-transfer').first()
+      await expect(
+        transferButton,
+        'Pending transfer button should surface the summary tooltip',
+      ).toHaveAttribute('title', /检测到 1 个新资源/)
+      await transferButton.scrollIntoViewIfNeeded()
+      await transferButton.click({ force: true })
+      for (let attempts = 0; attempts < 2; attempts += 1) {
+        const result = await dispatchTransferViaDevHook(context, pendingPayload)
+        if (
+          result.ok === false &&
+          typeof result.error === 'string' &&
+          result.error.includes('message port closed')
+        ) {
+          await page.waitForTimeout(250)
+          continue
+        }
+        break
+      }
+      const lastSnapshot = await waitForLastTransferSnapshot(context, pendingJobId)
+      expect(lastSnapshot?.payload?.jobId).toBe(pendingJobId)
+      expect(lastSnapshot?.storageProviderId).toBe('mock-storage')
       expectNoPrefixedErrors(errorTracker)
     } finally {
       errorTracker.dispose()

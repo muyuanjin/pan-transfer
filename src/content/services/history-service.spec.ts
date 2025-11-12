@@ -5,6 +5,7 @@ import {
   filterHistoryGroups,
   buildHistoryGroupSeasonRows,
   prepareHistoryRecords,
+  getHistoryPendingTransfer,
 } from './history-service'
 import type { HistoryGroup, ContentHistoryRecord } from '../types'
 import type { CompletionStatus, SeasonEntry } from '@/shared/utils/completion-status'
@@ -365,5 +366,46 @@ describe('buildHistoryGroupSeasonRows', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]?.canCheck).toBe(true)
     expect(rows[0]?.record).toBe(seasonRecord)
+  })
+})
+
+describe('getHistoryPendingTransfer', () => {
+  it('returns null when record missing pending items', () => {
+    const record = createHistoryRecord()
+    expect(getHistoryPendingTransfer(record)).toBeNull()
+  })
+
+  it('returns pending payload when items are present', () => {
+    const record = createHistoryRecord({
+      pendingTransfer: {
+        jobId: 'pending-history-e2e',
+        detectedAt: Date.now(),
+        summary: '检测到 1 个新资源',
+        newItemIds: ['forum-resource-1'],
+        payload: {
+          jobId: 'pending-history-e2e',
+          origin: 'https://forum.example',
+          targetDirectory: '/论坛/讨论区',
+          items: [
+            {
+              id: 'forum-resource-1',
+              title: '论坛资源 1',
+              linkUrl: 'https://pan.baidu.com/s/mock-gf-1',
+              passCode: 'abcd',
+            },
+          ],
+          meta: {
+            total: 1,
+            pageUrl: 'https://forum.example/thread/demo',
+            siteProviderId: 'generic-forum',
+            siteProviderLabel: 'Generic Forum',
+          },
+        },
+      },
+    })
+    const pending = getHistoryPendingTransfer(record)
+    expect(pending).not.toBeNull()
+    expect(pending?.payload.items).toHaveLength(1)
+    expect(pending?.payload.items[0]?.id).toBe('forum-resource-1')
   })
 })

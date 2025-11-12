@@ -49,13 +49,13 @@ let historyLoadPromise: Promise<void> | null = null
 const historyIndexByUrl = new Map<string, HistoryIndexEntry>()
 const HISTORY_URL_FALLBACK = 'https://www.chaospace.cc/'
 
-const toHistoryIndexKey = (value: unknown): string | null => {
+const toHistoryIndexKey = (value: unknown, baseUrl?: string | null): string | null => {
   if (typeof value !== 'string' || !value.trim()) {
     return null
   }
   return (
     canonicalizePageUrl(value, {
-      baseUrl: HISTORY_URL_FALLBACK,
+      baseUrl: resolveBaseForCanonicalization(baseUrl),
       allowFallback: false,
     }) ?? null
   )
@@ -100,8 +100,9 @@ function appendIndexEntry(
   candidateUrl: string | null | undefined,
   index: number,
   seen: Set<string>,
+  baseUrl: string,
 ): void {
-  const key = toHistoryIndexKey(candidateUrl)
+  const key = toHistoryIndexKey(candidateUrl, baseUrl)
   if (!key || seen.has(key)) {
     return
   }
@@ -131,9 +132,10 @@ function rebuildHistoryIndex(): void {
     if (!record) {
       return
     }
-    appendIndexEntry(record, record.pageUrl, index, seen)
+    const baseUrl = resolveRecordBaseUrl(record)
+    appendIndexEntry(record, record.pageUrl, index, seen, baseUrl)
     collectRecordAliasUrls(record).forEach((url) => {
-      appendIndexEntry(record, url, index, seen)
+      appendIndexEntry(record, url, index, seen, baseUrl)
     })
   })
 }
@@ -611,6 +613,35 @@ export function getHistoryRecord(pageUrl: string): HistoryRecord | null {
   }
   const entry = historyIndexByUrl.get(key)
   return entry ? ensureHistoryRecordStructure(entry.record) : null
+}
+
+function resolveRecordBaseUrl(record: HistoryRecord | null | undefined): string {
+  return (
+    coerceAbsoluteUrl(record?.origin) ?? coerceAbsoluteUrl(record?.pageUrl) ?? HISTORY_URL_FALLBACK
+  )
+}
+
+function coerceAbsoluteUrl(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null
+  }
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return null
+  }
+  try {
+    new URL(trimmed)
+    return trimmed
+  } catch {
+    return null
+  }
+}
+
+function resolveBaseForCanonicalization(candidate: string | null | undefined): string {
+  if (typeof candidate === 'string' && candidate.trim()) {
+    return candidate
+  }
+  return HISTORY_URL_FALLBACK
 }
 
 export function getHistoryRecords(): HistoryRecord[] {
