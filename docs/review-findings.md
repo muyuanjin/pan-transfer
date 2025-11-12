@@ -59,3 +59,9 @@
 - **Resolution**: The scroll container now exposes a dedicated ref and an anchor helper captures the clicked记录’s relative offset before `handleTriggerUpdate` runs. When history re-renders (and possibly reorders the entry to the top), the renderer compensates the scroll delta so the same card stays in view instead of “disappearing.” Restoring the original offset remains the fallback for other updates, and a regression spec covers both fixed-position and anchor-follow scenarios.
 
 ## 12. 优化重试机制,提高应对偶发pan api转存超时
+
+- **Files**: `src/background/services/transfer-service.ts`, `src/background/common/constants.ts`
+- **Issue**: The worker fired Baidu’s `/share/transfer` call only once, so transient pan API timeouts or “目标路径不存在” glitches immediately surfaced as fatal failures that users had to re-run manually.
+- **Impact**: Large batch transfers frequently stalled midway whenever the pan API hiccupped, forcing users to babysit the queue and repeat the whole selection even though the next attempt would usually succeed.
+- **Fix direction**: Wrap the transfer submission in a bounded retry helper that understands timeout errnos, refreshes stale target-directory caches, and spaces retries so the API has time to recover.
+- **Resolution**: `transferWithRetry` now catches fetch-level pan timeouts, tags them with the new `TRANSFER_REQUEST_TIMEOUT_ERRNO`, surfaces a clear “网络请求异常” message, and automatically retries with the existing backoff/invalidate flow before surfacing the final errno. Occasional pan timeouts are now absorbed automatically while real failures still bubble up with the final errno and log trail.

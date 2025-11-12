@@ -1,3 +1,5 @@
+export const TRANSFER_REQUEST_TIMEOUT_ERRNO = -10000
+
 export const ERROR_MESSAGES: Record<number, string> = {
   [-1]: '链接失效：未获取到 shareid',
   [-2]: '链接失效：未获取到 user_id',
@@ -19,6 +21,7 @@ export const ERROR_MESSAGES: Record<number, string> = {
   [31039]: '转存失败：文件名冲突',
   [31190]: '转存失败：秒传未生效',
   [666]: '已跳过：文件已存在',
+  [TRANSFER_REQUEST_TIMEOUT_ERRNO]: '转存失败：网络请求异常，请稍后重试',
 }
 
 export const TOKEN_TTL = 10 * 60 * 1000

@@ -18,8 +18,12 @@ import {
   invalidateDirectoryCaches,
 } from '../storage/cache-store'
 import { recordTransferHistory } from '../storage/history-store'
-import { mapErrorMessage } from '../common/errors'
-import { MAX_TRANSFER_ATTEMPTS, TRANSFER_RETRYABLE_ERRNOS } from '../common/constants'
+import { mapErrorMessage, type ChaospaceError } from '../common/errors'
+import {
+  MAX_TRANSFER_ATTEMPTS,
+  TRANSFER_RETRYABLE_ERRNOS,
+  TRANSFER_REQUEST_TIMEOUT_ERRNO,
+} from '../common/constants'
 import { normalizePath } from '../utils/path'
 import { sanitizeLink } from '@/shared/utils/sanitizers'
 import { buildSurl } from '../utils/share'
@@ -308,7 +312,48 @@ async function transferWithRetry(
     logStage(jobId, 'transfer', `${titleLabel}第 ${attempt} 次发送转存请求`, {
       detail,
     })
-    const transferResult = await transferShare(meta, targetPath, bdstoken, referer)
+    let transferResult: Awaited<ReturnType<typeof transferShare>> | null = null
+    try {
+      transferResult = await transferShare(meta, targetPath, bdstoken, referer)
+    } catch (error) {
+      const err = error as ChaospaceError
+      if (err?.code === 'PAN_LOGIN_REQUIRED') {
+        throw err
+      }
+      errno = TRANSFER_REQUEST_TIMEOUT_ERRNO
+      lastShowMsg = err?.message
+      lastPathMissing = false
+      const canRetry = attempt < maxAttempts
+      chaosLogger.warn('[Pan Transfer] transfer request failed', {
+        path: targetPath,
+        attempt,
+        message: err?.message,
+      })
+      logStage(
+        jobId,
+        'transfer',
+        `${titleLabel}转存请求异常（第 ${attempt} 次）${canRetry ? '，准备重试' : ''}`,
+        {
+          level: canRetry ? 'warning' : 'error',
+          detail: err?.message,
+        },
+      )
+      if (canRetry) {
+        chaosLogger.log('[Pan Transfer] transfer retry scheduled', {
+          path: targetPath,
+          errno: TRANSFER_REQUEST_TIMEOUT_ERRNO,
+          attempt,
+          reason: 'network-error',
+        })
+        await delay(500 * attempt)
+        continue
+      }
+      break
+    }
+    if (!transferResult) {
+      // Guard against unexpected falsy responses even when the request resolved.
+      break
+    }
     errno = transferResult.errno
     lastShowMsg = transferResult.showMsg
     lastPathMissing = isTransferPathMissing(errno, transferResult.showMsg)
@@ -393,6 +438,10 @@ async function transferWithRetry(
     failureResult.showMsg = lastShowMsg
   }
   return failureResult
+}
+
+export const __testables = {
+  transferWithRetry,
 }
 
 async function executeRenamePlan(
