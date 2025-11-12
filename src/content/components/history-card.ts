@@ -11,6 +11,7 @@ import { normalizePageUrl } from '@/providers/sites/chaospace/page-analyzer'
 import { HISTORY_DISPLAY_LIMIT } from '../constants'
 import { historyContextKey, type HistoryController } from '../runtime/ui/history-context'
 import { createHistoryListHost, type HistoryListBindings } from './history/history-list-host'
+import { consumeHistoryScrollAnchor } from './history/history-scroll-anchor'
 
 export interface HistoryCardRenderParams {
   state: ContentStore & {
@@ -63,7 +64,8 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
   const historySummary = panelDom?.historySummary ?? null
 
   const scrollContainer = panelDom?.historyScroll ?? null
-  const shouldRestoreScroll = Boolean(scrollContainer && state.historyExpanded)
+  const scrollAnchor = consumeHistoryScrollAnchor()
+  const shouldRestoreScroll = Boolean(scrollContainer && state.historyExpanded && !scrollAnchor)
   const previousScrollTop =
     shouldRestoreScroll && scrollContainer ? scrollContainer.scrollTop : null
 
@@ -182,25 +184,20 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
     updateHistoryExpansion()
   }
 
-  if (
-    shouldRestoreScroll &&
-    typeof previousScrollTop === 'number' &&
-    scrollContainer &&
-    scrollContainer.scrollTop !== previousScrollTop
-  ) {
-    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
-      window.requestAnimationFrame(() => {
-        if (scrollContainer) {
-          scrollContainer.scrollTop = previousScrollTop
-        }
-      })
-    } else {
-      setTimeout(() => {
-        if (scrollContainer) {
-          scrollContainer.scrollTop = previousScrollTop
-        }
-      }, 0)
-    }
+  if (scrollContainer) {
+    scheduleScrollAdjustment(() => {
+      if (scrollAnchor) {
+        applyScrollAnchor(scrollContainer, scrollAnchor)
+        return
+      }
+      if (
+        shouldRestoreScroll &&
+        typeof previousScrollTop === 'number' &&
+        scrollContainer.scrollTop !== previousScrollTop
+      ) {
+        scrollContainer.scrollTop = previousScrollTop
+      }
+    })
   }
 }
 
@@ -235,4 +232,43 @@ function buildSummaryData(group: HistoryGroup): { title: string; metaParts: stri
     title,
     metaParts,
   }
+}
+
+interface ScrollAnchorPayload {
+  groupKey: string
+  scrollTop: number
+  relativeTop: number
+}
+
+function scheduleScrollAdjustment(task: () => void): void {
+  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(() => task())
+  } else {
+    setTimeout(task, 0)
+  }
+}
+
+function applyScrollAnchor(container: HTMLElement, anchor: ScrollAnchorPayload): void {
+  if (!anchor.groupKey) {
+    return
+  }
+  const candidates = Array.from(
+    container.querySelectorAll<HTMLElement>('.chaospace-history-item[data-group-key]'),
+  )
+  const target = candidates.find((element) => element.dataset['groupKey'] === anchor.groupKey)
+  if (!target) {
+    return
+  }
+  const containerRect = container.getBoundingClientRect()
+  const itemRect = target.getBoundingClientRect()
+  const newRelativeTop = itemRect.top - containerRect.top
+  if (!Number.isFinite(newRelativeTop) || !Number.isFinite(anchor.relativeTop)) {
+    return
+  }
+  const delta = newRelativeTop - anchor.relativeTop
+  const nextScrollTop = anchor.scrollTop + delta
+  if (!Number.isFinite(nextScrollTop)) {
+    return
+  }
+  container.scrollTop = nextScrollTop
 }

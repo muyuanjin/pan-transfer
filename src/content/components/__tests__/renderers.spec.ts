@@ -6,6 +6,14 @@ import { renderHistoryCard, type HistoryCardRenderParams } from '../history-card
 import type { HistoryGroup } from '../../types'
 import type { HistoryDetailDomRefs, RenderHistoryDetailParams } from '../history-detail'
 import type { HistoryController } from '../../runtime/ui/history-context'
+import {
+  setHistoryScrollAnchor,
+  consumeHistoryScrollAnchor,
+} from '../history/history-scroll-anchor'
+
+afterEach(() => {
+  consumeHistoryScrollAnchor()
+})
 
 function createHistoryControllerStub(): HistoryController {
   return {
@@ -162,6 +170,7 @@ describe('History list interactions', () => {
     const historySummary = document.createElement('div')
     const historyOverlay = document.createElement('div')
     const historyScroll = document.createElement('div')
+    historyScroll.append(historyEmpty, historyList)
 
     const panelDom = {
       historyList,
@@ -289,6 +298,7 @@ describe('HistoryCard renderer toggles', () => {
     const historySummaryBody = document.createElement('div')
     const historySummary = document.createElement('div')
     const historyScroll = document.createElement('div')
+    historyScroll.append(historyEmpty, historyList)
     const overlay = document.createElement('div')
     const toggleButton = document.createElement('button')
     toggleButton.dataset['role'] = 'history-toggle'
@@ -406,6 +416,7 @@ describe('HistoryCard renderer toggles', () => {
     const historySummary = document.createElement('div')
     const historyScroll = document.createElement('div')
     historyScroll.style.overflowY = 'auto'
+    historyScroll.append(historyEmpty, historyList)
     const overlay = document.createElement('div')
 
     const panelDom = {
@@ -541,6 +552,179 @@ describe('HistoryCard renderer toggles', () => {
       window.requestAnimationFrame = originalRaf
     }
   })
+
+  it('keeps anchored entries in view when they move after detecting updates', async () => {
+    const historyList = document.createElement('div')
+    const historyEmpty = document.createElement('div')
+    const historySummaryBody = document.createElement('div')
+    const historySummary = document.createElement('div')
+    const historyScroll = document.createElement('div')
+    historyScroll.style.overflowY = 'auto'
+    historyScroll.append(historyEmpty, historyList)
+    const overlay = document.createElement('div')
+
+    const panelDom = {
+      historyList,
+      historyEmpty,
+      historySummaryBody,
+      historySummary,
+      historyScroll,
+      historyOverlay: overlay,
+    } as HistoryCardRenderParams['panelDom']
+
+    const historyGroup = {
+      key: 'group-1',
+      title: '示例记录',
+      origin: 'chaospace',
+      poster: null,
+      updatedAt: Date.now(),
+      records: [],
+      main: {
+        id: 'record-1',
+        pageTitle: '示例记录',
+        completion: { state: 'ongoing', label: '连载中' },
+        targetDirectory: '/示例',
+        urls: ['https://example.com'],
+        pageUrl: 'https://example.com',
+      },
+      children: [],
+      urls: ['https://example.com'],
+      seasonEntries: [],
+    } as unknown as HistoryGroup
+
+    const state = {
+      historyGroups: [historyGroup],
+      historyDetail: {
+        isOpen: false,
+        loading: false,
+        groupKey: '',
+        pageUrl: '',
+        data: null,
+        error: '',
+        fallback: null,
+      },
+      historySelectedKeys: new Set<string>(),
+      historySeasonExpanded: new Set<string>(),
+      historyBatchRunning: false,
+      historyExpanded: true,
+      pageUrl: 'https://example.com',
+      baseDir: '/',
+      baseDirLocked: false,
+      autoSuggestedDir: null,
+      classification: 'unknown',
+      classificationDetails: null,
+      useTitleSubdir: true,
+      useSeasonSubdir: false,
+      seasonSubdirDefault: false,
+      seasonPreferenceScope: 'default',
+      seasonPreferenceTabId: null,
+      presets: [],
+      items: [],
+      itemIdSet: new Set<string>(),
+      isSeasonLoading: false,
+      seasonLoadProgress: { total: 0, loaded: 0 },
+      deferredSeasonInfos: [],
+      sortKey: 'page' as const,
+      sortOrder: 'asc' as const,
+      selectedIds: new Set<string>(),
+      newItemIds: new Set<string>(),
+      transferredIds: new Set<string>(),
+      seasonCompletion: {},
+      seasonEntries: [],
+      completion: null,
+      historyRecords: [],
+      historyFilter: 'all',
+      historyBatchProgressLabel: '',
+      historyDetailCache: new Map<string, unknown>(),
+      logs: [],
+      transferStatus: 'idle',
+      lastResult: null,
+      statusMessage: '',
+      theme: 'dark',
+      jobId: null,
+      origin: '',
+      poster: null,
+      pageTitle: '',
+      seasonDirMap: {},
+      seasonResolvedPaths: [],
+      activeSeasonId: null,
+      settingsPanel: { isOpen: false },
+    } as unknown as HistoryCardRenderParams['state']
+
+    const historyController = createHistoryControllerStub()
+
+    renderHistoryCard({
+      state,
+      panelDom,
+      floatingPanel: overlay,
+      pruneHistorySelection: undefined,
+      getHistoryGroupByKey: undefined,
+      closeHistoryDetail: undefined,
+      getFilteredHistoryGroups: undefined,
+      updateHistoryExpansion: undefined,
+      isHistoryGroupCompleted: undefined,
+      historyController,
+    })
+    await flushHistoryListRender()
+
+    historyScroll.scrollTop = 400
+
+    setHistoryScrollAnchor({
+      groupKey: 'group-1',
+      scrollTop: 400,
+      relativeTop: 200,
+    })
+
+    const targetItem = historyList.querySelector('.chaospace-history-item') as HTMLElement | null
+    expect(targetItem).toBeTruthy()
+    expect(targetItem?.dataset['groupKey']).toBe('group-1')
+
+    const originalRaf = window.requestAnimationFrame
+    const originalContainerRect = historyScroll.getBoundingClientRect
+    let restoreItemRect: (() => void) | undefined
+    let frameScrollTop: number | null = null
+    window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+      queueMicrotask(() => {
+        const freshItem = historyList.querySelector('.chaospace-history-item') as HTMLElement | null
+        if (freshItem) {
+          const previous = freshItem.getBoundingClientRect
+          freshItem.getBoundingClientRect = () => createMockRect(30)
+          restoreItemRect = () => {
+            freshItem.getBoundingClientRect = previous
+          }
+        }
+        historyScroll.getBoundingClientRect = () => createMockRect(20)
+        callback(0)
+        frameScrollTop = historyScroll.scrollTop
+      })
+      return 0
+    }) as typeof window.requestAnimationFrame
+
+    try {
+      state.historyGroups = [...state.historyGroups]
+      renderHistoryCard({
+        state,
+        panelDom,
+        floatingPanel: overlay,
+        pruneHistorySelection: undefined,
+        getHistoryGroupByKey: undefined,
+        closeHistoryDetail: undefined,
+        getFilteredHistoryGroups: undefined,
+        updateHistoryExpansion: undefined,
+        isHistoryGroupCompleted: undefined,
+        historyController,
+      })
+      await flushHistoryListRender()
+      expect(frameScrollTop).toBe(400 + (10 - 200))
+      expect(historyScroll.scrollTop).toBe(400 + (10 - 200))
+    } finally {
+      window.requestAnimationFrame = originalRaf
+      historyScroll.getBoundingClientRect = originalContainerRect
+      if (restoreItemRect) {
+        restoreItemRect()
+      }
+    }
+  })
 })
 
 describe('History detail transitions', () => {
@@ -606,4 +790,21 @@ describe('History detail transitions', () => {
 async function flushHistoryListRender(): Promise<void> {
   await nextTick()
   await nextTick()
+}
+
+function createMockRect(top: number): DOMRect {
+  const height = 10
+  return {
+    x: 0,
+    y: top,
+    width: 100,
+    height,
+    top,
+    bottom: top + height,
+    left: 0,
+    right: 100,
+    toJSON() {
+      return {}
+    },
+  } as DOMRect
 }

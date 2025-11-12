@@ -55,7 +55,7 @@
 
 ## 11. 转存历史里,点击检测新篇,会导致转存历史面板自动滚动到最上面去,用户体验极差 ✅
 
-- **Files**: `src/content/components/history-card.ts`, `src/content/components/PanelRoot.vue`, `src/content/components/panel.ts`, `src/content/types.ts`, `src/content/components/__tests__/renderers.spec.ts`
-- **Resolution**: The history overlay scroll container now has an explicit data-role binding, letting the renderer snapshot its scroll offset before re-rendering and restore it on the next animation frame. Refreshing history after a “检测新篇” run no longer yanks the user back to the top, and a new regression test locks the behaviour.
+- **Files**: `src/content/components/history-card.ts`, `src/content/components/history/HistoryListView.vue`, `src/content/components/PanelRoot.vue`, `src/content/components/panel.ts`, `src/content/types.ts`, `src/content/components/__tests__/renderers.spec.ts`, `src/content/components/history/history-scroll-anchor.ts`
+- **Resolution**: The scroll container now exposes a dedicated ref and an anchor helper captures the clicked记录’s relative offset before `handleTriggerUpdate` runs. When history re-renders (and possibly reorders the entry to the top), the renderer compensates the scroll delta so the same card stays in view instead of “disappearing.” Restoring the original offset remains the fallback for other updates, and a regression spec covers both fixed-position and anchor-follow scenarios.
 
 ## 12. 优化重试机制,提高应对偶发pan api转存超时

@@ -262,6 +262,7 @@ import {
 } from './history-card.helpers'
 import { resolveHistoryCheckTargets } from '@/content/history/history-check.helpers'
 import { useHistoryListActions } from '../../runtime/ui/history-context'
+import { setHistoryScrollAnchor } from './history-scroll-anchor'
 
 const props = defineProps<{
   entries: HistoryGroup[]
@@ -504,6 +505,9 @@ function handleHeaderClick(entry: DerivedEntryView, event: Event): void {
 
 async function handleTriggerUpdate(entry: DerivedEntryView, event: Event): Promise<void> {
   const button = event.currentTarget as HTMLButtonElement | null
+  if (button) {
+    tryCaptureScrollAnchor(entry, button)
+  }
   const targets = resolveHistoryCheckTargets({
     pageUrl: typeof entry.mainRecord.pageUrl === 'string' ? entry.mainRecord.pageUrl : '',
     seasons: entry.seasonRows.map((season) => ({
@@ -556,6 +560,25 @@ async function handleTriggerUpdate(entry: DerivedEntryView, event: Event): Promi
       }
     }
   }
+}
+
+function tryCaptureScrollAnchor(entry: DerivedEntryView, triggerEl: HTMLElement): void {
+  const container = triggerEl.closest('.chaospace-history-overlay-scroll') as HTMLElement | null
+  if (!container) {
+    return
+  }
+  const item = triggerEl.closest('.chaospace-history-item') as HTMLElement | null
+  if (!item) {
+    return
+  }
+  const containerRect = container.getBoundingClientRect()
+  const itemRect = item.getBoundingClientRect()
+  const relativeTop = itemRect.top - containerRect.top
+  setHistoryScrollAnchor({
+    groupKey: entry.group.key,
+    scrollTop: container.scrollTop,
+    relativeTop,
+  })
 }
 
 async function handleTriggerTransfer(entry: DerivedEntryView, event: Event): Promise<void> {
