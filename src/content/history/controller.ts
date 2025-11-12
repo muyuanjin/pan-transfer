@@ -533,6 +533,7 @@ export function createHistoryController(deps: HistoryControllerDeps) {
     }
     const { silent = false, deferRender = false } = options
     let previousText = ''
+    let transferSucceeded = false
     if (button) {
       previousText = button.textContent || ''
       button.disabled = true
@@ -567,6 +568,9 @@ export function createHistoryController(deps: HistoryControllerDeps) {
         renderHistoryCard()
         renderResourceList()
       }
+      if (!deferRender) {
+        transferSucceeded = true
+      }
       return response
     } catch (error) {
       const message = error instanceof Error ? error.message : '无法转存新篇'
@@ -580,8 +584,13 @@ export function createHistoryController(deps: HistoryControllerDeps) {
       return { ok: false, error: message }
     } finally {
       if (button) {
-        button.disabled = false
-        button.textContent = previousText || '转存新篇'
+        if (transferSucceeded) {
+          button.disabled = true
+          button.textContent = '转存新篇'
+        } else {
+          button.disabled = false
+          button.textContent = previousText || '转存新篇'
+        }
       }
     }
   }

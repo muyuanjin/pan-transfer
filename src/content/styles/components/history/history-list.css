@@ -28,9 +28,21 @@
   background: rgba(var(--cp-accent-rgb), 0.08);
 }
 
-.chaospace-history-item:hover {
+.chaospace-history-item:hover,
+.chaospace-history-item.is-anchor-hover {
   border-color: var(--cp-accent);
   transform: translateY(-1px);
+}
+
+.chaospace-history-item.is-anchor-hover[data-detail-trigger='group'] {
+  background: rgba(var(--cp-accent-rgb), 0.08);
+}
+
+/* 动画期间禁用其他条目的悬停效果 */
+.chaospace-history-list.is-anchoring .chaospace-history-item:not(.is-anchor-hover):hover {
+  border-color: rgba(var(--cp-accent-rgb), 0.14);
+  transform: none;
+  background: var(--cp-surface-soft);
 }
 
 .chaospace-history-item.is-current {

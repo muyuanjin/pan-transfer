@@ -683,21 +683,30 @@ describe('HistoryCard renderer toggles', () => {
     const originalContainerRect = historyScroll.getBoundingClientRect
     let restoreItemRect: (() => void) | undefined
     let frameScrollTop: number | null = null
+    const animationQueue: FrameRequestCallback[] = []
+    let rafId = 0
     window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
-      queueMicrotask(() => {
-        const freshItem = historyList.querySelector('.chaospace-history-item') as HTMLElement | null
-        if (freshItem) {
-          const previous = freshItem.getBoundingClientRect
-          freshItem.getBoundingClientRect = () => createMockRect(30)
-          restoreItemRect = () => {
-            freshItem.getBoundingClientRect = previous
+      rafId += 1
+      if (rafId === 1) {
+        queueMicrotask(() => {
+          const freshItem = historyList.querySelector(
+            '.chaospace-history-item',
+          ) as HTMLElement | null
+          if (freshItem) {
+            const previous = freshItem.getBoundingClientRect
+            freshItem.getBoundingClientRect = () => createMockRect(30)
+            restoreItemRect = () => {
+              freshItem.getBoundingClientRect = previous
+            }
           }
-        }
-        historyScroll.getBoundingClientRect = () => createMockRect(20)
-        callback(0)
-        frameScrollTop = historyScroll.scrollTop
-      })
-      return 0
+          historyScroll.getBoundingClientRect = () => createMockRect(20)
+          callback(0)
+          frameScrollTop = historyScroll.scrollTop
+        })
+      } else {
+        animationQueue.push(callback)
+      }
+      return rafId
     }) as typeof window.requestAnimationFrame
 
     try {
@@ -715,7 +724,9 @@ describe('HistoryCard renderer toggles', () => {
         historyController,
       })
       await flushHistoryListRender()
-      expect(frameScrollTop).toBe(400 + (10 - 200))
+      await Promise.resolve()
+      flushHistoryAnchorAnimation(animationQueue)
+      expect(frameScrollTop).toBe(400)
       expect(historyScroll.scrollTop).toBe(400 + (10 - 200))
     } finally {
       window.requestAnimationFrame = originalRaf
@@ -807,4 +818,19 @@ function createMockRect(top: number): DOMRect {
       return {}
     },
   } as DOMRect
+}
+
+function flushHistoryAnchorAnimation(callbacks: FrameRequestCallback[]): void {
+  const timestamps = [0, 1000]
+  let frameIndex = 0
+  while (callbacks.length) {
+    const callback = callbacks.shift()
+    if (!callback) {
+      continue
+    }
+    const index = Math.min(frameIndex, timestamps.length - 1)
+    const timestamp = timestamps[index] ?? 0
+    frameIndex += 1
+    callback!(timestamp)
+  }
 }

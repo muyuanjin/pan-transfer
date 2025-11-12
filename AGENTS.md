@@ -9,7 +9,13 @@ _Last updated: 2025-11-05 (UTC-8)_
 - **Quality gate**: Keep `npm run check` green (format:check → typecheck → lint:ci → build → vitest → playwright) before handing work back.
 - **Logging**: Prefix runtime logs with `[Pan Transfer]` across background, content, and UI contexts.
 
-## !!IMPORTANT!! Keep `npm run check` green before handing work back!!!
+## !!IMPORTANT!! Keep `npm run check` by use `powershell.exe` green before handing work back!!!
+
+- Run Windows tools from WSL by converting paths, e.g. `/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -Command "<windows command with Windows-style paths>"`.
+- WSL reminder: executables use `/mnt/<drive>/path` while arguments referencing files should be Windows-style (`E:\...`). Program path = WSL form, parameter path = Windows form.
+- **Do not直接在 WSL 里执行 `npm run ...`。所有 npm 相关命令必须通过 PowerShell 启动**，例如：
+  `/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -Command "Set-Location E:\\RustWorkSpace\\FlowCoder; npm run build"`.
+  同理，`npm install`、`npm run dev` 等脚本都需要遵循该调用方式。
 
 ## Architecture Snapshot
 

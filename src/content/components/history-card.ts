@@ -33,6 +33,19 @@ let historyListApp: App<Element> | null = null
 let historyListMountTarget: HTMLElement | null = null
 let historySummaryApp: App<Element> | null = null
 
+const HISTORY_SCROLL_ANIMATION_DURATION = 700
+const HISTORY_SCROLL_ANIMATION_DELAY = 60
+const HISTORY_ITEM_ANIMATION_DURATION = 760
+const HISTORY_ITEM_DRIFT_RATIO = 0.42
+const HISTORY_ITEM_DRIFT_MAX = 220
+const HISTORY_SCROLL_EPSILON = 0.4
+const HISTORY_SCROLL_FORCE_ANIMATION = true
+const HISTORY_ANCHOR_HOVER_LINGER_MS = 160
+
+let activeScrollAnimationFrame: number | null = null
+const historyItemAnimations = new WeakMap<HTMLElement, Animation | null>()
+let activeAnchorHoverCleanup: number | null = null
+
 const historyListBindings = reactive<HistoryListBindings>({
   entries: [],
   currentUrl: '',
@@ -270,5 +283,200 @@ function applyScrollAnchor(container: HTMLElement, anchor: ScrollAnchorPayload):
   if (!Number.isFinite(nextScrollTop)) {
     return
   }
-  container.scrollTop = nextScrollTop
+  const maxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight)
+  const startScrollTop = clampScrollTop(anchor.scrollTop, maxScrollTop)
+  const targetScrollTop = clampScrollTop(nextScrollTop, maxScrollTop)
+  const movementDelta = anchor.relativeTop - newRelativeTop
+  const shouldAnimate =
+    shouldAnimateHistoryAnchor() && Math.abs(movementDelta) > HISTORY_SCROLL_EPSILON
+
+  if (!shouldAnimate) {
+    container.scrollTop = targetScrollTop
+    return
+  }
+
+  if (activeAnchorHoverCleanup !== null) {
+    clearTimeout(activeAnchorHoverCleanup)
+    activeAnchorHoverCleanup = null
+  }
+
+  const historyList = container.querySelector('.chaospace-history-list')
+  if (historyList) {
+    historyList.classList.add('is-anchoring')
+  }
+
+  target.classList.add('is-anchor-hover')
+  container.scrollTop = startScrollTop
+  animateHistoryScrollFollow(container, startScrollTop, targetScrollTop, movementDelta)
+  accentHistoryItemDrift(target, movementDelta, () => {
+    activeAnchorHoverCleanup = window.setTimeout(() => {
+      target.classList.remove('is-anchor-hover')
+      if (historyList) {
+        historyList.classList.remove('is-anchoring')
+      }
+      activeAnchorHoverCleanup = null
+    }, HISTORY_ANCHOR_HOVER_LINGER_MS)
+  })
+}
+
+function animateHistoryScrollFollow(
+  container: HTMLElement,
+  startScrollTop: number,
+  targetScrollTop: number,
+  movementDelta: number,
+): void {
+  if (activeScrollAnimationFrame !== null && typeof cancelAnimationFrame === 'function') {
+    cancelAnimationFrame(activeScrollAnimationFrame)
+    activeScrollAnimationFrame = null
+  }
+
+  const distance = targetScrollTop - startScrollTop
+  if (Math.abs(distance) <= HISTORY_SCROLL_EPSILON) {
+    container.scrollTop = targetScrollTop
+    return
+  }
+
+  const distanceMagnitude = Math.abs(distance)
+  const dynamicDuration = Math.min(
+    HISTORY_SCROLL_ANIMATION_DURATION + distanceMagnitude * 0.35,
+    720,
+  )
+  const duration = Math.max(HISTORY_SCROLL_ANIMATION_DURATION * 0.8, dynamicDuration)
+  const delay = Math.min(HISTORY_SCROLL_ANIMATION_DELAY + Math.abs(movementDelta) * 0.08, 120)
+  let playheadStart: number | null = null
+
+  const step = (timestamp: number) => {
+    if (playheadStart === null) {
+      playheadStart = timestamp + delay
+    }
+    if (timestamp < playheadStart) {
+      activeScrollAnimationFrame = requestAnimationFrame(step)
+      return
+    }
+    const elapsed = timestamp - playheadStart
+    const progress = Math.min(elapsed / duration, 1)
+    const easedProgress = easeOutBack(progress)
+    container.scrollTop = startScrollTop + distance * easedProgress
+    if (progress < 1) {
+      activeScrollAnimationFrame = requestAnimationFrame(step)
+    } else {
+      container.scrollTop = targetScrollTop
+      activeScrollAnimationFrame = null
+    }
+  }
+
+  activeScrollAnimationFrame = requestAnimationFrame(step)
+}
+
+function accentHistoryItemDrift(target: HTMLElement, delta: number, onComplete?: () => void): void {
+  if (!target || Math.abs(delta) <= HISTORY_SCROLL_EPSILON) {
+    onComplete?.()
+    return
+  }
+  const drift = clampValue(
+    delta * HISTORY_ITEM_DRIFT_RATIO,
+    -HISTORY_ITEM_DRIFT_MAX,
+    HISTORY_ITEM_DRIFT_MAX,
+  )
+
+  if (!Number.isFinite(drift) || Math.abs(drift) <= HISTORY_SCROLL_EPSILON) {
+    onComplete?.()
+    return
+  }
+
+  if (typeof target.animate === 'function') {
+    const previous = historyItemAnimations.get(target)
+    previous?.cancel()
+    const animation = target.animate(
+      [
+        {
+          transform: `translateY(${drift}px) scale(0.995)`,
+          offset: 0,
+          easing: 'cubic-bezier(0.12, 0.83, 0.31, 1)',
+        },
+        {
+          transform: `translateY(${drift * 0.45}px) scale(0.998)`,
+          offset: 0.4,
+          easing: 'cubic-bezier(0.12, 0.83, 0.31, 1)',
+        },
+        {
+          transform: 'translateY(0) scale(1)',
+          offset: 1,
+          easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+        },
+      ],
+      {
+        duration: HISTORY_ITEM_ANIMATION_DURATION,
+        fill: 'both',
+      },
+    )
+    historyItemAnimations.set(target, animation)
+    const cleanup = () => {
+      historyItemAnimations.delete(target)
+      onComplete?.()
+    }
+    animation.addEventListener('finish', cleanup, { once: true })
+    animation.addEventListener('cancel', cleanup, { once: true })
+    return
+  }
+
+  const transition = `transform ${HISTORY_ITEM_ANIMATION_DURATION}ms cubic-bezier(0.34, 1.56, 0.64, 1)`
+  target.style.transition = transition
+  target.style.transform = `translateY(${drift}px) scale(0.995)`
+  requestAnimationFrame(() => {
+    target.style.transform = 'translateY(0) scale(1)'
+  })
+  const handleEnd = () => {
+    target.style.transition = ''
+    target.style.transform = ''
+    target.removeEventListener('transitionend', handleEnd)
+    onComplete?.()
+  }
+  target.addEventListener('transitionend', handleEnd)
+}
+
+function easeOutBack(t: number): number {
+  const c1 = 1.70158
+  const c3 = c1 + 1
+  const x = t - 1
+  return 1 + c3 * x * x * x + c1 * x * x
+}
+
+function clampScrollTop(value: number, maxScrollTop: number): number {
+  if (!Number.isFinite(value)) {
+    return 0
+  }
+  if (!Number.isFinite(maxScrollTop) || maxScrollTop <= 0) {
+    return Math.max(0, value)
+  }
+  return Math.min(Math.max(0, value), maxScrollTop)
+}
+
+function clampValue(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) {
+    return 0
+  }
+  if (min > max) {
+    return value
+  }
+  return Math.min(Math.max(value, min), max)
+}
+
+function shouldAnimateHistoryAnchor(): boolean {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return false
+  }
+  if (HISTORY_SCROLL_FORCE_ANIMATION) {
+    return true
+  }
+  if (typeof window.matchMedia === 'function') {
+    try {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        return false
+      }
+    } catch {
+      // ignore query errors
+    }
+  }
+  return true
 }
