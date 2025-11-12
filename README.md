@@ -1,5 +1,8 @@
 # Pan Transfer Chrome Extension / Pan Transfer 转存助手
 
+[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/muyuanjin/pan-transfer/releases/tag/v0.2.0)
+[![License](https://img.shields.io/badge/license-ISC-green.svg)](LICENSE)
+
 [English](#english) | [中文](#中文)
 
 <a name="english"></a>
@@ -9,6 +12,16 @@
 ### Purpose
 
 Pan Transfer is a Manifest V3 Chrome/Edge extension built with Vite 7, TypeScript 5.9, and Vue 3. The current build is dedicated to Chaospace (chaospace.xyz / chaospace.cc) pages and helps copy the public resource metadata from those pages into a user's personal Baidu Netdisk workspace. The project is open-source, intended for research/testing, and carries no commercial promises.
+
+### What's New in v0.2.0
+
+- ✨ **Detection-only mode** with manual transfer staging - avoid accidental bulk operations
+- 🎨 **Dynamic provider themes** - accent colors and badges adapt to current site
+- 🔄 **Auto-retry on network errors** - exponential backoff (500ms → 1000ms → 1500ms) for resilient transfers
+- 🎯 **Scroll anchoring** - history cards stay in view when updates reorder the list
+- 🧪 **Runtime storage switching** - `VITE_PAN_STORAGE_PROVIDER=mock` for dev/test workflows
+
+See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
 
 ### Current Capabilities
 
@@ -122,6 +135,16 @@ The `.github/workflows/release.yml` workflow can be triggered manually (`workflo
 ### 项目说明
 
 Pan Transfer 是一个基于 Vite 7、TypeScript 5.9 与 Vue 3 的 Manifest V3 Chrome/Edge 扩展，当前版本仅针对 Chaospace (chaospace.xyz / chaospace.cc) 页面，帮助用户把公开的资源信息整理并转存到自己的百度网盘目录。本项目开源共享，用于个人研究或自测，不包含任何商业承诺。
+
+### v0.2.0 更新内容
+
+- ✨ **检测模式与手动转存** - 支持仅检测模式，手动暂存后批量转存，避免误触发大批量任务
+- 🎨 **动态 Provider 主题** - 徽标和主题色自动适配当前站点
+- 🔄 **网络异常自动重试** - 指数退避策略(500ms → 1000ms → 1500ms)，显著提升批量转存稳定性
+- 🎯 **滚动锚点优化** - 历史记录更新时保持用户点击的卡片位置
+- 🧪 **运行时存储切换** - 通过 `VITE_PAN_STORAGE_PROVIDER=mock` 支持开发/测试模式
+
+详细更新日志请查看 [CHANGELOG.md](CHANGELOG.md)。
 
 ### 现有功能
 
