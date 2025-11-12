@@ -45,6 +45,17 @@
 
 ## 9. 日志刷新时,可能会突然整个日志容器`chaospace-card chaospace-status-card`的宽度突然变化(变宽)
 
-## 10. 转存历史里点击按钮(如标签页或展开季/收起季)会导致海报图片闪烁
+- **Files**: `src/content/styles/components/logs/log.css`
+- **Resolution**: The log body now forces long tokens to wrap (`overflow-wrap: anywhere; word-break: break-word`) and clamps the content column with `min-width: 0`, so new log entries no longer widen the grid track and the status card width stays stable when the list refreshes.
 
-## 11. 转存历史里,点击检测新篇,会导致转存历史面板自动滚动到最上面去,用户体验极差
+## 10. 转存历史里点击按钮(如标签页或展开季/收起季)会导致海报图片闪烁 ✅
+
+- **File**: `src/content/components/history-card.ts`
+- **Resolution**: The history list Vue app now stays mounted and receives reactive prop updates instead of being torn down on every interaction. This stops the DOM from re-creating poster `<img>` elements during tab/season toggles, eliminating the noticeable flicker while preserving existing history behaviors.
+
+## 11. 转存历史里,点击检测新篇,会导致转存历史面板自动滚动到最上面去,用户体验极差 ✅
+
+- **Files**: `src/content/components/history-card.ts`, `src/content/components/PanelRoot.vue`, `src/content/components/panel.ts`, `src/content/types.ts`, `src/content/components/__tests__/renderers.spec.ts`
+- **Resolution**: The history overlay scroll container now has an explicit data-role binding, letting the renderer snapshot its scroll offset before re-rendering and restore it on the next animation frame. Refreshing history after a “检测新篇” run no longer yanks the user back to the top, and a new regression test locks the behaviour.
+
+## 12. 优化重试机制,提高应对偶发pan api转存超时

@@ -1,5 +1,4 @@
-import { createApp, type App } from 'vue'
-import HistoryListView from './history/HistoryListView.vue'
+import { createApp, type App, reactive } from 'vue'
 import HistorySummaryView from './history/HistorySummaryView.vue'
 import {
   formatHistoryTimestamp,
@@ -11,6 +10,7 @@ import { pinia } from '../state'
 import { normalizePageUrl } from '@/providers/sites/chaospace/page-analyzer'
 import { HISTORY_DISPLAY_LIMIT } from '../constants'
 import { historyContextKey, type HistoryController } from '../runtime/ui/history-context'
+import { createHistoryListHost, type HistoryListBindings } from './history/history-list-host'
 
 export interface HistoryCardRenderParams {
   state: ContentStore & {
@@ -29,7 +29,19 @@ export interface HistoryCardRenderParams {
 }
 
 let historyListApp: App<Element> | null = null
+let historyListMountTarget: HTMLElement | null = null
 let historySummaryApp: App<Element> | null = null
+
+const historyListBindings = reactive<HistoryListBindings>({
+  entries: [],
+  currentUrl: '',
+  selectedKeys: [],
+  seasonExpandedKeys: [],
+  historyBatchRunning: false,
+  isHistoryGroupCompleted: undefined,
+})
+
+const HistoryListHost = createHistoryListHost(historyListBindings)
 
 export function renderHistoryCard(params: HistoryCardRenderParams): void {
   const {
@@ -49,6 +61,11 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
   const historyEmpty = panelDom?.historyEmpty ?? null
   const historySummaryBody = panelDom?.historySummaryBody ?? null
   const historySummary = panelDom?.historySummary ?? null
+
+  const scrollContainer = panelDom?.historyScroll ?? null
+  const shouldRestoreScroll = Boolean(scrollContainer && state.historyExpanded)
+  const previousScrollTop =
+    shouldRestoreScroll && scrollContainer ? scrollContainer.scrollTop : null
 
   if (
     !(historyList instanceof HTMLElement) ||
@@ -105,30 +122,35 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
     historyEmpty.classList.add('is-hidden')
   }
 
-  if (historyListApp) {
-    historyListApp.unmount()
-    historyListApp = null
-  }
-  historyList.innerHTML = ''
-
-  if (hasEntries) {
-    const selectedKeys = Array.from(state.historySelectedKeys || [])
-    const seasonExpandedKeys = Array.from(state.historySeasonExpanded || [])
-    // eslint-disable-next-line vue/one-component-per-file
-    historyListApp = createApp(HistoryListView, {
-      entries,
-      currentUrl,
-      selectedKeys,
-      seasonExpandedKeys,
-      historyBatchRunning: Boolean(state.historyBatchRunning),
-      isHistoryGroupCompleted:
-        typeof isHistoryGroupCompleted === 'function' ? isHistoryGroupCompleted : undefined,
-    })
-    historyListApp.use(pinia)
-    if (historyController) {
-      historyListApp.provide(historyContextKey, historyController)
+  const shouldRenderHistoryList = Boolean(historyController)
+  if (!shouldRenderHistoryList) {
+    if (historyListApp) {
+      historyListApp.unmount()
+      historyListApp = null
     }
-    historyListApp.mount(historyList)
+    historyList.innerHTML = ''
+    historyListMountTarget = null
+  } else {
+    if (historyListMountTarget && historyListMountTarget !== historyList && historyListApp) {
+      historyListApp.unmount()
+      historyListApp = null
+      historyListMountTarget = null
+    }
+    if (!historyListApp) {
+      historyList.innerHTML = ''
+      historyListApp = createApp(HistoryListHost)
+      historyListApp.use(pinia)
+      historyListApp.provide(historyContextKey, historyController!)
+      historyListApp.mount(historyList)
+      historyListMountTarget = historyList
+    }
+    historyListBindings.entries = entries
+    historyListBindings.currentUrl = currentUrl
+    historyListBindings.selectedKeys = Array.from(state.historySelectedKeys || [])
+    historyListBindings.seasonExpandedKeys = Array.from(state.historySeasonExpanded || [])
+    historyListBindings.historyBatchRunning = Boolean(state.historyBatchRunning)
+    historyListBindings.isHistoryGroupCompleted =
+      typeof isHistoryGroupCompleted === 'function' ? isHistoryGroupCompleted : undefined
   }
 
   const summaryEntry = entries[0] || null
@@ -141,7 +163,6 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
   }
   historySummaryBody.innerHTML = ''
 
-  // eslint-disable-next-line vue/one-component-per-file
   historySummaryApp = createApp(HistorySummaryView, {
     summary: summaryData,
     historyExpanded: Boolean(state.historyExpanded),
@@ -159,6 +180,27 @@ export function renderHistoryCard(params: HistoryCardRenderParams): void {
 
   if (typeof updateHistoryExpansion === 'function') {
     updateHistoryExpansion()
+  }
+
+  if (
+    shouldRestoreScroll &&
+    typeof previousScrollTop === 'number' &&
+    scrollContainer &&
+    scrollContainer.scrollTop !== previousScrollTop
+  ) {
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(() => {
+        if (scrollContainer) {
+          scrollContainer.scrollTop = previousScrollTop
+        }
+      })
+    } else {
+      setTimeout(() => {
+        if (scrollContainer) {
+          scrollContainer.scrollTop = previousScrollTop
+        }
+      }, 0)
+    }
   }
 }
 

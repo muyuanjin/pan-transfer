@@ -580,6 +580,7 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
   const resultSummary = panel.querySelector<HTMLElement>('[data-role="result-summary"]')
   const itemsContainer = panel.querySelector<HTMLElement>('[data-role="items"]')
   const historyOverlay = panel.querySelector<HTMLElement>('[data-role="history-overlay"]')
+  const historyScroll = panel.querySelector<HTMLElement>('[data-role="history-scroll"]')
   const historyList = panel.querySelector<HTMLElement>('[data-role="history-list"]')
   const historyEmpty = panel.querySelector<HTMLElement>('[data-role="history-empty"]')
   const historySummary = panel.querySelector<HTMLElement>('[data-role="history-summary"]')
@@ -637,6 +638,7 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     resultSummary,
     itemsContainer,
     historyOverlay,
+    historyScroll,
     historyList,
     historyEmpty,
     historySummary,

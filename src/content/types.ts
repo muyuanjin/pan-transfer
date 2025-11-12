@@ -301,6 +301,7 @@ const PANEL_DOM_KEYS = [
   'resultSummary',
   'itemsContainer',
   'historyOverlay',
+  'historyScroll',
   'historyList',
   'historyEmpty',
   'historySummary',
@@ -363,6 +364,7 @@ export interface PanelDomDefinition {
   resultSummary: HTMLElement
   itemsContainer: HTMLElement
   historyOverlay: HTMLElement
+  historyScroll: HTMLElement
   historyList: HTMLElement
   historyEmpty: HTMLElement
   historySummary: HTMLElement
@@ -569,6 +571,7 @@ export function getPanelLoggingDom(panelDom: PanelDomRefs): PanelLoggingDomRefs 
 
 export interface PanelHistoryDomRefs {
   readonly historyOverlay: HTMLElement | null
+  readonly historyScroll: HTMLElement | null
   readonly historyList: HTMLElement | null
   readonly historyEmpty: HTMLElement | null
   readonly historySummary: HTMLElement | null
@@ -579,6 +582,9 @@ export function getPanelHistoryDom(panelDom: PanelDomRefs): PanelHistoryDomRefs 
   return {
     get historyOverlay() {
       return panelDom.get('historyOverlay')
+    },
+    get historyScroll() {
+      return panelDom.get('historyScroll')
     },
     get historyList() {
       return panelDom.get('historyList')

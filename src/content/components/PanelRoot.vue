@@ -72,7 +72,7 @@
           <HistorySearchBar />
           <HistoryToolbar />
         </div>
-        <div class="chaospace-history-overlay-scroll">
+        <div class="chaospace-history-overlay-scroll" data-role="history-scroll">
           <div class="chaospace-history-empty" data-role="history-empty">还没有转存记录</div>
           <div class="chaospace-history-list" data-role="history-list"></div>
         </div>

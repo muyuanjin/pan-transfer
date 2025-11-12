@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { nextTick } from 'vue'
 import { createResourceListRenderer, type ResourceListRendererParams } from '../resource-list'
 import type { ResourceListPanelDom } from '../resource-list'
 import { renderHistoryCard, type HistoryCardRenderParams } from '../history-card'
@@ -154,12 +155,13 @@ describe('ResourceList renderer summary', () => {
 })
 
 describe('History list interactions', () => {
-  it('opens history detail when clicking the entry header background', () => {
+  it('opens history detail when clicking the entry header background', async () => {
     const historyList = document.createElement('div')
     const historyEmpty = document.createElement('div')
     const historySummaryBody = document.createElement('div')
     const historySummary = document.createElement('div')
     const historyOverlay = document.createElement('div')
+    const historyScroll = document.createElement('div')
 
     const panelDom = {
       historyList,
@@ -167,6 +169,7 @@ describe('History list interactions', () => {
       historySummaryBody,
       historySummary,
       historyOverlay,
+      historyScroll,
     } as HistoryCardRenderParams['panelDom']
 
     const historyGroup = {
@@ -263,6 +266,7 @@ describe('History list interactions', () => {
       isHistoryGroupCompleted: undefined,
       historyController,
     })
+    await flushHistoryListRender()
 
     const header = panelDom.historyList?.querySelector(
       '.chaospace-history-item-header',
@@ -279,11 +283,12 @@ describe('History list interactions', () => {
 })
 
 describe('HistoryCard renderer toggles', () => {
-  it('enables toggle buttons after rendering groups', () => {
+  it('enables toggle buttons after rendering groups', async () => {
     const historyList = document.createElement('div')
     const historyEmpty = document.createElement('div')
     const historySummaryBody = document.createElement('div')
     const historySummary = document.createElement('div')
+    const historyScroll = document.createElement('div')
     const overlay = document.createElement('div')
     const toggleButton = document.createElement('button')
     toggleButton.dataset['role'] = 'history-toggle'
@@ -294,6 +299,7 @@ describe('HistoryCard renderer toggles', () => {
       historyEmpty,
       historySummaryBody,
       historySummary,
+      historyScroll,
       historyOverlay: overlay,
     } as HistoryCardRenderParams['panelDom']
 
@@ -387,9 +393,153 @@ describe('HistoryCard renderer toggles', () => {
       isHistoryGroupCompleted: undefined,
       historyController: createHistoryControllerStub(),
     })
+    await flushHistoryListRender()
 
     expect(historyEmpty.classList.contains('is-hidden')).toBe(true)
     expect(historyList.innerHTML).not.toBe('')
+  })
+
+  it('preserves scroll position when rerendering expanded history lists', async () => {
+    const historyList = document.createElement('div')
+    const historyEmpty = document.createElement('div')
+    const historySummaryBody = document.createElement('div')
+    const historySummary = document.createElement('div')
+    const historyScroll = document.createElement('div')
+    historyScroll.style.overflowY = 'auto'
+    const overlay = document.createElement('div')
+
+    const panelDom = {
+      historyList,
+      historyEmpty,
+      historySummaryBody,
+      historySummary,
+      historyScroll,
+      historyOverlay: overlay,
+    } as HistoryCardRenderParams['panelDom']
+
+    const historyGroup = {
+      key: 'group-1',
+      title: '示例记录',
+      origin: 'chaospace',
+      poster: null,
+      updatedAt: Date.now(),
+      records: [],
+      main: {
+        id: 'record-1',
+        pageTitle: '示例记录',
+        completion: { state: 'ongoing', label: '连载中' },
+        targetDirectory: '/示例',
+        urls: ['https://example.com'],
+        pageUrl: 'https://example.com',
+      },
+      children: [],
+      urls: ['https://example.com'],
+      seasonEntries: [],
+    } as unknown as HistoryGroup
+
+    const state = {
+      historyGroups: [historyGroup],
+      historyDetail: {
+        isOpen: false,
+        loading: false,
+        groupKey: '',
+        pageUrl: '',
+        data: null,
+        error: '',
+        fallback: null,
+      },
+      historySelectedKeys: new Set<string>(),
+      historySeasonExpanded: new Set<string>(),
+      historyBatchRunning: false,
+      historyExpanded: true,
+      pageUrl: 'https://example.com',
+      baseDir: '/',
+      baseDirLocked: false,
+      autoSuggestedDir: null,
+      classification: 'unknown',
+      classificationDetails: null,
+      useTitleSubdir: true,
+      useSeasonSubdir: false,
+      seasonSubdirDefault: false,
+      seasonPreferenceScope: 'default',
+      seasonPreferenceTabId: null,
+      presets: [],
+      items: [],
+      itemIdSet: new Set<string>(),
+      isSeasonLoading: false,
+      seasonLoadProgress: { total: 0, loaded: 0 },
+      deferredSeasonInfos: [],
+      sortKey: 'page' as const,
+      sortOrder: 'asc' as const,
+      selectedIds: new Set<string>(),
+      newItemIds: new Set<string>(),
+      transferredIds: new Set<string>(),
+      seasonCompletion: {},
+      seasonEntries: [],
+      completion: null,
+      historyRecords: [],
+      historyFilter: 'all',
+      historyBatchProgressLabel: '',
+      historyDetailCache: new Map<string, unknown>(),
+      logs: [],
+      transferStatus: 'idle',
+      lastResult: null,
+      statusMessage: '',
+      theme: 'dark',
+      jobId: null,
+      origin: '',
+      poster: null,
+      pageTitle: '',
+      seasonDirMap: {},
+      seasonResolvedPaths: [],
+      activeSeasonId: null,
+      settingsPanel: { isOpen: false },
+    } as unknown as HistoryCardRenderParams['state']
+
+    const historyController = createHistoryControllerStub()
+
+    renderHistoryCard({
+      state,
+      panelDom,
+      floatingPanel: overlay,
+      pruneHistorySelection: undefined,
+      getHistoryGroupByKey: undefined,
+      closeHistoryDetail: undefined,
+      getFilteredHistoryGroups: undefined,
+      updateHistoryExpansion: undefined,
+      isHistoryGroupCompleted: undefined,
+      historyController,
+    })
+    await flushHistoryListRender()
+
+    historyScroll.scrollTop = 420
+
+    const originalRaf = window.requestAnimationFrame
+    window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+      historyScroll.scrollTop = 0
+      callback(0)
+      return 0
+    }) as typeof window.requestAnimationFrame
+
+    try {
+      state.historyGroups = [...state.historyGroups]
+      renderHistoryCard({
+        state,
+        panelDom,
+        floatingPanel: overlay,
+        pruneHistorySelection: undefined,
+        getHistoryGroupByKey: undefined,
+        closeHistoryDetail: undefined,
+        getFilteredHistoryGroups: undefined,
+        updateHistoryExpansion: undefined,
+        isHistoryGroupCompleted: undefined,
+        historyController,
+      })
+      await flushHistoryListRender()
+      expect(historyScroll.scrollTop).toBe(420)
+    } finally {
+      window.requestAnimationFrame = originalRaf
+    }
   })
 })
 
@@ -453,3 +603,7 @@ describe('History detail transitions', () => {
     expect(detailDom.backdrop?.hasAttribute('hidden')).toBe(true)
   })
 })
+async function flushHistoryListRender(): Promise<void> {
+  await nextTick()
+  await nextTick()
+}
