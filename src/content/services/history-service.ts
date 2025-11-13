@@ -1,7 +1,15 @@
 import { chaosLogger } from '@/shared/log'
 import { HISTORY_KEY, HISTORY_FILTERS, type HistoryFilter } from '../constants'
 import { normalizePageUrl } from '@/providers/sites/chaospace/page-analyzer'
-import type { CompletionStatus, SeasonEntry } from '@/shared/utils/completion-status'
+import {
+  normalizeHistoryCompletion,
+  normalizeSeasonCompletionMap,
+  normalizeSeasonDirectoryMap,
+  normalizeSeasonEntries,
+  type CompletionStatus,
+  type SeasonEntry,
+  type SeasonEntryInput,
+} from '@/shared/utils/completion-status'
 import type { PosterInfo } from '@/shared/utils/sanitizers'
 import type {
   ContentHistoryRecord,
@@ -10,12 +18,8 @@ import type {
   HistoryRecordsPayload,
 } from '../types'
 import { safeStorageGet } from '../utils/storage'
-import type {
-  HistoryPendingTransfer,
-  TransferItemPayload,
-  TransferJobMeta,
-  TransferRequestPayload,
-} from '@/shared/types/transfer'
+import type { HistoryPendingTransfer } from '@/shared/types/transfer'
+import { normalizePendingTransfer } from '@/shared/history/normalizers'
 
 type TinyPinyinModule = typeof import('tiny-pinyin')
 
@@ -61,65 +65,9 @@ export async function ensureHistorySearchTransliterationReady(): Promise<void> {
   await loadTinyPinyin()
 }
 
-interface CompletionLike {
-  label?: unknown
-  state?: unknown
-  source?: unknown
-  updatedAt?: unknown
-}
-
-interface PosterLike {
-  src?: unknown
-  alt?: unknown
-}
-
-interface HistorySeasonEntryInput {
-  seasonId?: unknown
-  id?: unknown
-  url?: unknown
-  label?: unknown
-  seasonIndex?: unknown
-  completion?: unknown
-  poster?: unknown
-  loaded?: unknown
-  hasItems?: unknown
-}
-
 interface StoredHistorySnapshot {
   records?: unknown
   [key: string]: unknown
-}
-
-interface PendingTransferLike {
-  jobId?: unknown
-  detectedAt?: unknown
-  summary?: unknown
-  newItemIds?: unknown
-  payload?: unknown
-}
-
-interface PendingTransferPayloadLike {
-  jobId?: unknown
-  origin?: unknown
-  targetDirectory?: unknown
-  meta?: unknown
-  items?: unknown
-}
-
-const COMPLETION_STATES: ReadonlySet<CompletionStatus['state']> = new Set([
-  'completed',
-  'ongoing',
-  'upcoming',
-  'unknown',
-])
-
-function coerceCompletionState(state: unknown): CompletionStatus['state'] {
-  if (typeof state !== 'string') {
-    return 'unknown'
-  }
-  return COMPLETION_STATES.has(state as CompletionStatus['state'])
-    ? (state as CompletionStatus['state'])
-    : 'unknown'
 }
 
 export async function readHistoryFromStorage(): Promise<StoredHistorySnapshot | null> {
@@ -134,116 +82,6 @@ export async function readHistoryFromStorage(): Promise<StoredHistorySnapshot | 
     chaosLogger.error('[Pan Transfer] Failed to read history from storage', error)
     return null
   }
-}
-
-export function normalizeHistoryCompletion(entry: unknown): CompletionStatus | null {
-  if (!entry || typeof entry !== 'object') {
-    return null
-  }
-  const raw = entry as CompletionLike
-  const labelValue = raw.label
-  const label = typeof labelValue === 'string' ? labelValue.trim() : ''
-  if (!label) {
-    return null
-  }
-  const state = coerceCompletionState(raw.state)
-  const normalized: CompletionStatus = {
-    label,
-    state,
-  }
-  if (typeof raw.source === 'string' && raw.source.trim()) {
-    normalized.source = raw.source.trim()
-  }
-  if (typeof raw.updatedAt === 'number' && Number.isFinite(raw.updatedAt)) {
-    normalized.updatedAt = raw.updatedAt
-  }
-  return normalized
-}
-
-export function normalizeSeasonCompletionMap(value: unknown): Record<string, CompletionStatus> {
-  if (!value || typeof value !== 'object') {
-    return {}
-  }
-  const result: Record<string, CompletionStatus> = {}
-  Object.entries(value as Record<string, unknown>).forEach(([key, entry]) => {
-    const normalized = normalizeHistoryCompletion(entry)
-    if (normalized) {
-      result[key] = normalized
-    }
-  })
-  return result
-}
-
-export function normalizeSeasonDirectory(value: unknown): Record<string, string> {
-  if (!value || typeof value !== 'object') {
-    return {}
-  }
-  const result: Record<string, string> = {}
-  Object.entries(value as Record<string, unknown>).forEach(([key, dir]) => {
-    if (typeof dir !== 'string') {
-      return
-    }
-    const trimmed = dir.trim()
-    if (trimmed) {
-      result[key] = trimmed
-    }
-  })
-  return result
-}
-
-function normalizePosterInfo(entry: unknown): PosterInfo | null {
-  if (!entry || typeof entry !== 'object') {
-    return null
-  }
-  const raw = entry as PosterLike
-  if (typeof raw.src !== 'string' || !raw.src.trim()) {
-    return null
-  }
-  return {
-    src: raw.src,
-    alt: typeof raw.alt === 'string' ? raw.alt : '',
-  }
-}
-
-export function normalizeHistorySeasonEntries(entries: unknown): SeasonEntry[] {
-  if (!Array.isArray(entries)) {
-    return []
-  }
-  return entries
-    .map((entry) => {
-      if (!entry || typeof entry !== 'object') {
-        return null
-      }
-      const raw = entry as HistorySeasonEntryInput
-      const seasonId =
-        typeof raw.seasonId === 'string' && raw.seasonId
-          ? raw.seasonId
-          : typeof raw.id === 'string'
-            ? raw.id
-            : ''
-      const url = typeof raw.url === 'string' ? raw.url : ''
-      const label = typeof raw.label === 'string' ? raw.label : ''
-      const seasonIndex = Number.isFinite(raw.seasonIndex) ? Number(raw.seasonIndex) : 0
-      const completion = normalizeHistoryCompletion(raw.completion || null)
-      const poster = normalizePosterInfo(raw.poster || null)
-      return {
-        seasonId,
-        url,
-        label,
-        seasonIndex,
-        completion,
-        poster,
-        loaded: Boolean(raw.loaded),
-        hasItems: Boolean(raw.hasItems),
-      } as SeasonEntry
-    })
-    .filter((entry): entry is SeasonEntry => Boolean(entry))
-    .sort((a, b) => {
-      if (a.seasonIndex === b.seasonIndex) {
-        return a.seasonId.localeCompare(b.seasonId, 'zh-CN')
-      }
-      return a.seasonIndex - b.seasonIndex
-    })
 }
 
 export function getHistoryRecordTimestamp(record: ContentHistoryRecord | null | undefined): number {
@@ -599,106 +437,6 @@ function appendSearchCandidates(target: string[], value: unknown): void {
   })
 }
 
-function normalizePendingTransferItems(value: unknown): TransferItemPayload[] {
-  let source: unknown[] = []
-  if (Array.isArray(value)) {
-    source = value
-  } else if (value && typeof value === 'object') {
-    source = Object.values(value as Record<string, unknown>)
-  }
-  return source
-    .map((entry) => {
-      if (!entry || typeof entry !== 'object') {
-        return null
-      }
-      const item = entry as { [key: string]: unknown }
-      const id = item['id']
-      if (typeof id !== 'string' && typeof id !== 'number') {
-        return null
-      }
-      const normalized: TransferItemPayload = {
-        id,
-        title: typeof item['title'] === 'string' ? (item['title'] as string) : '',
-      }
-      if (typeof item['targetPath'] === 'string' && item['targetPath']) {
-        normalized.targetPath = item['targetPath'] as string
-      }
-      if (typeof item['linkUrl'] === 'string' && item['linkUrl']) {
-        normalized.linkUrl = item['linkUrl'] as string
-      }
-      if (typeof item['passCode'] === 'string' && item['passCode']) {
-        normalized.passCode = item['passCode'] as string
-      }
-      return normalized
-    })
-    .filter((entry): entry is TransferItemPayload => Boolean(entry))
-}
-
-function cloneTransferJobMeta(value: unknown): TransferJobMeta | undefined {
-  if (!value || typeof value !== 'object') {
-    return undefined
-  }
-  return { ...(value as TransferJobMeta) }
-}
-
-function normalizePendingTransferPayload(
-  payload: unknown,
-  fallbackJobId: string,
-): TransferRequestPayload | null {
-  if (!payload || typeof payload !== 'object') {
-    return null
-  }
-  const raw = payload as PendingTransferPayloadLike
-  const items = normalizePendingTransferItems(raw.items)
-  if (!items.length) {
-    return null
-  }
-  const normalized: TransferRequestPayload = {
-    jobId: typeof raw.jobId === 'string' && raw.jobId ? raw.jobId : fallbackJobId,
-    items,
-  }
-  if (typeof raw.origin === 'string' && raw.origin) {
-    normalized.origin = raw.origin
-  }
-  if (typeof raw.targetDirectory === 'string' && raw.targetDirectory) {
-    normalized.targetDirectory = raw.targetDirectory
-  }
-  const meta = cloneTransferJobMeta(raw.meta)
-  if (meta) {
-    normalized.meta = meta
-  }
-  return normalized
-}
-
-function normalizePendingTransfer(value: unknown): HistoryPendingTransfer | null {
-  if (!value || typeof value !== 'object') {
-    return null
-  }
-  const raw = value as PendingTransferLike
-  const jobId = typeof raw.jobId === 'string' && raw.jobId ? raw.jobId : ''
-  const detectedAt = Number.isFinite(raw.detectedAt as number) ? Number(raw.detectedAt) : 0
-  if (!jobId || detectedAt <= 0) {
-    return null
-  }
-  const payload = normalizePendingTransferPayload(raw.payload, jobId)
-  if (!payload) {
-    return null
-  }
-  const summary = typeof raw.summary === 'string' ? raw.summary : ''
-  const newItemIds = Array.isArray(raw.newItemIds)
-    ? raw.newItemIds.filter(
-        (id): id is string | number => typeof id === 'string' || typeof id === 'number',
-      )
-    : []
-  return {
-    jobId,
-    detectedAt,
-    summary,
-    newItemIds,
-    payload,
-  }
-}
-
 const normalizeProviderField = (value: unknown): string | null => {
   if (typeof value !== 'string') {
     return null
@@ -882,9 +620,9 @@ function toContentHistoryRecord(record: unknown): ContentHistoryRecord {
       : null
   base.completion = normalizeHistoryCompletion(base.completion || null)
   base.seasonCompletion = normalizeSeasonCompletionMap(base.seasonCompletion || null)
-  base.seasonDirectory = normalizeSeasonDirectory(base.seasonDirectory || null)
+  base.seasonDirectory = normalizeSeasonDirectoryMap(base.seasonDirectory || null)
   base.useSeasonSubdir = Boolean(base.useSeasonSubdir)
-  base.seasonEntries = normalizeHistorySeasonEntries(base.seasonEntries || [])
+  base.seasonEntries = normalizeSeasonEntries(base.seasonEntries as SeasonEntryInput[])
   if (!Array.isArray(base.itemOrder)) {
     base.itemOrder = []
   }

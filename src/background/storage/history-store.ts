@@ -22,14 +22,13 @@ import { sanitizePosterInfo, type PosterInput } from '@/shared/utils/sanitizers'
 import { normalizePath } from '../utils/path'
 import { buildSurl } from '../utils/share'
 import { canonicalizePageUrl } from '@/shared/utils/url'
+import { normalizePendingTransfer } from '@/shared/history/normalizers'
 import type {
   HistoryRecord,
   HistoryRecordItem,
-  TransferItemPayload,
   TransferRequestPayload,
   TransferResponsePayload,
   TransferResultEntry,
-  TransferJobMeta,
 } from '@/shared/types/transfer'
 
 const nowTs = (): number => Date.now()
@@ -352,77 +351,7 @@ export function ensureHistoryRecordStructure(
     }
   }
 
-  const pending = record?.pendingTransfer
-  if (pending && typeof pending === 'object') {
-    const jobId = typeof pending.jobId === 'string' ? pending.jobId : ''
-    const detectedAt = Number.isFinite((pending as { detectedAt?: unknown }).detectedAt as number)
-      ? Number((pending as { detectedAt: number }).detectedAt)
-      : 0
-    const summary = typeof pending.summary === 'string' ? pending.summary : ''
-    const newItemIds = Array.isArray(pending.newItemIds)
-      ? pending.newItemIds.filter(
-          (value): value is string | number =>
-            typeof value === 'string' || typeof value === 'number',
-        )
-      : []
-    const payload = pending.payload && typeof pending.payload === 'object' ? pending.payload : null
-    if (jobId && detectedAt > 0 && payload) {
-      const items = Array.isArray(payload.items)
-        ? payload.items
-            .map((item) => {
-              if (!item || typeof item !== 'object') {
-                return null
-              }
-              const idValue = (item as { id?: unknown }).id
-              const titleValue = (item as { title?: unknown }).title
-              const normalizedItemId =
-                typeof idValue === 'string' || typeof idValue === 'number' ? idValue : null
-              if (normalizedItemId === null) {
-                return null
-              }
-              const normalizedItem: TransferItemPayload = {
-                id: normalizedItemId,
-                title: typeof titleValue === 'string' ? titleValue : '',
-              }
-              const targetPath = (item as { targetPath?: unknown }).targetPath
-              if (typeof targetPath === 'string' && targetPath) {
-                normalizedItem.targetPath = targetPath
-              }
-              const linkUrl = (item as { linkUrl?: unknown }).linkUrl
-              if (typeof linkUrl === 'string' && linkUrl) {
-                normalizedItem.linkUrl = linkUrl
-              }
-              const passCode = (item as { passCode?: unknown }).passCode
-              if (typeof passCode === 'string' && passCode) {
-                normalizedItem.passCode = passCode
-              }
-              return normalizedItem
-            })
-            .filter((value): value is TransferItemPayload => Boolean(value))
-        : []
-
-      const normalizedPayload: TransferRequestPayload = {
-        jobId: typeof payload.jobId === 'string' && payload.jobId ? payload.jobId : jobId,
-        items,
-      }
-      if (typeof payload.origin === 'string' && payload.origin) {
-        normalizedPayload.origin = payload.origin
-      }
-      if (typeof payload.targetDirectory === 'string' && payload.targetDirectory) {
-        normalizedPayload.targetDirectory = payload.targetDirectory
-      }
-      if (payload.meta && typeof payload.meta === 'object') {
-        normalizedPayload.meta = { ...(payload.meta as TransferJobMeta) }
-      }
-      normalized.pendingTransfer = {
-        jobId,
-        detectedAt,
-        summary,
-        newItemIds,
-        payload: normalizedPayload,
-      }
-    }
-  }
+  normalized.pendingTransfer = normalizePendingTransfer(record?.pendingTransfer)
 
   return normalized
 }

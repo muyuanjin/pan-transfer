@@ -13,6 +13,7 @@ export default [
   {
     ignores: [
       'dist/**',
+      'dist.e2e-backup/**',
       'node_modules/**',
       '*.cjs',
       'chaospace-extension/**',
@@ -298,6 +299,36 @@ export default [
   },
 
   // Node-based maintenance scripts
+  {
+    files: ['scripts/**/*.ts'],
+    languageOptions: {
+      parser: typescriptParser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        project: './tsconfig.node.json',
+        tsconfigRootDir: import.meta.dirname,
+      },
+      globals: {
+        ...globals.node,
+      },
+    },
+    plugins: {
+      '@typescript-eslint': typescript,
+    },
+    rules: {
+      ...typescript.configs.recommended.rules,
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+        },
+      ],
+    },
+  },
   {
     files: ['scripts/**/*.mjs'],
     languageOptions: {

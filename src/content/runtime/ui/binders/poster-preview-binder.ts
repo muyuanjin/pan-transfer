@@ -3,6 +3,7 @@ import type { ContentStore } from '../../../state'
 import type { createHistoryController } from '../../../history/controller'
 import { closestElement } from '../../../utils/dom'
 import type { Binder } from './types'
+import { createAbortableBinder } from './abortable-binder'
 
 type HistoryController = ReturnType<typeof createHistoryController>
 
@@ -21,13 +22,9 @@ export function createPosterPreviewBinder({
 }: PosterPreviewBinderDeps): Binder {
   return {
     bind(): () => void {
-      const abort = new AbortController()
-      const { signal } = abort
-
-      if (panelDom.headerPoster) {
-        panelDom.headerPoster.addEventListener(
-          'click',
-          () => {
+      return createAbortableBinder((add) => {
+        if (panelDom.headerPoster) {
+          add(panelDom.headerPoster, 'click', () => {
             const src = panelDom.headerPoster?.dataset?.['src']
             if (!src) {
               return
@@ -40,16 +37,12 @@ export function createPosterPreviewBinder({
                 state.pageTitle ||
                 '',
             })
-          },
-          { signal },
-        )
-      }
+          })
+        }
 
-      const panel = getFloatingPanel()
-      if (panel) {
-        panel.addEventListener(
-          'click',
-          (event) => {
+        const panel = getFloatingPanel()
+        if (panel) {
+          add(panel, 'click', (event) => {
             const toggleBtn = closestElement<HTMLElement>(
               event.target,
               '[data-role="history-toggle"]',
@@ -61,12 +54,9 @@ export function createPosterPreviewBinder({
               return
             }
             history.toggleHistoryExpanded()
-          },
-          { signal },
-        )
-      }
-
-      return () => abort.abort()
+          })
+        }
+      })
     },
   }
 }

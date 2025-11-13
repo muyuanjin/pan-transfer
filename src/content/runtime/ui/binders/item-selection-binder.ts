@@ -2,6 +2,7 @@ import type { PanelResourceDomRefs } from '../../../types'
 import type { ContentStore } from '../../../state'
 import { closestElement } from '../../../utils/dom'
 import type { Binder } from './types'
+import { createAbortableBinder } from './abortable-binder'
 
 interface ItemSelectionBinderDeps {
   panelDom: PanelResourceDomRefs
@@ -23,12 +24,8 @@ export function createItemSelectionBinder({
         throw new Error('[Pan Transfer] Missing resource items container binding')
       }
 
-      const abort = new AbortController()
-      const { signal } = abort
-
-      container.addEventListener(
-        'change',
-        (event) => {
+      return createAbortableBinder((add) => {
+        add(container, 'change', (event) => {
           const checkbox = closestElement<HTMLInputElement>(
             event.target,
             '.chaospace-item-checkbox',
@@ -51,11 +48,8 @@ export function createItemSelectionBinder({
           }
           renderResourceSummary()
           updateTransferButton()
-        },
-        { signal },
-      )
-
-      return () => abort.abort()
+        })
+      })
     },
   }
 }

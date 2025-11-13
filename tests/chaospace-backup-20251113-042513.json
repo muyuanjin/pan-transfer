@@ -1,0 +1,541 @@
+{
+  "type": "chaospace-transfer-backup",
+  "version": 1,
+  "exportedAt": "2025-11-12T20:25:13.346Z",
+  "data": {
+    "settings": {
+      "baseDir": "/视频/番剧",
+      "useTitleSubdir": true,
+      "useSeasonSubdir": true,
+      "presets": ["/视频/番剧", "/视频/影视", "/视频/电影"],
+      "theme": "light",
+      "historyRateLimitMs": 1500,
+      "fileFilterMode": "deny-first",
+      "fileFilters": [
+        {
+          "action": "exclude",
+          "logic": "all",
+          "enabled": true,
+          "conditions": [
+            {
+              "type": "size",
+              "operator": "lte",
+              "value": 10
+            },
+            {
+              "type": "name",
+              "mode": "includes",
+              "value": "关注 微信 微博 发布 地址 推荐",
+              "caseSensitive": false
+            }
+          ],
+          "name": "剔除无意义的空文件"
+        }
+      ],
+      "fileRenameRules": [
+        {
+          "pattern": "[@\\.]?CHAOSPACE",
+          "flags": "gi",
+          "replacement": "",
+          "enabled": true
+        }
+      ]
+    },
+    "history": {
+      "records": [
+        {
+          "baseDir": "/视频/番剧",
+          "completion": {
+            "label": "更新至E06",
+            "source": "season-meta",
+            "state": "ongoing",
+            "updatedAt": 1762939418091
+          },
+          "itemOrder": ["432687", "431348", "430562", "429438", "429437", "433749"],
+          "items": {
+            "429437": {
+              "files": [
+                "Touring.After.the.Apocalypse.S01E01.1080p.BAHA.WEB-DL.CHT-HAN@CHAOSPACE.mp4"
+              ],
+              "id": "429437",
+              "lastStatus": "success",
+              "lastTransferredAt": 1762329819343,
+              "linkUrl": "https://pan.baidu.com/s/1XH2i8RZ2h49BbdGv1LS1cg?pwd=2333",
+              "message": "转存成功",
+              "passCode": "2333",
+              "status": "success",
+              "title": "末世二轮之旅：第1季 E01",
+              "totalSuccess": 1
+            },
+            "433749": {
+              "files": ["Touring.After.the.Apocalypse.S01E06.1080p.BAHA.WEB-DL.CHT-HAN.mp4"],
+              "id": "433749",
+              "lastStatus": "success",
+              "lastTransferredAt": 1762939418091,
+              "linkUrl": "https://pan.baidu.com/s/1F72bCIgM4i98R2el-EA5EQ?pwd=2333",
+              "message": "转存成功",
+              "passCode": "2333",
+              "status": "success",
+              "title": "末世二轮之旅：第1季 E06",
+              "totalSuccess": 1
+            }
+          },
+          "lastCheckedAt": 1762939418091,
+          "lastResult": {
+            "failed": 0,
+            "skipped": 0,
+            "success": 1,
+            "summary": "成功 1 项，跳过 0 项，失败 0 项",
+            "updatedAt": 1762939418091
+          },
+          "lastTransferredAt": 1762939418091,
+          "origin": "https://www.chaospace.cc",
+          "pageTitle": "末世二轮之旅",
+          "pageType": "series",
+          "pageUrl": "https://www.chaospace.cc/tvshows/429433.html",
+          "pendingTransfer": null,
+          "poster": {
+            "alt": "末世二轮之旅",
+            "src": "https://www.chaospace.cc/wp-content/uploads/2025/10/yKw9HEOy19WXupGPejMV19zJ0Th-185x278.jpg"
+          },
+          "seasonCompletion": {
+            "429435": {
+              "label": "更新至E06",
+              "source": "season-meta",
+              "state": "ongoing",
+              "updatedAt": 1762939418091
+            }
+          },
+          "seasonDirectory": {
+            "429435": "第1季"
+          },
+          "seasonEntries": [
+            {
+              "completion": {
+                "label": "更新至E05",
+                "source": "season-detail",
+                "state": "ongoing"
+              },
+              "hasItems": true,
+              "label": "第1季",
+              "loaded": true,
+              "poster": {
+                "alt": "末世二轮之旅",
+                "src": "https://www.chaospace.cc/wp-content/uploads/2025/10/yKw9HEOy19WXupGPejMV19zJ0Th-185x278.jpg"
+              },
+              "seasonId": "429435",
+              "seasonIndex": 0,
+              "url": "https://www.chaospace.cc/seasons/429435.html"
+            }
+          ],
+          "siteProviderId": "chaospace",
+          "siteProviderLabel": "CHAOSPACE",
+          "targetDirectory": "/视频/番剧/末世二轮之旅",
+          "totalTransferred": 6,
+          "useSeasonSubdir": true,
+          "useTitleSubdir": true
+        },
+        {
+          "baseDir": "/视频/影视",
+          "completion": {
+            "label": "已完结",
+            "source": "transfer-meta",
+            "state": "completed",
+            "updatedAt": 1762435587573
+          },
+          "itemOrder": ["428876"],
+          "items": {
+            "428876": {
+              "files": [
+                "True.Haunting.S01E01.1080p.WEBRip.CHS&ENG-HAN.CHAOSPACE.mp4",
+                "True.Haunting.S01E02.1080p.WEBRip.CHS&ENG-HAN.CHAOSPACE.mp4",
+                "True.Haunting.S01E03.1080p.WEBRip.CHS&ENG-HAN.CHAOSPACE.mp4",
+                "True.Haunting.S01E04.1080p.WEBRip.CHS&ENG-HAN.CHAOSPACE.mp4",
+                "True.Haunting.S01E05.1080p.WEBRip.CHS&ENG-HAN.CHAOSPACE.mp4",
+                "欢迎关注微信公众号chaospace2018",
+                "欢迎关注新浪微博chaospace2019",
+                "资源唯一发布地址chaospace.cc 如果你喜欢请推荐给好友"
+              ],
+              "id": "428876",
+              "lastStatus": "success",
+              "lastTransferredAt": 1762435587573,
+              "linkUrl": "https://pan.baidu.com/s/1KPdkZHPeZYMAvElOy6ePfA?pwd=2333",
+              "message": "转存成功",
+              "passCode": "2333",
+              "status": "success",
+              "title": "鬼屋实录",
+              "totalSuccess": 1
+            }
+          },
+          "lastCheckedAt": 1762435587573,
+          "lastResult": {
+            "failed": 0,
+            "skipped": 0,
+            "success": 1,
+            "summary": "成功 1 项，跳过 0 项，失败 0 项",
+            "updatedAt": 1762435587573
+          },
+          "lastTransferredAt": 1762435587573,
+          "origin": "https://www.chaospace.cc",
+          "pageTitle": "鬼屋实录",
+          "pageType": "movie",
+          "pageUrl": "https://www.chaospace.cc/tvshows/428872.html",
+          "pendingTransfer": null,
+          "poster": {
+            "alt": "鬼屋实录",
+            "src": "https://www.chaospace.cc/wp-content/uploads/2025/10/wY1Xu4PJSEy0YBLZPq2qXvy2pE2-185x278.jpg"
+          },
+          "seasonCompletion": {
+            "428874": {
+              "label": "已完结",
+              "source": "season-detail",
+              "state": "completed",
+              "updatedAt": 1762435587573
+            }
+          },
+          "seasonDirectory": {
+            "428874": "第1季"
+          },
+          "seasonEntries": [
+            {
+              "completion": {
+                "label": "已完结",
+                "source": "season-detail",
+                "state": "completed"
+              },
+              "hasItems": true,
+              "label": "第1季",
+              "loaded": true,
+              "poster": {
+                "alt": "鬼屋实录",
+                "src": "https://www.chaospace.cc/wp-content/uploads/2025/10/qNHEgYPamDzumVpXYernbflNuxZ-185x278.jpg"
+              },
+              "seasonId": "428874",
+              "seasonIndex": 0,
+              "url": "https://www.chaospace.cc/seasons/428874.html"
+            }
+          ],
+          "siteProviderId": null,
+          "siteProviderLabel": null,
+          "targetDirectory": "/视频/影视/鬼屋实录",
+          "totalTransferred": 1,
+          "useSeasonSubdir": true,
+          "useTitleSubdir": true
+        },
+        {
+          "baseDir": "/视频/电影",
+          "completion": null,
+          "itemOrder": ["433161"],
+          "items": {
+            "433161": {
+              "id": "433161",
+              "lastStatus": "skipped",
+              "lastTransferredAt": 1762491508715,
+              "linkUrl": "https://pan.baidu.com/s/1T7ajHsRG3ix10Z8bIQ7w6w?pwd=2333",
+              "message": "已跳过：重命名后文件已存在（1 项）；过滤规则排除 3 项",
+              "passCode": "2333",
+              "skippedFiles": ["Somnium.2025.1080p.WEBRip.CHS&ENG-HAN.mp4"],
+              "status": "skipped",
+              "title": "梦境",
+              "totalSuccess": 0
+            }
+          },
+          "lastCheckedAt": 1762491508715,
+          "lastResult": {
+            "failed": 0,
+            "skipped": 1,
+            "success": 0,
+            "summary": "成功 0 项，跳过 1 项，失败 0 项",
+            "updatedAt": 1762491508715
+          },
+          "lastTransferredAt": 0,
+          "origin": "https://www.chaospace.cc",
+          "pageTitle": "梦境",
+          "pageType": "movie",
+          "pageUrl": "https://www.chaospace.cc/movies/433157.html",
+          "pendingTransfer": null,
+          "poster": {
+            "alt": "梦境",
+            "src": "https://www.chaospace.cc/wp-content/uploads/2025/11/cPUeMJkPLDWSOA6OU862EdZhylS-185x278.jpg"
+          },
+          "seasonCompletion": {},
+          "seasonDirectory": {},
+          "seasonEntries": [],
+          "siteProviderId": null,
+          "siteProviderLabel": null,
+          "targetDirectory": "/视频/电影/梦境",
+          "totalTransferred": 1,
+          "useSeasonSubdir": false,
+          "useTitleSubdir": true
+        },
+        {
+          "baseDir": "/视频/影视",
+          "completion": {
+            "label": "已完结",
+            "source": "transfer-meta",
+            "state": "completed",
+            "updatedAt": 1762139829993
+          },
+          "itemOrder": ["12915", "12916", "12917", "339607", "153860"],
+          "items": {
+            "12915": {
+              "files": ["Stranger Things S01"],
+              "id": "12915",
+              "lastStatus": "success",
+              "lastTransferredAt": 1762139829993,
+              "linkUrl": "https://pan.baidu.com/s/17cxlNWa9NYkLQPSM9YDrog",
+              "message": "操作成功",
+              "passCode": "2333",
+              "status": "failed",
+              "title": "怪奇物语",
+              "totalSuccess": 1
+            },
+            "12916": {
+              "files": ["Stranger Things S02"],
+              "id": "12916",
+              "lastStatus": "success",
+              "lastTransferredAt": 1762139829993,
+              "linkUrl": "https://pan.baidu.com/s/1tye5z_PLHHDbcHtN2_zvvw",
+              "message": "操作成功",
+              "passCode": "2333",
+              "status": "failed",
+              "title": "怪奇物语",
+              "totalSuccess": 1
+            },
+            "12917": {
+              "files": ["Stranger Things S03"],
+              "id": "12917",
+              "lastStatus": "success",
+              "lastTransferredAt": 1762139829993,
+              "linkUrl": "https://pan.baidu.com/s/1OXJLPL4r7wkxbljjtDpAkw",
+              "message": "操作成功",
+              "passCode": "2333",
+              "status": "failed",
+              "title": "怪奇物语",
+              "totalSuccess": 1
+            }
+          },
+          "lastCheckedAt": 1762139829993,
+          "lastResult": {
+            "failed": 0,
+            "skipped": 0,
+            "success": 6,
+            "summary": "成功 6 项，跳过 0 项，失败 0 项",
+            "updatedAt": 1762139829993
+          },
+          "lastTransferredAt": 1762139829993,
+          "origin": "https://www.chaospace.cc",
+          "pageTitle": "怪奇物语",
+          "pageType": "series",
+          "pageUrl": "https://www.chaospace.cc/tvshows/3514.html",
+          "pendingTransfer": null,
+          "poster": {
+            "alt": "怪奇物语",
+            "src": "https://www.chaospace.cc/wp-content/uploads/2020/06/2mYLTEQd1oHuXA6NICPIKX7OOvo-185x278.jpg"
+          },
+          "seasonCompletion": {
+            "8855": {
+              "label": "已完结",
+              "source": "season-detail",
+              "state": "completed",
+              "updatedAt": 1762139829993
+            },
+            "8857": {
+              "label": "已完结",
+              "source": "season-detail",
+              "state": "completed",
+              "updatedAt": 1762139829993
+            },
+            "8859": {
+              "label": "已完结",
+              "source": "season-detail",
+              "state": "completed",
+              "updatedAt": 1762139829993
+            },
+            "147249": {
+              "label": "已完结",
+              "source": "season-detail",
+              "state": "completed",
+              "updatedAt": 1762139829993
+            }
+          },
+          "seasonDirectory": {
+            "8855": "第1季",
+            "8857": "第2季",
+            "8859": "第3季",
+            "147249": "第4季"
+          },
+          "seasonEntries": [
+            {
+              "completion": {
+                "label": "已完结",
+                "source": "season-detail",
+                "state": "completed"
+              },
+              "hasItems": true,
+              "label": "第1季",
+              "loaded": true,
+              "poster": {
+                "alt": "怪奇物语",
+                "src": "https://www.chaospace.cc/wp-content/uploads/2020/07/xRTUb8oeQHGjyBWj7OOpkvUuvKO-185x278.jpg"
+              },
+              "seasonId": "8855",
+              "seasonIndex": 0,
+              "url": "https://www.chaospace.cc/seasons/8855.html"
+            }
+          ],
+          "siteProviderId": null,
+          "siteProviderLabel": null,
+          "targetDirectory": "/视频/影视/怪奇物语",
+          "totalTransferred": 6,
+          "useSeasonSubdir": true,
+          "useTitleSubdir": true
+        },
+        {
+          "baseDir": "/视频/番剧",
+          "completion": {
+            "label": "已完结",
+            "source": "transfer-meta",
+            "state": "completed",
+            "updatedAt": 1762131292882
+          },
+          "itemOrder": ["320076", "320091", "320109", "154375"],
+          "items": {
+            "320076": {
+              "id": "320076",
+              "lastStatus": "skipped",
+              "lastTransferredAt": 1762131292882,
+              "linkUrl": "https://pan.baidu.com/s/11t4OCaOCnExKSBkq6bgSZA?pwd=2333",
+              "message": "已跳过：文件已存在（13 项）",
+              "passCode": "2333",
+              "skippedFiles": ["Overlord.S01E01.1080p.meWATCH.WEBRip.CHS-HAN@CHAOSPACE.mp4"],
+              "status": "failed",
+              "title": "不死者之王",
+              "totalSuccess": 0
+            }
+          },
+          "lastCheckedAt": 1762131292882,
+          "lastResult": {
+            "failed": 0,
+            "skipped": 16,
+            "success": 0,
+            "summary": "成功 0 项，跳过 16 项，失败 0 项",
+            "updatedAt": 1762131292882
+          },
+          "lastTransferredAt": 0,
+          "origin": "https://www.chaospace.cc",
+          "pageTitle": "不死者之王",
+          "pageType": "series",
+          "pageUrl": "https://www.chaospace.cc/tvshows/80348.html",
+          "pendingTransfer": null,
+          "poster": {
+            "alt": "不死者之王",
+            "src": "https://www.chaospace.cc/wp-content/uploads/2021/07/1dVyeauPEJwa4Uv6K1ESuhi8Rb6-185x278.jpg"
+          },
+          "seasonCompletion": {
+            "80350": {
+              "label": "已完结",
+              "source": "season-detail",
+              "state": "completed",
+              "updatedAt": 1762131292882
+            },
+            "80352": {
+              "label": "已完结",
+              "source": "season-detail",
+              "state": "completed",
+              "updatedAt": 1762131292882
+            },
+            "80354": {
+              "label": "已完结",
+              "source": "season-detail",
+              "state": "completed",
+              "updatedAt": 1762131292882
+            },
+            "154373": {
+              "label": "已完结",
+              "source": "season-detail",
+              "state": "completed",
+              "updatedAt": 1762131292882
+            }
+          },
+          "seasonDirectory": {
+            "80350": "第1季",
+            "80352": "第2季",
+            "80354": "第3季",
+            "154373": "第4季"
+          },
+          "seasonEntries": [
+            {
+              "completion": {
+                "label": "已完结",
+                "source": "season-detail",
+                "state": "completed"
+              },
+              "hasItems": true,
+              "label": "第1季",
+              "loaded": true,
+              "poster": {
+                "alt": "不死者之王",
+                "src": "https://www.chaospace.cc/wp-content/uploads/2021/07/2PyKUwtqzozmUxbuEk5tHRCjsBl-185x278.jpg"
+              },
+              "seasonId": "80350",
+              "seasonIndex": 0,
+              "url": "https://www.chaospace.cc/seasons/80350.html"
+            }
+          ],
+          "siteProviderId": null,
+          "siteProviderLabel": null,
+          "targetDirectory": "/视频/番剧/不死者之王",
+          "totalTransferred": 16,
+          "useSeasonSubdir": true,
+          "useTitleSubdir": true
+        }
+      ],
+      "version": 1
+    },
+    "cache": {
+      "completedShares": {
+        "F72bCIgM4i98R2el-EA5EQ": 1762939417679,
+        "KPdkZHPeZYMAvElOy6ePfA": 1762529061470,
+        "T7ajHsRG3ix10Z8bIQ7w6w": 1762529041497
+      },
+      "directories": {
+        "/视频/影视/鬼屋实录/第1季": {
+          "files": [
+            "True.Haunting.S01E01.1080p.WEBRip.CHS&ENG-HAN.CHAOSPACE.mp4",
+            "True.Haunting.S01E02.1080p.WEBRip.CHS&ENG-HAN.CHAOSPACE.mp4",
+            "True.Haunting.S01E03.1080p.WEBRip.CHS&ENG-HAN.CHAOSPACE.mp4",
+            "True.Haunting.S01E04.1080p.WEBRip.CHS&ENG-HAN.CHAOSPACE.mp4",
+            "True.Haunting.S01E05.1080p.WEBRip.CHS&ENG-HAN.CHAOSPACE.mp4"
+          ],
+          "updatedAt": 1762529061470
+        },
+        "/视频/电影/梦境": {
+          "files": ["Somnium.2025.1080p.WEBRip.CHS&ENG-HAN.mp4"],
+          "updatedAt": 1762529041497
+        }
+      },
+      "ensured": {
+        "/视频/影视/鬼屋实录/第1季": 1762529061293,
+        "/视频/电影/梦境": 1762529039537
+      },
+      "version": 1
+    },
+    "panel": {
+      "position": {
+        "left": 737,
+        "top": 32
+      },
+      "size": {
+        "height": 767,
+        "width": 954
+      },
+      "pinned": false,
+      "edge": {
+        "hidden": false,
+        "peek": 115,
+        "side": "right"
+      }
+    }
+  }
+}

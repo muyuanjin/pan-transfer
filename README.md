@@ -1,34 +1,34 @@
-# Pan Transfer Chrome Extension / Pan Transfer 转存助手
-
-[![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)](https://github.com/muyuanjin/pan-transfer/releases/tag/v0.2.0)
-[![License](https://img.shields.io/badge/license-ISC-green.svg)](LICENSE)
+# Pan Transfer (转存助手)
 
 [English](#english) | [中文](#中文)
 
+---
+
 <a name="english"></a>
 
-## English Version
+## English
 
-### Purpose
+A browser extension designed to simplify the process of transferring files from specific web pages to your cloud storage.
 
-Pan Transfer is a Manifest V3 Chrome/Edge extension built with Vite 7, TypeScript 5.9, and Vue 3. The current build is dedicated to Chaospace (chaospace.xyz / chaospace.cc) pages and helps copy the public resource metadata from those pages into a user's personal Baidu Netdisk workspace. The project is open-source, intended for research/testing, and carries no commercial promises.
+### What It Does
 
-### What's New in v0.2.0
+This tool currently focuses on enhancing the experience on certain websites (like Chaospace). When you visit a supported page, it will:
 
-- ✨ **Detection-only mode** with manual transfer staging - avoid accidental bulk operations
-- 🎨 **Dynamic provider themes** - accent colors and badges adapt to current site
-- 🔄 **Auto-retry on network errors** - exponential backoff (500ms → 1000ms → 1500ms) for resilient transfers
-- 🎯 **Scroll anchoring** - history cards stay in view when updates reorder the list
-- 🧪 **Runtime storage switching** - `VITE_PAN_STORAGE_PROVIDER=mock` for dev/test workflows
+- **Recognize Resources**: A floating panel appears on the page, listing the files available for transfer.
+- **Batch Transfers**: You can select the files you need and save them to your Baidu Netdisk with a single click.
+- **Keep It Simple**: It offers a clean interface, light/dark themes, and some straightforward settings, aiming to be as non-intrusive as possible.
+- **Track Your History**: A local history of your transfers is kept for your reference.
 
-See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
+### How to Use
 
-### Current Capabilities
-
-- Detect Chaospace detail pages and render a floating Vue panel with the matched titles, seasons, and downloadable assets.
-- Allow users to select files, adjust renaming presets, and push the choices to Baidu Netdisk while keeping a local history of transfers.
-- Provide non-intrusive toasts, toolbar actions, and panel preferences so the overlay can stay pinned or hidden per tab.
-- Offer both light and dark layouts plus granular settings for filters and path presets.
+1.  **Installation**:
+    - Download the `pan-transfer-extension.zip` file from the [latest GitHub Release](https://github.com/muyuanjin/pan-transfer/releases).
+    - Unzip the file to a local folder. **This folder will contain files like `manifest.json`.**
+    - In Chrome/Edge, go to `chrome://extensions` or `edge://extensions`.
+    - Enable "Developer mode", click "Load unpacked", and **select the folder where you just extracted the files**.
+2.  **Usage**:
+    - Make sure you are logged into both the source website (e.g., Chaospace) and Baidu Netdisk in your browser.
+    - Navigate to a supported page, and the extension's panel will appear. Use it to select and transfer files.
 
 ### Screenshots
 
@@ -36,184 +36,116 @@ See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
   <img src="docs/panel-main-light.png" alt="Panel overview in light theme" width="640" />
 </p>
 <p align="center">
-  <img src="docs/panel-main-dark.png" alt="Panel overview in dark theme" width="640" />
+  <img src="docs/transfer-history.png" alt="Transfer history list" width="640" />
 </p>
 <p align="center">
   <img src="docs/history-detail.png" alt="History detail overlay" width="640" />
 </p>
 <p align="center">
-  <img src="docs/transfer-history.png" alt="Transfer history list" width="640" />
-</p>
-<p align="center">
-  <img src="docs/settings-filters.png" alt="Settings dialog - filters" width="640" />
-</p>
-<p align="center">
-  <img src="docs/settings-rename.png" alt="Settings dialog - renaming" width="640" />
-</p>
-<p align="center">
-  <img src="docs/settings-presets.png" alt="Settings dialog - presets" width="640" />
+  <img src="docs/settings-panel.png" alt="Settings dialog overview" width="640" />
 </p>
 
-### Installation (Chrome/Edge)
+### For Developers
 
-1. Download `pan-transfer-extension.zip` from the latest GitHub Release or the `Release` workflow run artifacts.
-2. Verify that the archive only contains the generated `dist/` assets, then unzip it to a convenient folder.
-3. Open `chrome://extensions/` (or `edge://extensions/`), enable **Developer mode**, select **Load unpacked**, and choose the extracted `dist/` directory.
-4. Sign in to Chaospace and Baidu Netdisk in your browser profile before using the panel.
+This is an open-source project built with Vue 3, TypeScript, and Manifest V3. If you're interested in contributing or just tinkering with the code, here are the basics:
 
-### Development Workflow
+- Install dependencies: `npm install`
+- Start the development server: `npm run dev`
+- Run tests and checks: `npm run check`
 
-1. Install dependencies once: `npm install`.
-2. Start a hot-reload preview: `npm run dev`.
-3. Build the MV3 bundle: `npm run build`.
-4. Run lint + type + test gate: `npm run check` (runs `format:silent → typecheck → lint:ci → build → test → e2e`).
+For more detailed information on adding new site/storage providers or understanding the architecture, please refer to the documentation within the `docs/` directory and the source code.
 
-Key standalone scripts:
+#### Refreshing Screenshots
 
-- `npm run typecheck` – `vue-tsc --noEmit -p tsconfig.app.json`.
-- `npm run test` – Vitest suites covering parsers, renderers, and history logic.
-- `npm run e2e` – Builds (if needed) then launches Playwright tests against Chaospace fixtures.
-- `npm run lint` / `npm run lint:ci` – ESLint with/without the zero-warning gate.
-- `node scripts/generate-icons.mjs` – re-generates the extension icons (`src/public/icon-48.png`, `src/public/icon-128.png`) using the canvas-based artwork.
+To regenerate the README screenshots with the latest UI:
 
-### Repository Layout (excerpt)
+1.  Build the extension bundle (required for the Playwright harness):
+    ```bash
+    npm run build
+    ```
+2.  Capture the screenshots via the automated Playwright script:
+    ```bash
+    npm run capture:screenshots
+    ```
+    The script launches Chromium with the built extension, drives representative UI flows, and rewrites the PNG assets under `docs/`.
 
-```
-pan-transfer/
-├── src/
-│   ├── background/        # Service worker, Baidu integrations, message routing
-│   ├── content/           # Panel UI, controllers, history overlays, styles
-│   ├── shared/            # Types, logging helpers, utilities
-│   └── manifest.json      # MV3 definition
-├── docs/                  # Screenshots and internal notes
-├── tests/e2e/             # Playwright test
-├── scripts/               # Helper scripts (e.g., e2e runner)
-├── .github/workflows/     # Release automation (see release.yml)
-└── README.md
-```
+### Disclaimer
 
-### Adding Site Providers
+- This project is developed for learning and convenience. It is not officially affiliated with any of the websites or cloud services it supports.
+- Please use this tool responsibly and in accordance with the terms of service of the respective websites.
 
-- Provider contracts (`SiteProvider`, `StorageProvider`, etc.) live in `src/platform/registry/types.ts`. When building a new integration, start from the sample `createGenericForumSiteProvider` under `src/providers/sites/generic-forum/`.
-- Every site provider should live under `src/providers/sites/<provider-id>/` and export a factory. Keep DOM analyzers, parsers, and helpers scoped to that directory so changes stay localized.
-- Register the provider in both registries: `src/content/providers/registry.ts` (content runtime) and `src/background/providers/registry.ts` (background/service worker). This keeps detection, history refresh, and background transfers in sync.
-- Add Vitest coverage in `src/providers/sites/<provider-id>/__tests__/` that exercises detection plus `collectResources`. Use HTML fixtures to avoid hitting live sites.
-- Reference `docs/pan-transfer-migration-plan.md` for the current rollout expectations and document any manual verification steps in your PR description.
-
-#### Provider Parity Checklist
-
-- `npm run check` stays green (includes `format:check → typecheck → lint:ci → build → vitest → playwright`). Run `npm run e2e` locally to confirm the Chaospace baseline still passes after adding a provider.
-- Provider-specific Vitest suites cover detection/resource parsing, and Playwright (or manual Chrome devtools) confirms the floating panel shows the provider badge plus resources on the target site.
-- Background hooks (`collectHistorySnapshot`, `collectHistoryDetail`) are implemented or intentionally skipped with `[Pan Transfer]` logs so history refreshes remain predictable.
-- README/docs note any new permissions, toggles, or manual QA steps introduced by the provider.
-- Capture the manual override steps outlined in `docs/provider-override-guide.md` (accent checks, badge state, enable/disable flow) before asking for review.
-
-### Adding Storage Providers
-
-- Storage implementations live under `src/providers/storage/<provider-id>/`. Use `baidu-netdisk` and `mock-storage-provider` as templates when wiring a new factory.
-- Follow the `StorageProvider` interface in `src/platform/registry/types.ts`: expose `capabilities`, guard uploads with `ensureReady`, and keep provider-specific HTTP/retry logic colocated so errno handling stays isolated.
-- Register the provider with the background registry (`src/background/providers/registry.ts`) and surface it via the pipeline (`src/background/providers/pipeline.ts`). Local testing can flip implementations through `VITE_PAN_STORAGE_PROVIDER=mock` or `window.PAN_TRANSFER_STORAGE_PROVIDER = 'mock'`, so new providers should honor that knob.
-- Add Vitest suites in `src/providers/storage/<provider-id>/__tests__/` that mock `fetch`/`Response` to verify payloads, retries, and telemetry—avoid live API calls.
-- Document any new permissions, env vars, or QA steps here and in `docs/pan-transfer-migration-plan.md`, and keep `npm run check` green to prove Baidu remains the default shipping backend.
-
-### Release Automation
-
-The `.github/workflows/release.yml` workflow can be triggered manually (`workflow_dispatch`) or by pushing a tag such as `v1.0.0`. It performs `npm ci`, runs `npm run check`, builds the extension, zips the `dist/` output, and uploads `pan-transfer-extension.zip` both as a workflow artifact and as a GitHub Release asset (for tagged runs). Review the workflow logs before distributing any build.
-
-### Notes
-
-- Logs are routed through `chaosLogger` and always include the `[Pan Transfer]` prefix for easier debugging.
-- The project is unaffiliated with Chaospace or Baidu. Use it responsibly and follow the terms of the target services.
-- Do not store personal credentials in the repository; rely on your browser profile for authentication.
+<br>
+<br>
+<br>
 
 ---
 
 <a name="中文"></a>
 
-## 中文版本
+## 中文
 
-### 项目说明
+一个浏览器扩展，旨在简化从特定网页将文件转存到网盘的过程。
 
-Pan Transfer 是一个基于 Vite 7、TypeScript 5.9 与 Vue 3 的 Manifest V3 Chrome/Edge 扩展，当前版本仅针对 Chaospace (chaospace.xyz / chaospace.cc) 页面，帮助用户把公开的资源信息整理并转存到自己的百度网盘目录。本项目开源共享，用于个人研究或自测，不包含任何商业承诺。
+### 功能简介
 
-### v0.2.0 更新内容
+这个工具目前专注于优化部分网站（如 Chaospace）的浏览体验。当您访问支持的页面时，它会：
 
-- ✨ **检测模式与手动转存** - 支持仅检测模式，手动暂存后批量转存，避免误触发大批量任务
-- 🎨 **动态 Provider 主题** - 徽标和主题色自动适配当前站点
-- 🔄 **网络异常自动重试** - 指数退避策略(500ms → 1000ms → 1500ms)，显著提升批量转存稳定性
-- 🎯 **滚动锚点优化** - 历史记录更新时保持用户点击的卡片位置
-- 🧪 **运行时存储切换** - 通过 `VITE_PAN_STORAGE_PROVIDER=mock` 支持开发/测试模式
+- **自动识别资源**：在页面上显示一个悬浮面板，列出可供转存的文件。
+- **批量选择与转存**：您可以勾选需要的文件，一键将它们保存到您的百度网盘。
+- **保持简洁**：提供清爽的界面、明亮/暗色主题，以及一些简单的设置项，尽量不打扰您的正常浏览。
+- **查看转存历史**：在本地保留您的转存记录，方便回顾。
 
-详细更新日志请查看 [CHANGELOG.md](CHANGELOG.md)。
+### 使用方法
 
-### 现有功能
+1.  **安装扩展**：
+    - 从 [GitHub Releases 页面](https://github.com/muyuanjin/pan-transfer/releases)下载最新的 `pan-transfer-extension.zip` 文件。
+    - 将下载的压缩包解压到一个本地文件夹。**这个文件夹里会包含 `manifest.json` 等文件。**
+    - 在 Chrome/Edge 浏览器中访问 `chrome://extensions` 或 `edge://extensions`。
+    - 打开右上角的“开发者模式”，然后点击“加载已解压的扩展程序”，**选择您刚刚解压文件后得到的那个文件夹**。
+2.  **开始使用**：
+    - 请确保您的浏览器已经登录了目标网站（如 Chaospace）和百度网盘的账号。
+    - 访问支持的页面，扩展面板便会自动出现，之后按提示操作即可。
 
-- 识别 Chaospace 影片/剧集详情页，在页面上方渲染浮动面板并列出匹配的剧集、季和资源。
-- 支持选择文件、调整重命名预设，并把选择结果提交给百度网盘，同时保留本地转存历史。
-- 通过提示气泡、工具栏按钮和面板偏好设置，在不同标签页中维持独立的显示状态。
-- 提供明亮/暗色主题和更细致的过滤、路径预设配置项。
+### 功能截图
 
-### 安装步骤（Chrome/Edge）
+<p align="center">
+  <img src="docs/panel-main-light.png" alt="浅色主题下的面板概览" width="640" />
+</p>
+<p align="center">
+  <img src="docs/transfer-history.png" alt="转存历史列表" width="640" />
+</p>
+<p align="center">
+  <img src="docs/history-detail.png" alt="历史记录详情" width="640" />
+</p>
+<p align="center">
+    <img src="docs/settings-panel.png" alt="设置对话框全览" width="640" />
+</p>
 
-1. 前往 GitHub Releases 或最新一次 `Release` 工作流运行记录，下载 `pan-transfer-extension.zip`。
-2. 确认压缩包仅包含构建生成的 `dist/` 内容，并将其解压到本地目录。
-3. 打开 `chrome://extensions/` 或 `edge://extensions/`，开启“开发者模式”，点击“加载已解压的扩展程序”，选择刚解压的 `dist/` 目录。
-4. 使用前请确保浏览器已登录 Chaospace 与百度网盘账号。
+### 开发者指南
 
-### 开发与测试
+这是一个使用 Vue 3、TypeScript 和 Manifest V3 构建的开源项目。如果您有兴趣参与贡献或修改代码，可以参考以下基本命令：
 
-1. `npm install` 安装依赖。
-2. `npm run dev` 启动带热更新的开发预览。
-3. `npm run build` 构建生产包。
-4. `npm run check` 运行完整质量闸门（`format:silent → typecheck → lint:ci → build → test → e2e`）。
+- 安装依赖：`npm install`
+- 启动开发环境：`npm run dev`
+- 运行检查与测试：`npm run check`
 
-常用脚本：
+关于如何扩展新的站点或存储支持、以及项目的详细架构，请参考 `docs/` 目录下的文档和代码注释。
 
-- `npm run typecheck`：`vue-tsc --noEmit -p tsconfig.app.json`。
-- `npm run test`：运行 Vitest 单元测试。
-- `npm run e2e`：若缺少 `dist/manifest.json` 则会先构建，再执行 Playwright 测试。
-- `npm run lint` / `npm run lint:ci`：ESLint（后者警告即失败）。
-- `node scripts/generate-icons.mjs`：通过画布脚本重新生成 `src/public/icon-48.png` 与 `src/public/icon-128.png`。
+#### 更新功能截图
 
-### 仓库结构（节选）
+如需使用最新的 UI 重新生成 README 中的截图：
 
-```
-pan-transfer/
-├── src/background/      # Service worker 及百度网盘 API 交互
-├── src/content/         # Vue 面板、控制器、历史与样式
-├── src/shared/          # 类型、日志、工具函数
-├── docs/                # 截图与内部文档
-├── tests/e2e/           # Playwright 测试
-├── scripts/             # 辅助脚本
-├── .github/workflows/   # GitHub Action（release.yml）
-└── README.md
-```
+1.  构建扩展程序包（Playwright 测试工具需要）：
+    ```bash
+    npm run build
+    ```
+2.  通过 Playwright 自动化脚本捕捉截图：
+    ```bash
+    npm run capture:screenshots
+    ```
+    该脚本会启动一个加载了此扩展的 Chromium 浏览器，模拟代表性的 UI 操作流程，并覆盖 `docs/` 目录下的 PNG 图片资源。
 
-### 扩展站点 Provider
+### 免责声明
 
-- Provider 协议（`SiteProvider`、`StorageProvider` 等）定义在 `src/platform/registry/types.ts`，可以参考 `src/providers/sites/generic-forum/` 下的示例 `createGenericForumSiteProvider` 来实现新的站点。
-- 每个站点 Provider 都应放在 `src/providers/sites/<provider-id>/` 目录中，导出一个工厂方法，并把解析 DOM 的辅助函数保留在同一目录，避免影响其他站点。
-- 记得同时在 `src/content/providers/registry.ts`（内容脚本）与 `src/background/providers/registry.ts`（后台 Service Worker）注册 Provider，这样检测、历史刷新与后台任务才能复用相同的配置。
-- 在 `src/providers/sites/<provider-id>/__tests__/` 下补充 Vitest 测试，使用 HTML 固定样本覆盖 detect 与 `collectResources`，避免依赖线上站点。
-- 变更时请同步查阅 `docs/pan-transfer-migration-plan.md`，并在 PR 中记录手动验证步骤或额外权限需求。
-
-#### Provider 验证清单
-
-- `npm run check` 必须保持通过（包含 `format:check → typecheck → lint:ci → build → vitest → playwright`）；本地执行 `npm run e2e`，确认 Chaospace 基线仍可通过。
-- Provider 对应的 Vitest 套件覆盖检测/解析逻辑，并通过 Playwright 或人工在 Chrome DevTools 中确认页面浮窗显示正确的站点徽标与资源列表。
-- 如实现了历史刷新，确保 `collectHistorySnapshot` / `collectHistoryDetail` 可用；若暂不支持，也要输出 `[Pan Transfer]` 日志说明跳过原因。
-- README / 文档需补充 Provider 引入的新权限、开关或 QA 流程。
-- 在合并前参考 `docs/provider-override-guide.md` 记录一次手动验证流程（含 Provider 徽标、主题色切换、启用/禁用行为），确保 QA 可以复现。
-
-### 扩展存储 Provider
-
-- 存储实现位于 `src/providers/storage/<provider-id>/`，可参考 `baidu-netdisk` 与 `mock-storage-provider` 目录学习 `StorageProvider` 工厂的组织方式。
-- 遵循 `src/platform/registry/types.ts` 中的接口：实现 `capabilities`、`ensureReady`、转存调度与配额函数，并把各云厂商的 HTTP / errno 处理逻辑封装在对应目录。
-- 在 `src/background/providers/registry.ts` 注册 Provider，并在 `src/background/providers/pipeline.ts` 中接入工厂。开发调试可通过 `VITE_PAN_STORAGE_PROVIDER=mock` 或 `window.PAN_TRANSFER_STORAGE_PROVIDER='mock'` 切换实现，因此新 Provider 必须兼容该开关。
-- 在 `src/providers/storage/<provider-id>/__tests__/` 下添加 Vitest，使用 mock `fetch` / `Response` 校验请求体、重试策略和日志，避免调用真实接口。
-- 若新增权限、环境变量或手动验证步骤，请同步更新 README 及 `docs/pan-transfer-migration-plan.md`，并持续跑通 `npm run check`，确保默认的百度网盘路径没有回归问题。
-
-### 发布与注意事项
-
-- 日志统一带有 `[Pan Transfer]` 前缀，便于排查。
-- 项目与 Chaospace、百度无官方关联，请遵守目标站点/服务的使用条款。
+- 本项目是一个出于学习和便利目的的个人项目，与所支持的任何网站或云服务商均无官方关联。
+- 请在遵守相关网站服务条款的前提下，合理使用本工具。

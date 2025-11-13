@@ -5,7 +5,6 @@ import {
   clearAllHistoryRecords,
   requestHistoryUpdate,
   fetchHistorySnapshot,
-  normalizeSeasonDirectory,
   filterHistoryGroups,
   canCheckHistoryGroup,
   isHistoryGroupCompleted,
@@ -37,6 +36,7 @@ import historyDetailCssHref from '../styles/overlays/history-detail.css?url'
 import { loadCss } from '../styles.loader'
 import type { TabSeasonPreferenceController } from '../services/tab-season-preference'
 import { resolveHistoryCheckTargets } from './history-check.helpers'
+import { normalizeSeasonDirectoryMap } from '@/shared/utils/completion-status'
 
 interface HistoryDetailResponsePayload {
   ok: boolean
@@ -193,7 +193,7 @@ export function createHistoryController(deps: HistoryControllerDeps) {
       state.completion = matched.completion
     }
     if (matched.seasonDirectory && typeof matched.seasonDirectory === 'object') {
-      const seasonMap = normalizeSeasonDirectory(matched.seasonDirectory)
+      const seasonMap = normalizeSeasonDirectoryMap(matched.seasonDirectory)
       if (Object.keys(seasonMap).length) {
         state.seasonDirMap = { ...state.seasonDirMap, ...seasonMap }
         dedupeSeasonDirMap()

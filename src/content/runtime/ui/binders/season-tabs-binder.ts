@@ -2,6 +2,7 @@ import type { PanelResourceDomRefs } from '../../../types'
 import type { ContentStore } from '../../../state'
 import { closestElement } from '../../../utils/dom'
 import type { Binder } from './types'
+import { createAbortableBinder } from './abortable-binder'
 
 interface SeasonTabsBinderDeps {
   panelDom: PanelResourceDomRefs
@@ -21,12 +22,8 @@ export function createSeasonTabsBinder({
         return () => {}
       }
 
-      const abort = new AbortController()
-      const { signal } = abort
-
-      tabs.addEventListener(
-        'click',
-        (event) => {
+      return createAbortableBinder((add) => {
+        add(tabs, 'click', (event) => {
           const button = closestElement<HTMLButtonElement>(event.target, 'button[data-season-id]')
           if (!button || button.disabled) {
             return
@@ -40,11 +37,8 @@ export function createSeasonTabsBinder({
           if (panelDom.itemsContainer) {
             panelDom.itemsContainer.scrollTop = 0
           }
-        },
-        { signal },
-      )
-
-      return () => abort.abort()
+        })
+      })
     },
   }
 }

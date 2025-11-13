@@ -15,6 +15,7 @@
     "eslint.config.mjs",
     "*.config.ts",
     "*.config.mjs",
-    "tests/**/*.ts"
+    "tests/**/*.ts",
+    "scripts/**/*.ts"
   ]
 }
