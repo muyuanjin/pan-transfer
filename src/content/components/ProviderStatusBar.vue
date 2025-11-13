@@ -1,6 +1,6 @@
 <template>
   <div class="chaospace-provider-status">
-    <span class="chaospace-provider-value">{{ activeProviderLabel }}</span>
+    <span ref="providerValueRef" class="chaospace-provider-value">{{ activeProviderLabel }}</span>
     <div v-if="activeProviderHosts.length" class="chaospace-provider-hosts">
       支持站点: {{ activeProviderHosts.join('、') }}
     </div>
@@ -22,9 +22,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject } from 'vue'
+import { computed, inject, ref, watch, nextTick } from 'vue'
 import { useContentStore } from '../state'
 import { providerPanelContextKey } from '../runtime/ui/provider-context'
+
+const providerValueRef = ref<HTMLElement | null>(null)
 
 const store = useContentStore()
 const providerContext = inject(providerPanelContextKey)
@@ -40,10 +42,7 @@ const selectableProviders = computed(() => {
     if (disabled?.has(option.id)) {
       return false
     }
-    if (available && available.size > 0 && !available.has(option.id)) {
-      return false
-    }
-    return true
+    return !(available && available.size > 0 && !available.has(option.id))
   })
 })
 
@@ -90,4 +89,61 @@ const handleChange = (event: Event): void => {
   }
   void providerContext.switchSiteProvider(value || null)
 }
+
+// 动态调整字体大小和 letter-spacing 以匹配标题宽度
+watch(
+  activeProviderLabel,
+  () => {
+    void nextTick(() => {
+      const providerEl = providerValueRef.value
+      if (!providerEl) return
+
+      const titleEl = document.querySelector('.chaospace-show-title') as HTMLElement | null
+      if (!titleEl) return
+
+      // 先重置样式以获取原始宽度
+      providerEl.style.fontSize = ''
+      providerEl.style.letterSpacing = ''
+
+      void nextTick(() => {
+        const titleWidth = titleEl.offsetWidth
+        const providerWidth = providerEl.offsetWidth
+
+        if (titleWidth <= 0 || providerWidth <= 0) return
+
+        const textLength = activeProviderLabel.value.length
+        if (textLength <= 1) return
+
+        // 目标：让 provider 的宽度接近 title 的宽度
+        // 策略：通过调整字体大小来缩小差距，再用字间距微调
+
+        const baseFontSize = 18
+        const baseLetterSpacing = 0.2
+
+        // 计算理想的字体大小：按宽度比例直接缩放
+        const targetFontSize = baseFontSize * (titleWidth / providerWidth)
+
+        // 限制字体大小在合理范围内 (14px ~ 26px)
+        const clampedFontSize = Math.max(14, Math.min(26, targetFontSize))
+
+        providerEl.style.fontSize = `${clampedFontSize}px`
+
+        void nextTick(() => {
+          const newProviderWidth = providerEl.offsetWidth
+          if (newProviderWidth <= 0) return
+
+          // 用字间距补偿剩余差异
+          const remainingDiff = titleWidth - newProviderWidth
+          const spacingAdjust = remainingDiff / (textLength - 1)
+
+          // 限制字间距调整范围 (-1px ~ 3px)
+          const finalSpacing = Math.max(-1, Math.min(3, baseLetterSpacing + spacingAdjust))
+
+          providerEl.style.letterSpacing = `${finalSpacing}px`
+        })
+      })
+    })
+  },
+  { immediate: true },
+)
 </script>

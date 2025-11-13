@@ -253,7 +253,7 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.2px;
 }
 
 .chaospace-theme.theme-light .chaospace-provider-value {
@@ -385,7 +385,7 @@
   padding: 0;
   font-size: 26px;
   font-weight: 700;
-  font-family: var(--font-heading);
+  font-family: var(--font-heading), Helvetica, 'Microsoft YaHei', sans-serif;
   letter-spacing: 0.2px;
   line-height: 1.2;
   text-shadow: 0 6px 24px rgba(8, 13, 24, 0.6);
