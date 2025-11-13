@@ -260,39 +260,7 @@
                 </div>
               </section>
               <section class="chaospace-settings-section">
-                <h3>导入导出</h3>
-                <div class="chaospace-settings-row">
-                  <div>
-                    <div class="chaospace-settings-row-title">导出设置</div>
-                    <p class="chaospace-settings-hint">生成 JSON，包含所有可保存的参数。</p>
-                  </div>
-                  <button type="button" data-role="settings-export-config">导出</button>
-                </div>
-                <div class="chaospace-settings-row">
-                  <div>
-                    <div class="chaospace-settings-row-title">导出全部数据</div>
-                    <p class="chaospace-settings-hint">包含设置、转存历史、缓存与面板布局。</p>
-                  </div>
-                  <button type="button" data-role="settings-export-data">导出</button>
-                </div>
-                <div class="chaospace-settings-row">
-                  <div>
-                    <div class="chaospace-settings-row-title">导入设置</div>
-                    <p class="chaospace-settings-hint">
-                      选择先前导出的设置 JSON，立即覆盖当前参数。
-                    </p>
-                  </div>
-                  <button type="button" data-role="settings-import-config-trigger">导入</button>
-                </div>
-                <div class="chaospace-settings-row">
-                  <div>
-                    <div class="chaospace-settings-row-title">导入全部数据</div>
-                    <p class="chaospace-settings-hint">
-                      覆盖设置、历史、缓存与布局，用于完整迁移。
-                    </p>
-                  </div>
-                  <button type="button" data-role="settings-import-data-trigger">导入</button>
-                </div>
+                <h3>高级操作</h3>
                 <div class="chaospace-settings-row">
                   <div>
                     <div class="chaospace-settings-row-title">重置面板布局</div>
@@ -303,22 +271,68 @@
               </section>
               <input
                 type="file"
-                data-role="settings-import-config"
-                accept="application/json"
-                hidden
-              />
-              <input
-                type="file"
                 data-role="settings-import-data"
                 accept="application/json"
                 hidden
               />
             </form>
             <div class="chaospace-settings-footer">
-              <button type="button" data-role="settings-cancel">取消</button>
-              <button type="submit" class="chaospace-settings-save" form="chaospace-settings-form">
-                保存设置
-              </button>
+              <div class="chaospace-settings-footer-actions" aria-label="数据导入导出">
+                <button type="button" data-role="settings-export-data">
+                  <span class="chaospace-settings-action-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false" fill="currentColor">
+                      <path
+                        fill-rule="evenodd"
+                        clip-rule="evenodd"
+                        d="M11.4697 2.46967c.2929-.29289.7677-.29289 1.0606 0l4.5 4.5c.2929.29289.2929.76767 0 1.06056-.2929.29289-.7677.29289-1.0606 0L12.75 4.81066V16.5A.75.75 0 0 1 12 17.25a.75.75 0 0 1-.75-.75V4.81066L8.03033 8.03023c-.29289.29289-.76767.29289-1.06066 0-.29289-.29289-.29289-.76767 0-1.06056l4.5-4.5Zm-8.4697 13.28033c.41421 0 .75.3358.75.75v2.25c0 .8284.67157 1.5 1.5 1.5h13.5c.8284 0 1.5-.6716 1.5-1.5v-2.25c0-.4142.3358-.75.75-.75s.75.3358.75.75v2.25c0 1.6569-1.3431 3-3 3H5.25c-1.65685 0-3-1.3431-3-3v-2.25c0-.4142.33579-.75.75-.75Z"
+                      />
+                    </svg>
+                  </span>
+                  <span>导出数据</span>
+                </button>
+                <button type="button" data-role="settings-import-data-trigger">
+                  <span class="chaospace-settings-action-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false" fill="currentColor">
+                      <path
+                        fill-rule="evenodd"
+                        clip-rule="evenodd"
+                        d="M12 2.25c.4142 0 .75.33579.75.75v11.6893l3.2197-3.2196c.2929-.2929.7677-.2929 1.0606 0 .2929.2929.2929.7677 0 1.0606l-4.5 4.5a.75.75 0 0 1-1.0606 0l-4.5-4.5c-.29289-.2929-.29289-.7677 0-1.0606s.76767-.2929 1.06056 0L11.25 14.6896V3a.75.75 0 0 1 .75-.75Zm-9 13.5c.41421 0 .75.3358.75.75v2.25c0 .8284.67157 1.5 1.5 1.5h13.5c.8284 0 1.5-.6716 1.5-1.5v-2.25c0-.4142.3358-.75.75-.75s.75.3358.75.75v2.25c0 1.6569-1.3431 3-3 3H5.25c-1.65685 0-3-1.3431-3-3v-2.25c0-.4142.33579-.75.75-.75Z"
+                      />
+                    </svg>
+                  </span>
+                  <span>导入数据</span>
+                </button>
+              </div>
+              <div class="chaospace-settings-footer-primary">
+                <button type="button" data-role="settings-cancel">
+                  <span class="chaospace-settings-action-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false" fill="currentColor">
+                      <path
+                        fill-rule="evenodd"
+                        clip-rule="evenodd"
+                        d="M9.53033 2.46967c.29289.29289.29289.76767 0 1.06066L4.81066 8.25H15c3.7279 0 6.75 3.0221 6.75 6.75s-3.0221 6.75-6.75 6.75h-3a.75.75 0 0 1 0-1.5h3c2.8995 0 5.25-2.3505 5.25-5.25S17.8995 9.75 15 9.75H4.81066l4.71967 4.7197c.29289.2929.29289.7677 0 1.0606s-.76767.2929-1.06066 0l-6-6a.75.75 0 0 1 0-1.06061l6-6c.29299-.29289.76777-.29289 1.06066 0Z"
+                      />
+                    </svg>
+                  </span>
+                  <span>取消</span>
+                </button>
+                <button
+                  type="submit"
+                  class="chaospace-settings-save"
+                  form="chaospace-settings-form"
+                >
+                  <span class="chaospace-settings-action-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false" fill="currentColor">
+                      <path
+                        fill-rule="evenodd"
+                        clip-rule="evenodd"
+                        d="M2.25 12C2.25 6.61522 6.61522 2.25 12 2.25S21.75 6.61522 21.75 12 17.3848 21.75 12 21.75 2.25 17.3848 2.25 12Zm13.3603-1.8141c.2408-.33703.1627-.80544-.1743-1.0462-.337-.24076-.8054-.16269-1.0462.17437l-3.2354 4.52953-1.624-1.62393a.75.75 0 1 0-1.06063 1.06063l2.25003 2.25003c.15587.1559.37237.2353.59217.2171.2197-.0181.4204-.1321.5485-.3115l3.75-5.24993Z"
+                      />
+                    </svg>
+                  </span>
+                  <span>保存设置</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
