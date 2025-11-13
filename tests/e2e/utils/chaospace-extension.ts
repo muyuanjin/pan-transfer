@@ -591,12 +591,21 @@ export async function mountPanelForUrl(
 }
 
 export async function ensurePanelPinned(panelLocator: Locator): Promise<void> {
+  await expect(panelLocator, 'Floating panel should be visible before pinning').toBeVisible()
   await panelLocator.hover({ position: { x: 10, y: 10 } })
-  await panelLocator.evaluate((panel) => {
-    panel.classList.add('is-pinned')
-    panel.classList.add('is-mounted')
-  })
-  await expect(panelLocator).toBeVisible()
+  const pinToggle = panelLocator.locator('[data-role="pin-toggle"]')
+  await expect(pinToggle, 'Pin toggle should be rendered inside the panel').toBeVisible()
+  const pressed = await pinToggle.getAttribute('aria-pressed')
+  if (pressed !== 'true') {
+    await pinToggle.click()
+  }
+  await expect(pinToggle, 'Pin toggle aria-pressed state should reflect pinning').toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await expect(panelLocator, 'Pinned panel should gain the is-pinned class').toHaveClass(
+    /is-pinned/,
+  )
 }
 
 export function expectNoPrefixedErrors(errorTracker: ChaospaceErrorTracker): void {

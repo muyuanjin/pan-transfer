@@ -35,33 +35,20 @@ When a provider switch succeeds:
 5. Re-run `npm run e2e` (or the Playwright chaospace suite) to ensure automated coverage still passes
    after manual overrides.
 
-## Generic Forum (Sample) Verification
+## Generic Forum (Sample) Regression
 
-Generic Forum is the reference provider used in docs/tests. It is not part of the production host
-list yet, so manual QA requires a temporary sandbox. The provider is disabled in production builds;
-enable it with `VITE_ENABLE_GENERIC_FORUM=1` (build/Test) or `window.PAN_TRANSFER_ENABLE_GENERIC_FORUM = true`
-in DevTools before running through the steps below.
+Generic Forum is kept purely for docs/tests and is no longer bundled into the extension. The panel
+must ignore its markers in every build so real users never see Generic Forum labels or the teal
+accent theme.
 
-1. Add the domain to `src/manifest.json` before building:
-   - Append `*://genericforum.dev/*` to both `host_permissions` and the content-script `matches`.
-   - Re-run `npm run build` and reload the unpacked `dist/` folder.
-2. Point `genericforum.dev` to localhost in `/etc/hosts`:
-   ```
-   127.0.0.1 genericforum.dev
-   ```
-3. Serve the sample markup:
-   ```
-   npx http-server docs/providers -a genericforum.dev -p 4173 --ssl
-   ```
-   (Feel free to use any static server; TLS is optional, just align the manifest entry with the
-   chosen protocol.)
-4. Open `https://genericforum.dev:4173/generic-forum-sample.html`. The body contains
-   `data-pan-provider="generic-forum"` plus `data-pan-resource` elements.
-5. The panel should auto-detect **Generic Forum**, swap to the teal accent palette, and show the two
-   sample resources. Use the dropdown to flip between `自动` and `Generic Forum` and confirm the
-   resource count stays stable.
-6. Disable the provider inside ⚙️ → **站点解析器** and confirm the badge greys out with a toast stating
-   the provider is disabled.
+1. Serve the sample markup from `docs/providers/generic-forum-sample.html` (or rely on the Playwright
+   `?pan-provider-demo=1` helper).
+2. Load the sandbox page inside Chrome with the built extension (`npm run build` → load `dist/`).
+3. The floating panel should stay on the CHAOSPACE provider badge, keep the purple accent, and omit
+   any dropdown entries containing `generic-forum`.
+4. Open ⚙️ → **站点解析器** and confirm the list never mentions Generic Forum.
+5. Run `npm run e2e` to cover these assertions automatically; the suite mounts the sandbox through
+   Playwright and guarantees the Generic Forum demo stays hidden.
 
 ### Generic Forum QA Deltas
 

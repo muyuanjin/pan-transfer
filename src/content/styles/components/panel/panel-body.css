@@ -45,34 +45,138 @@
 }
 
 .chaospace-provider-panel {
-  display: flex;
+  --provider-panel-text-primary: var(--cp-text-primary);
+  --provider-panel-text-secondary: var(--cp-text-secondary);
+  --provider-panel-text-muted: var(--cp-text-muted);
+  --provider-panel-border-color: rgba(var(--cp-accent-rgb), 0.3);
+  --provider-panel-tag-border: rgba(var(--cp-accent-rgb), 0.35);
+  --provider-panel-tag-bg: rgba(var(--cp-accent-rgb), 0.12);
+  --provider-panel-select-bg: var(--cp-surface);
+  --provider-panel-select-border: var(--cp-border);
+  --provider-panel-select-color: var(--provider-panel-text-primary);
+  --provider-panel-mode-bg: rgba(var(--cp-accent-rgb), 0.18);
+  --provider-panel-surface: rgba(var(--cp-accent-rgb), 0.08);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px 24px;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 8px 12px;
-  border-radius: 14px;
-  background: rgba(var(--cp-accent-rgb), 0.08);
-  border: 1px dashed rgba(var(--cp-accent-rgb), 0.3);
-  margin-bottom: 8px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--provider-panel-surface);
+  border: 1px solid var(--provider-panel-border-color);
+  width: 100%;
+  min-width: 0;
+  color: var(--provider-panel-text-primary);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+  transition:
+    background 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
 }
 
-.chaospace-provider-overview {
-  flex: 1;
+.chaospace-provider-panel > * {
   min-width: 0;
+}
+
+.chaospace-theme.theme-light .chaospace-provider-panel {
+  --provider-panel-text-primary: rgba(248, 250, 252, 0.96);
+  --provider-panel-text-secondary: rgba(226, 232, 240, 0.88);
+  --provider-panel-text-muted: rgba(226, 232, 240, 0.85);
+  --provider-panel-border-color: rgba(15, 23, 42, 0.18);
+  --provider-panel-tag-border: rgba(248, 250, 252, 0.2);
+  --provider-panel-tag-bg: rgba(15, 23, 42, 0.12);
+  --provider-panel-select-bg: rgba(15, 23, 42, 0.18);
+  --provider-panel-select-border: rgba(226, 232, 240, 0.2);
+  --provider-panel-select-color: rgba(248, 250, 252, 0.95);
+  --provider-panel-mode-bg: rgba(15, 23, 42, 0.24);
+  --provider-panel-surface: linear-gradient(
+    135deg,
+    rgba(15, 23, 42, 0.14),
+    rgba(30, 64, 175, 0.16)
+  );
+  box-shadow: 0 18px 32px rgba(15, 23, 42, 0.24);
+}
+
+.chaospace-provider-info {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
+  min-width: 0;
 }
 
-.chaospace-provider-label {
-  font-size: 13px;
+.chaospace-provider-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.chaospace-provider-icon {
+  font-size: 18px;
+  flex: 0 0 auto;
+}
+
+.chaospace-provider-title-stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.chaospace-provider-context {
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--provider-panel-text-muted);
+}
+
+.chaospace-provider-active {
+  font-size: 15px;
   font-weight: 600;
-  color: var(--cp-text-primary);
+  color: var(--provider-panel-text-primary);
 }
 
 .chaospace-provider-mode {
+  margin-left: auto;
   font-size: 12px;
-  color: var(--cp-text-secondary);
+  font-weight: 600;
+  color: var(--provider-panel-text-primary);
+  background: var(--provider-panel-mode-bg);
+  border-radius: 999px;
+  padding: 2px 10px;
+  line-height: 1.4;
+}
+
+.chaospace-provider-meta {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  font-size: 12px;
+  color: var(--provider-panel-text-secondary);
+}
+
+.chaospace-provider-meta-item {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+
+.chaospace-provider-meta-item dt {
+  font-weight: 600;
+  color: var(--provider-panel-text-muted);
+}
+
+.chaospace-provider-meta-item dd {
+  margin: 0;
+  color: var(--provider-panel-text-secondary);
+  font-weight: 500;
+}
+
+.chaospace-provider-switching {
+  font-size: 11px;
+  color: var(--provider-panel-text-muted);
+  margin-left: 4px;
 }
 
 .chaospace-provider-tags {
@@ -85,14 +189,9 @@
   font-size: 11px;
   padding: 2px 8px;
   border-radius: 999px;
-  border: 1px solid rgba(var(--cp-accent-rgb), 0.35);
-  color: var(--cp-text-secondary);
-  background: rgba(var(--cp-accent-rgb), 0.12);
-}
-
-.chaospace-provider-hosts {
-  font-size: 11px;
-  color: var(--cp-text-muted);
+  border: 1px solid var(--provider-panel-tag-border);
+  color: var(--provider-panel-text-secondary);
+  background: var(--provider-panel-tag-bg);
 }
 
 .chaospace-provider-select {
@@ -100,16 +199,53 @@
   flex-direction: column;
   gap: 6px;
   font-size: 12px;
-  color: var(--cp-text-secondary);
+  color: var(--provider-panel-text-secondary);
+  position: relative;
+  min-width: 0;
+}
+
+.chaospace-provider-select-label {
+  font-weight: 600;
+  color: var(--provider-panel-text-muted);
 }
 
 .chaospace-provider-select select {
+  appearance: none;
   border-radius: 10px;
-  border: 1px solid var(--cp-border);
-  background: var(--cp-surface);
-  padding: 6px 10px;
+  border: 1px solid var(--provider-panel-select-border);
+  background-color: var(--provider-panel-select-bg);
+  padding: 6px 34px 6px 12px;
   font-size: 12px;
-  color: var(--cp-text-primary);
+  color: var(--provider-panel-select-color);
+  min-width: 150px;
+  width: min(260px, 44vw);
+  max-width: 100%;
+  box-sizing: border-box;
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(-45deg, transparent 50%, currentColor 50%);
+  background-position:
+    calc(100% - 16px) center,
+    calc(100% - 10px) center;
+  background-size:
+    7px 7px,
+    7px 7px;
+  background-repeat: no-repeat;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.chaospace-provider-select select:focus-visible {
+  outline: none;
+  border-color: rgba(var(--cp-accent-rgb), 0.65);
+  box-shadow: 0 0 0 2px rgba(var(--cp-accent-rgb), 0.25);
+}
+
+.chaospace-provider-select select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .chaospace-section-title {
@@ -180,8 +316,8 @@
 }
 
 .chaospace-float-panel.is-narrow .chaospace-provider-panel {
-  flex-direction: column;
-  align-items: stretch;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
 }
 
 .chaospace-float-panel.is-narrow .chaospace-float-body {

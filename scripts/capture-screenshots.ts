@@ -446,8 +446,12 @@ async function expandSettingsOverlay(overlay: Locator): Promise<void> {
       dialog.style.margin = '0 auto'
       dialog.style.transform = 'none'
       dialog.style.position = 'relative'
-      dialog.style.overflow = 'visible'
+      // 关键：恢复对圆角的裁剪，让子元素不会把圆角“补方”
+      dialog.style.overflow = 'clip' // Chromium 支持；不支持时使用 hidden
+      // 兼容性兜底（可选）：强制用 clip-path 裁剪后代
+      dialog.style.clipPath = 'inset(0 round 22px)'
     }
+
     const body = dialog?.querySelector<HTMLElement>('.chaospace-settings-body')
     if (body) {
       body.style.maxHeight = 'none'

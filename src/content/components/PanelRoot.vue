@@ -1,8 +1,8 @@
 <template>
-  <div :class="panelClasses">
-    <div class="chaospace-float-header">
+  <div ref="panelRef" :class="panelClasses">
+    <div ref="headerRef" class="chaospace-float-header">
       <div class="chaospace-header-art is-empty" data-role="header-art"></div>
-      <div class="chaospace-header-actions">
+      <div ref="headerActionsRef" class="chaospace-header-actions">
         <button
           type="button"
           class="chaospace-theme-toggle"
@@ -42,14 +42,9 @@
           draggable="false"
           style="display: none"
         />
-        <div class="chaospace-header-body">
-          <div class="chaospace-header-topline">
-            <span class="chaospace-assistant-badge" data-role="assistant-badge">
-              🚀 Pan Transfer 转存助手 · CHAOSPACE
-            </span>
-          </div>
+        <div ref="headerBodyRef" class="chaospace-header-body">
           <h2 class="chaospace-show-title" data-role="show-title">{{ safeTitle }}</h2>
-          <p class="chaospace-show-subtitle" data-role="show-subtitle">{{ subtitle }}</p>
+          <ProviderStatusBar />
         </div>
       </div>
     </div>
@@ -344,7 +339,6 @@
               <div class="chaospace-section-title" data-role="resource-title"></div>
               <div class="chaospace-section-caption" data-role="resource-summary"></div>
             </div>
-            <ProviderStatusBar />
             <div class="chaospace-season-tabs" data-role="season-tabs" hidden></div>
             <PanelToolbar />
             <div class="chaospace-items-scroll" data-role="items"></div>
@@ -409,7 +403,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import PanelToolbar from './PanelToolbar.vue'
 import HistoryFilterTabs from './history/HistoryFilterTabs.vue'
 import HistorySearchBar from './history/HistorySearchBar.vue'
@@ -422,25 +416,165 @@ type PanelTheme = 'light' | 'dark'
 const props = withDefaults(
   defineProps<{
     pageTitle?: string
-    originLabel?: string
     theme?: PanelTheme
   }>(),
   {
     pageTitle: '',
-    originLabel: '',
     theme: 'dark',
   },
 )
 
 const safeTitle = computed(() => props.pageTitle?.trim() || '等待选择剧集')
-const subtitle = computed(() => {
-  const label = props.originLabel?.trim()
-  return label ? `来源 ${label}` : '未检测到页面来源'
-})
 
 const panelClasses = computed(() => ({
   'chaospace-float-panel': true,
   'chaospace-theme': true,
   'theme-light': props.theme === 'light',
 }))
+
+const MIN_POSTER_HEIGHT = 110
+const DEFAULT_MAX_POSTER_HEIGHT = 220
+const WIDTH_LIMIT_RATIO = 0.52
+const HEIGHT_LIMIT_RATIO = 0.42
+
+const panelRef = ref<HTMLElement | null>(null)
+const headerRef = ref<HTMLElement | null>(null)
+const headerActionsRef = ref<HTMLElement | null>(null)
+const headerBodyRef = ref<HTMLElement | null>(null)
+let headerBodyObserver: ResizeObserver | null = null
+let headerActionsObserver: ResizeObserver | null = null
+let currentPosterHeight = ''
+let isPosterHeightMeasuring = false
+let currentHeaderActionsLane = ''
+
+const clampPosterHeight = (value: number, panelEl: HTMLElement): number => {
+  if (!Number.isFinite(value) || value <= 0) {
+    return MIN_POSTER_HEIGHT
+  }
+  let posterLimit = DEFAULT_MAX_POSTER_HEIGHT
+  const panelBounds = panelEl.getBoundingClientRect()
+  if (Number.isFinite(panelBounds.width) && panelBounds.width > 0) {
+    posterLimit = Math.min(posterLimit, panelBounds.width * WIDTH_LIMIT_RATIO)
+  }
+  if (Number.isFinite(panelBounds.height) && panelBounds.height > 0) {
+    posterLimit = Math.min(posterLimit, panelBounds.height * HEIGHT_LIMIT_RATIO)
+  }
+  const normalizedLimit = Math.max(MIN_POSTER_HEIGHT, Math.floor(posterLimit))
+  const normalizedValue = Math.max(MIN_POSTER_HEIGHT, Math.round(value))
+  return Math.min(normalizedValue, normalizedLimit)
+}
+
+const updatePosterHeight = () => {
+  if (isPosterHeightMeasuring) {
+    return
+  }
+  const panelEl = panelRef.value
+  const headerBodyEl = headerBodyRef.value
+  if (!panelEl || !headerBodyEl) {
+    return
+  }
+  isPosterHeightMeasuring = true
+  try {
+    const previousAlignSelf = headerBodyEl.style.alignSelf
+    const previousMinHeight = headerBodyEl.style.minHeight
+    let measuredHeight = 0
+    try {
+      // 暂时关闭拉伸与最小高度限制，确保测量到真实内容高度。
+      headerBodyEl.style.alignSelf = 'flex-start'
+      headerBodyEl.style.minHeight = '0px'
+      measuredHeight = headerBodyEl.getBoundingClientRect().height
+    } finally {
+      headerBodyEl.style.alignSelf = previousAlignSelf
+      headerBodyEl.style.minHeight = previousMinHeight
+    }
+    if (!Number.isFinite(measuredHeight) || measuredHeight <= 0) {
+      measuredHeight = headerBodyEl.scrollHeight
+    }
+    if (!Number.isFinite(measuredHeight) || measuredHeight <= 0) {
+      return
+    }
+    const computedHeight = clampPosterHeight(measuredHeight, panelEl)
+    const formatted = `${computedHeight}px`
+    if (formatted === currentPosterHeight) {
+      return
+    }
+    currentPosterHeight = formatted
+    panelEl.style.setProperty('--chaospace-header-poster-height', formatted)
+  } finally {
+    isPosterHeightMeasuring = false
+  }
+}
+
+const setupHeaderObserver = () => {
+  headerBodyObserver?.disconnect()
+  if (typeof ResizeObserver === 'undefined' || !headerBodyRef.value) {
+    return
+  }
+  headerBodyObserver = new ResizeObserver(() => updatePosterHeight())
+  headerBodyObserver.observe(headerBodyRef.value)
+}
+
+const teardownHeaderObserver = () => {
+  headerBodyObserver?.disconnect()
+  headerBodyObserver = null
+}
+
+const updateHeaderActionsLane = () => {
+  const headerEl = headerRef.value
+  const actionsEl = headerActionsRef.value
+  if (!headerEl || !actionsEl) {
+    return
+  }
+  const { width } = actionsEl.getBoundingClientRect()
+  if (!Number.isFinite(width) || width <= 0) {
+    return
+  }
+  const formatted = `${Math.ceil(width)}px`
+  if (formatted === currentHeaderActionsLane) {
+    return
+  }
+  currentHeaderActionsLane = formatted
+  headerEl.style.setProperty('--chaospace-header-actions-lane', formatted)
+}
+
+const setupHeaderActionsObserver = () => {
+  headerActionsObserver?.disconnect()
+  if (typeof ResizeObserver === 'undefined' || !headerActionsRef.value) {
+    return
+  }
+  headerActionsObserver = new ResizeObserver(() => updateHeaderActionsLane())
+  headerActionsObserver.observe(headerActionsRef.value)
+}
+
+const teardownHeaderActionsObserver = () => {
+  headerActionsObserver?.disconnect()
+  headerActionsObserver = null
+}
+
+const updateHeaderMetrics = () => {
+  updatePosterHeight()
+  updateHeaderActionsLane()
+}
+
+onMounted(() => {
+  nextTick(() => {
+    updateHeaderMetrics()
+    setupHeaderObserver()
+    setupHeaderActionsObserver()
+    window.addEventListener('resize', updateHeaderMetrics)
+  })
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', updateHeaderMetrics)
+  teardownHeaderObserver()
+  teardownHeaderActionsObserver()
+})
+
+watch(
+  () => props.pageTitle,
+  () => {
+    nextTick(() => updateHeaderMetrics())
+  },
+)
 </script>

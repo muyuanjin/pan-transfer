@@ -11,6 +11,7 @@ const FIXTURE_DIR = resolve(__dirname, '__fixtures__')
 const ORIGINAL_FETCH = globalThis.fetch
 const EMPTY_DOCUMENT = '<!DOCTYPE html><html lang="zh-CN"><head></head><body></body></html>'
 const FETCH_FIXTURE_HTML = new Map<string, string>()
+const PATCHED_FIXTURE_CACHE = new Map<string, Map<string, string>>()
 const RAW_FIXTURE_CACHE = new Map<string, string>()
 const STRIPPED_FIXTURE_CACHE = new Map<string, string>()
 
@@ -69,6 +70,18 @@ function patchHtmlDownloadLinks(html: string, origin = 'https://www.chaospace.cc
   return doc.documentElement.outerHTML
 }
 
+function ensurePatchedHtml(html: string, origin = 'https://www.chaospace.cc'): string {
+  const originCache = PATCHED_FIXTURE_CACHE.get(origin)
+  if (originCache?.has(html)) {
+    return originCache.get(html) as string
+  }
+  const nextOriginCache = originCache ?? new Map<string, string>()
+  const patched = patchHtmlDownloadLinks(html, origin)
+  nextOriginCache.set(html, patched)
+  PATCHED_FIXTURE_CACHE.set(origin, nextOriginCache)
+  return patched
+}
+
 function resetDocument(html = EMPTY_DOCUMENT, url = 'https://www.chaospace.cc/'): void {
   document.open()
   document.write(html)
@@ -99,7 +112,7 @@ function resetDocument(html = EMPTY_DOCUMENT, url = 'https://www.chaospace.cc/')
 function loadFixtureIntoDocument(name: string, url: string): string {
   const stripped = readStrippedFixture(name)
   FETCH_FIXTURE_HTML.set(url, stripped)
-  const sanitized = patchHtmlDownloadLinks(stripped)
+  const sanitized = ensurePatchedHtml(stripped, new URL(url).origin)
   resetDocument(sanitized, url)
   return sanitized
 }
@@ -117,10 +130,18 @@ function stubFetch(resolvedHtml: Record<string, string> = {}): void {
         headers: new Headers(),
       } as unknown as Response
     }
+    const origin = (() => {
+      try {
+        return new URL(url).origin
+      } catch {
+        return 'https://www.chaospace.cc'
+      }
+    })()
+    const patchedHtml = ensurePatchedHtml(html, origin)
     return {
       ok: true,
       status: 200,
-      text: async () => patchHtmlDownloadLinks(html),
+      text: async () => patchedHtml,
       headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
     } as unknown as Response
   })

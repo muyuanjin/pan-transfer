@@ -9,7 +9,7 @@ _Last updated: 2025-11-05 (UTC-8)_
 - **Quality gate**: Keep `npm run check` green (format:check → typecheck → lint:ci → build → vitest → playwright) before handing work back.
 - **Logging**: Prefix runtime logs with `[Pan Transfer]` across background, content, and UI contexts.
 
-## !!IMPORTANT!! Keep `npm run check` by use `winexec powershell.exe` green before handing work back!!!
+## !!IMPORTANT!! Keep `winexec npm run check` green before handing work back!!!
 
 ## Architecture Snapshot
 

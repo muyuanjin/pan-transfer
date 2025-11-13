@@ -8,7 +8,6 @@ import {
   PIN_STATE_KEY,
   EDGE_STATE_KEY,
   DEFAULT_PRESETS,
-  SETTINGS_EXPORT_VERSION,
   DATA_EXPORT_VERSION,
   HISTORY_BATCH_RATE_LIMIT_MS,
   MIN_HISTORY_RATE_LIMIT_MS,
@@ -630,23 +629,6 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     }
   }
 
-  async function exportSettingsSnapshot(): Promise<void> {
-    try {
-      const payload = {
-        type: 'chaospace-settings-export',
-        version: SETTINGS_EXPORT_VERSION,
-        exportedAt: new Date().toISOString(),
-        settings: buildSettingsSnapshot(),
-      }
-      downloadJsonFile(document, formatExportFilename('chaospace-settings'), payload)
-      showToast('success', '设置已导出', 'JSON 文件可用于快速迁移参数')
-    } catch (error) {
-      chaosLogger.error('[Pan Transfer] Failed to export settings', error)
-      const message = error instanceof Error ? error.message : '无法导出设置'
-      showToast('error', '导出失败', message)
-    }
-  }
-
   async function exportFullBackup(): Promise<void> {
     try {
       const keys = [
@@ -682,16 +664,6 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
       const message = error instanceof Error ? error.message : '无法导出插件数据'
       showToast('error', '导出失败', message)
     }
-  }
-
-  async function importSettingsSnapshot(payload: unknown): Promise<void> {
-    if (!payload || typeof payload !== 'object') {
-      throw new Error('文件内容不合法')
-    }
-    const source = (payload as Record<string, unknown>)['settings']
-    const next = source && typeof source === 'object' ? source : payload
-    applySettingsUpdate(next as SettingsUpdatePayload, { persist: true })
-    showToast('success', '设置已导入', '已更新所有可配置参数')
   }
 
   function applyImportedPanelGeometry(
@@ -1025,54 +997,10 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
       )
     }
 
-    if (domRefs.exportSettingsBtn) {
-      registerEventDisposer(
-        useEventListener(domRefs.exportSettingsBtn, 'click', () => {
-          void exportSettingsSnapshot()
-        }),
-      )
-    }
-
     if (domRefs.exportDataBtn) {
       registerEventDisposer(
         useEventListener(domRefs.exportDataBtn, 'click', () => {
           void exportFullBackup()
-        }),
-      )
-    }
-
-    if (domRefs.importSettingsTrigger && domRefs.importSettingsInput) {
-      registerEventDisposer(
-        useEventListener(domRefs.importSettingsTrigger, 'click', () => {
-          domRefs.importSettingsInput?.click()
-        }),
-      )
-      registerEventDisposer(
-        useEventListener(domRefs.importSettingsInput, 'change', async (event) => {
-          const input = event.currentTarget as HTMLInputElement | null
-          const file = input?.files && input.files[0]
-          if (!file) {
-            return
-          }
-          try {
-            const text = await readFileAsText(file)
-            const parsed: unknown = JSON.parse(text)
-            if (
-              parsed &&
-              typeof parsed === 'object' &&
-              'type' in parsed &&
-              (parsed as { type?: unknown }).type !== 'chaospace-settings-export'
-            ) {
-              throw new Error('请选择通过“导出设置”生成的 JSON 文件')
-            }
-            await importSettingsSnapshot(parsed)
-          } catch (error) {
-            chaosLogger.error('[Pan Transfer] Settings import failed', error)
-            const message = error instanceof Error ? error.message : '无法导入设置文件'
-            showToast('error', '导入失败', message)
-          } finally {
-            resetFileInput(domRefs.importSettingsInput)
-          }
         }),
       )
     }
@@ -1099,7 +1027,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
               'type' in parsed &&
               (parsed as { type?: unknown }).type !== 'chaospace-transfer-backup'
             ) {
-              throw new Error('请选择通过“导出全部数据”生成的 JSON 文件')
+              throw new Error('请选择通过“导出数据”生成的 JSON 文件')
             }
             await importFullBackup(parsed)
           } catch (error) {

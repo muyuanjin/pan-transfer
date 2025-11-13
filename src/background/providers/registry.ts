@@ -1,9 +1,7 @@
 import { createProviderRegistry, type ProviderRegistry } from '@/platform/registry'
 import { createChaospaceSiteProvider } from '@/providers/sites/chaospace'
-import { createGenericForumSiteProvider } from '@/providers/sites/generic-forum'
 import { createMockStorageProvider } from '@/providers/storage'
 import { createBaiduNetdiskProvider } from '@/providers/storage/baidu-netdisk'
-import { isGenericForumEnabled } from '@/shared/dev-toggles'
 import {
   resolveEffectiveStorageMode,
   type ResolvedStorageProviderMode,
@@ -23,9 +21,6 @@ export function getBackgroundProviderRegistry(
     return cached
   }
   const siteProviders = [createChaospaceSiteProvider()]
-  if (isGenericForumEnabled()) {
-    siteProviders.push(createGenericForumSiteProvider())
-  }
   const nextRegistry = createProviderRegistry({
     siteProviders,
   })

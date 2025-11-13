@@ -70,7 +70,7 @@ src/
 - ✅ `providers/sites/chaospace` now hosts the migrated DOM analyzers plus `createChaospaceSiteProvider` with initial detection/resource-mapping tests; runtime still consumes the analyzer directly until registry wiring lands.
 - ✅ Content runtime now shows the detected provider badge in the floating panel header and automatically rebuilds via the ProviderRegistry path.
 - ✅ Content runtime now instantiates a ProviderRegistry + `TransferPipeline` runner, so Chaospace detection/collection flows through `SiteProvider.collectResources` with automatic fallback to the legacy analyzer when no providers match.
-- ✅ Add a second "example" provider (e.g., `generic-forum`) that exercises the interface and documents integration steps. `src/providers/sites/generic-forum` plus its fixtures/tests ship as the sample.
+- ✅ Add a second "example" provider (e.g., `generic-forum`) that exercises the interface and documents integration steps. The implementation now lives exclusively inside the automated test fixtures so production bundles never include it.
 - ✅ Implement detection orchestration in content runtime: first matching provider wins (with telemetry when none match). `src/content/services/page-analysis-runner.ts` now calls `TransferPipeline.detectSiteProvider`.
 - ✅ Ensure runtime logs stay on the `[Pan Transfer]` prefix once provider extraction lands to avoid mixing contexts. `src/shared/log.ts` + Playwright guards enforce the prefix.
 - ✅ Update README with contributor docs on building site providers, plus a checklist for parity testing. See “Adding Site Providers” in `README.md`.

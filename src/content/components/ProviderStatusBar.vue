@@ -1,23 +1,14 @@
 <template>
-  <div class="chaospace-provider-panel">
-    <div class="chaospace-provider-overview">
-      <div class="chaospace-provider-label">
-        🔌 解析来源 · {{ activeProviderLabel }}
-        <span class="chaospace-provider-mode">（{{ modeLabel }}）</span>
-      </div>
-      <div v-if="activeProviderTags.length" class="chaospace-provider-tags">
-        <span v-for="tag in activeProviderTags" :key="tag" class="chaospace-provider-tag">
-          #{{ tag }}
-        </span>
-      </div>
-      <div v-if="activeProviderHosts.length" class="chaospace-provider-hosts">
-        支持站点：{{ activeProviderHosts.join('、') }}
-      </div>
+  <div class="chaospace-provider-status">
+    <span class="chaospace-provider-value">{{ activeProviderLabel }}</span>
+    <div v-if="activeProviderHosts.length" class="chaospace-provider-hosts">
+      支持站点: {{ activeProviderHosts.join('、') }}
     </div>
-    <label class="chaospace-provider-select">
-      <span>首选解析器</span>
+    <label v-if="canSwitchProviders" class="chaospace-provider-select">
+      <span class="chaospace-provider-select-label">首选解析器:</span>
       <select
-        :disabled="isSwitching || !canSwitchProviders"
+        class="chaospace-provider-select-field"
+        :disabled="isSwitching"
         :value="selectedProviderId"
         @change="handleChange"
       >
@@ -81,13 +72,10 @@ const activeProviderLabel = computed(() => {
   )
 })
 
-const activeProviderTags = computed(() => activeProviderOption.value?.tags ?? [])
-
 const activeProviderHosts = computed(() => activeProviderOption.value?.supportedHosts ?? [])
 
 const availableProviderIds = computed(() => store.availableSiteProviderIds)
 const canSwitchProviders = computed(() => selectableProviders.value.length > 1)
-const modeLabel = computed(() => (store.manualSiteProviderId ? '手动' : '自动'))
 const selectedProviderId = computed(() => store.manualSiteProviderId || '')
 const isSwitching = computed(() => store.providerSwitching)
 

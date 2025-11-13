@@ -12,8 +12,6 @@ import {
   CHAOSPACE_BASE_DETAIL_URL,
   DIST_DIR,
   EXTENSION_ARGS,
-  PANEL_RENDER_TIMEOUT,
-  PANEL_SELECTOR,
   expectNoPrefixedErrors,
   ensurePanelPinned,
   mountPanelForUrl,
@@ -67,20 +65,6 @@ const test = base.extend<Fixtures>({
 
 const GENERIC_FORUM_DEMO_URL = `${CHAOSPACE_BASE_DETAIL_URL}?pan-provider-demo=1`
 
-const parseBooleanEnv = (value?: string): boolean => {
-  if (!value) {
-    return false
-  }
-  const normalized = value.trim().toLowerCase()
-  return ['1', 'true', 'yes', 'on', 'enable'].includes(normalized)
-}
-
-const isGenericForumEnabled =
-  parseBooleanEnv(process.env.VITE_ENABLE_GENERIC_FORUM) ||
-  parseBooleanEnv(process.env.PAN_TRANSFER_ENABLE_GENERIC_FORUM)
-
-const describeGenericProviders = isGenericForumEnabled ? test.describe : test.describe.skip
-
 async function expectPanelAccentRgb(
   panel: Locator,
   expectedRgb: string,
@@ -115,8 +99,18 @@ test.describe('Chaospace panel overlay', () => {
 
       await expect(
         page.locator('.chaospace-assistant-badge'),
-        'Panel badge should promote the Pan Transfer assistant with provider label',
-      ).toContainText('Pan Transfer 转存助手 · CHAOSPACE')
+        'Legacy assistant badge should no longer render inside the header',
+      ).toHaveCount(0)
+
+      const headerProviderPanel = page.locator('.chaospace-header-body .chaospace-provider-panel')
+      await expect(
+        headerProviderPanel,
+        'Provider panel should render within the header beneath the title',
+      ).toBeVisible()
+      await expect(
+        headerProviderPanel,
+        'Provider panel should expose the active Chaospace provider label',
+      ).toContainText(/chaospace/i)
 
       // 等待面板动画完成(chaospace-panel-in 持续 0.35s)
       // 额外等待一些时间确保 animationend 事件触发并添加 is-mounted 类
@@ -160,8 +154,8 @@ test.describe('Chaospace panel overlay', () => {
   })
 })
 
-describeGenericProviders('Provider overrides', () => {
-  test('switches between CHAOSPACE and Generic Forum and updates accent theme', async ({
+test.describe('Provider overrides', () => {
+  test('ignores Generic Forum markers and keeps CHAOSPACE as the active provider', async ({
     page,
     context,
   }) => {
@@ -174,53 +168,26 @@ describeGenericProviders('Provider overrides', () => {
     try {
       await ensurePanelPinned(panelLocator)
       const providerSelect = page.locator('.chaospace-provider-select select')
-      await expect(providerSelect, 'Provider dropdown should be interactive').toBeEnabled()
       await expect(
         providerSelect.locator('option[value="generic-forum"]'),
-        'Generic Forum option should be available when markers are present',
-      ).toHaveCount(1)
-
-      await providerSelect.selectOption('generic-forum')
-      await expect(providerSelect).toHaveValue('generic-forum')
-      await expect(page.locator('.chaospace-provider-mode')).toContainText('手动')
-      await expect(page.locator('.chaospace-provider-label')).toContainText('Generic Forum')
-      await expect(panelLocator).toHaveAttribute('data-pan-provider', 'generic-forum')
-      await expectPanelAccentRgb(
-        panelLocator,
-        '14, 165, 233',
-        'Generic Forum accent palette should be applied',
-      )
-
-      await providerSelect.selectOption('')
+        'Generic Forum option must never be exposed in production builds',
+      ).toHaveCount(0)
       await expect(providerSelect).toHaveValue('')
       await expect(page.locator('.chaospace-provider-mode')).toContainText('自动')
+      await expect(page.locator('.chaospace-provider-active')).toContainText('CHAOSPACE')
+      await expect(panelLocator).toHaveAttribute('data-pan-provider', 'chaospace')
+      await expectPanelAccentRgb(
+        panelLocator,
+        '99, 102, 241',
+        'Panel accent should stick to the CHAOSPACE palette even for override markers',
+      )
       expectNoPrefixedErrors(errorTracker)
     } finally {
       errorTracker.dispose()
     }
-
-    const { panelLocator: chaosPanel, errorTracker: chaosTracker } = await mountPanelForUrl(
-      page,
-      context,
-      CHAOSPACE_BASE_DETAIL_URL,
-    )
-    try {
-      await ensurePanelPinned(chaosPanel)
-      await expect(page.locator('.chaospace-provider-mode')).toContainText('自动')
-      await expect(page.locator('.chaospace-provider-label')).toContainText('CHAOSPACE')
-      await expect(chaosPanel).toHaveAttribute('data-pan-provider', 'chaospace')
-      await expectPanelAccentRgb(
-        chaosPanel,
-        '99, 102, 241',
-        'Chaospace accent palette should restore after reloading a native CHAOSPACE page',
-      )
-      expectNoPrefixedErrors(chaosTracker)
-    } finally {
-      chaosTracker.dispose()
-    }
   })
 
-  test('disabling a provider removes it from overrides and survives reload', async ({
+  test('settings overlay never lists the Generic Forum provider toggle', async ({
     page,
     context,
   }) => {
@@ -238,32 +205,14 @@ describeGenericProviders('Provider overrides', () => {
       await expect(settingsOverlay).toHaveAttribute('aria-hidden', 'false')
 
       const providerList = settingsOverlay.locator('[data-role="settings-site-provider-list"]')
-      const genericProviderToggle = providerList
-        .locator('label', { hasText: 'Generic Forum' })
-        .first()
-      const checkbox = genericProviderToggle.locator('input[type="checkbox"]')
-      await expect(checkbox).toBeChecked()
-      await checkbox.click()
-      await expect(checkbox).not.toBeChecked()
-
-      await page.locator('[data-role="settings-close"]').click()
-      await expect(settingsOverlay).toHaveAttribute('aria-hidden', 'true')
-
-      const providerSelect = page.locator('.chaospace-provider-select select')
-      await expect(providerSelect.locator('option[value="generic-forum"]')).toHaveCount(0)
-      await expect(providerSelect).toHaveValue('')
-      await expect(panelLocator).toHaveAttribute('data-pan-provider', 'chaospace')
-
-      await page.reload({ waitUntil: 'domcontentloaded', timeout: 15000 })
-      await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {})
-      const rehydratedPanel = page.locator(PANEL_SELECTOR)
-      await expect(rehydratedPanel).toBeVisible({ timeout: PANEL_RENDER_TIMEOUT })
       await expect(
-        page.locator('.chaospace-provider-select select').locator('option[value="generic-forum"]'),
+        providerList.locator('label', { hasText: /Generic Forum/i }),
+        'Settings should not mention Generic Forum providers',
       ).toHaveCount(0)
-      await expect(page.locator('.chaospace-provider-mode')).toContainText('自动')
-      await expect(rehydratedPanel).toHaveAttribute('data-pan-provider', 'chaospace')
 
+      await settingsToggle.click()
+      await expect(settingsOverlay).toHaveAttribute('aria-hidden', 'true')
+      await expect(panelLocator).toHaveAttribute('data-pan-provider', 'chaospace')
       expectNoPrefixedErrors(errorTracker)
     } finally {
       errorTracker.dispose()
@@ -367,7 +316,7 @@ test.describe('Storage providers', () => {
       await ensurePanelPinned(panelLocator)
       const selectAllButton = page.getByRole('button', { name: '全选' })
       await expect(selectAllButton, 'Select-all button should be visible').toBeVisible()
-      await selectAllButton.click()
+      await selectAllButton.click({ force: true }) // 规避无头模式下的虚假覆盖检测
       const transferButton = page.locator('[data-role="transfer-btn"]')
       await expect(
         transferButton,

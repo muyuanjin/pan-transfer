@@ -1,4 +1,13 @@
 .chaospace-float-panel {
+  --chaospace-header-action-size: 42px;
+  --chaospace-header-action-gap: 10px;
+  --chaospace-header-actions-count: 3;
+  --chaospace-header-edge-gap: 22px;
+  --chaospace-header-actions-lane: calc(
+    var(--chaospace-header-actions-count) * var(--chaospace-header-action-size) +
+      (var(--chaospace-header-actions-count) - 1) * var(--chaospace-header-action-gap)
+  );
+  --chaospace-header-poster-height: 110px;
   position: fixed;
   top: 24px;
   right: 24px;

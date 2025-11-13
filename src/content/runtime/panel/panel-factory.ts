@@ -27,7 +27,6 @@ import type {
 import type { mountPanelShell } from '../../components/panel'
 import type { ToastHandler } from '../../components/toast'
 import { suggestDirectoryFromClassification } from '@/providers/sites/chaospace/page-analyzer'
-import { formatOriginLabel } from '../../utils/format'
 import { resetPanelRuntimeState } from '../panel-state'
 import type { TabSeasonPreferenceController } from '../../services/tab-season-preference'
 
@@ -262,15 +261,12 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
         return false
       }
 
-      const originLabel = formatOriginLabel(state.origin)
-
       const panelShell = await mountPanelShell({
         document,
         window,
         panelDom,
         panelState,
         pageTitle: state.pageTitle,
-        originLabel,
         theme: state.theme,
         handleDocumentPointerDown: edgeController.handleDocumentPointerDown,
         constants: {

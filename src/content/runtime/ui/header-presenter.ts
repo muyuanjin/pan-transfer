@@ -1,6 +1,6 @@
 import { state } from '../../state'
 import { disableElementDrag } from '../../utils/dom'
-import { formatOriginLabel, sanitizeCssUrl } from '../../utils/format'
+import { sanitizeCssUrl } from '../../utils/format'
 import type { PanelHeaderDomRefs, PanelTransferDomRefs } from '../../types'
 
 export interface HeaderPresenter {
@@ -23,30 +23,6 @@ export function createHeaderPresenter({
     if (headerDom.showTitle) {
       const title = state.pageTitle || state.poster?.alt || '等待选择剧集'
       headerDom.showTitle.textContent = title
-    }
-
-    if (headerDom.showSubtitle) {
-      const label = formatOriginLabel(state.origin)
-      const hasItemsArray = Array.isArray(state.items)
-      const itemCount = hasItemsArray ? state.items.length : 0
-      const infoParts: string[] = []
-      if (label) {
-        infoParts.push(`来源 ${label}`)
-      }
-      if (hasItemsArray) {
-        infoParts.push(`解析到 ${itemCount} 项资源`)
-      }
-      if (state.completion?.label) {
-        infoParts.push(state.completion.label)
-      }
-      headerDom.showSubtitle.textContent = infoParts.length
-        ? infoParts.join(' · ')
-        : '未检测到页面来源'
-    }
-
-    const providerLabel = state.activeSiteProviderLabel?.trim() || 'CHAOSPACE'
-    if (headerDom.assistantBadge) {
-      headerDom.assistantBadge.textContent = `🚀 Pan Transfer 转存助手 · ${providerLabel}`
     }
 
     if (headerDom.header) {

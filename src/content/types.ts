@@ -263,8 +263,6 @@ const PANEL_DOM_KEYS = [
   'headerArt',
   'headerPoster',
   'showTitle',
-  'showSubtitle',
-  'assistantBadge',
   'baseDirInput',
   'useTitleCheckbox',
   'useSeasonCheckbox',
@@ -288,11 +286,8 @@ const PANEL_DOM_KEYS = [
   'settingsFilterEditor',
   'settingsRenameEditor',
   'settingsSiteProviderList',
-  'settingsExportConfig',
   'settingsExportData',
-  'settingsImportConfigTrigger',
   'settingsImportDataTrigger',
-  'settingsImportConfigInput',
   'settingsImportDataInput',
   'settingsResetLayout',
   'pinBtn',
@@ -326,8 +321,6 @@ export interface PanelDomDefinition {
   headerArt: HTMLElement
   headerPoster: HTMLImageElement
   showTitle: HTMLElement
-  showSubtitle: HTMLElement
-  assistantBadge: HTMLElement
   baseDirInput: HTMLInputElement
   useTitleCheckbox: HTMLInputElement
   useSeasonCheckbox: HTMLInputElement
@@ -351,11 +344,8 @@ export interface PanelDomDefinition {
   settingsFilterEditor: HTMLElement
   settingsRenameEditor: HTMLElement
   settingsSiteProviderList: HTMLElement
-  settingsExportConfig: HTMLButtonElement
   settingsExportData: HTMLButtonElement
-  settingsImportConfigTrigger: HTMLButtonElement
   settingsImportDataTrigger: HTMLButtonElement
-  settingsImportConfigInput: HTMLInputElement
   settingsImportDataInput: HTMLInputElement
   settingsResetLayout: HTMLButtonElement
   pinBtn: HTMLButtonElement
@@ -518,8 +508,6 @@ export interface PanelHeaderDomRefs {
   readonly headerArt: HTMLElement | null
   readonly headerPoster: HTMLImageElement | null
   readonly showTitle: HTMLElement | null
-  readonly showSubtitle: HTMLElement | null
-  readonly assistantBadge: HTMLElement | null
 }
 
 export function getPanelHeaderDom(panelDom: PanelDomRefs): PanelHeaderDomRefs {
@@ -535,12 +523,6 @@ export function getPanelHeaderDom(panelDom: PanelDomRefs): PanelHeaderDomRefs {
     },
     get showTitle() {
       return panelDom.get('showTitle')
-    },
-    get showSubtitle() {
-      return panelDom.get('showSubtitle')
-    },
-    get assistantBadge() {
-      return panelDom.get('assistantBadge')
     },
   }
 }
@@ -656,10 +638,7 @@ export interface PanelSettingsDomRefs {
   readonly filterEditorRoot: HTMLElement
   readonly renameEditorRoot: HTMLElement
   readonly siteProviderList: HTMLElement
-  readonly exportSettingsBtn: HTMLButtonElement
   readonly exportDataBtn: HTMLButtonElement
-  readonly importSettingsTrigger: HTMLButtonElement
-  readonly importSettingsInput: HTMLInputElement
   readonly importDataTrigger: HTMLButtonElement
   readonly importDataInput: HTMLInputElement
   readonly resetLayoutBtn: HTMLButtonElement
@@ -713,23 +692,8 @@ export function getPanelSettingsDom(panelDom: PanelDomRefs): PanelSettingsDomRef
         'Missing settings site provider list binding',
       )
     },
-    get exportSettingsBtn() {
-      return panelDom.ensure('settingsExportConfig', 'Missing settings export config binding')
-    },
     get exportDataBtn() {
       return panelDom.ensure('settingsExportData', 'Missing settings export data binding')
-    },
-    get importSettingsTrigger() {
-      return panelDom.ensure(
-        'settingsImportConfigTrigger',
-        'Missing settings import config trigger binding',
-      )
-    },
-    get importSettingsInput() {
-      return panelDom.ensure(
-        'settingsImportConfigInput',
-        'Missing settings import config input binding',
-      )
     },
     get importDataTrigger() {
       return panelDom.ensure(

@@ -5,7 +5,6 @@ import path from 'node:path'
 
 const rootDir = process.cwd()
 const distDir = path.join(rootDir, 'dist')
-const distBackupDir = path.join(rootDir, 'dist.e2e-backup')
 const isWindows = process.platform === 'win32'
 
 const run = (command, args, label, options = {}) =>
@@ -37,80 +36,21 @@ const run = (command, args, label, options = {}) =>
     })
   })
 
-const npmCommand = 'npm'
 const playwrightCommand = isWindows
   ? path.join('node_modules', '.bin', 'playwright.cmd')
   : path.join('node_modules', '.bin', 'playwright')
 
-const ensureDirRemoved = (target) => {
-  try {
-    fs.rmSync(target, { recursive: true, force: true })
-  } catch (error) {
-    if (error && error.code !== 'ENOENT') {
-      process.stderr.write(
-        `Failed to remove ${target}: ${(error && error.message) || String(error)}\n`,
-      )
-    }
+const ensureDistBundle = () => {
+  if (!fs.existsSync(distDir)) {
+    throw new Error('Extension build is missing. Run `npm run build` before executing e2e tests.')
   }
-}
-
-async function prepareE2eBundle() {
-  const hadDist = fs.existsSync(distDir)
-  if (hadDist) {
-    ensureDirRemoved(distBackupDir)
-    fs.renameSync(distDir, distBackupDir)
-  }
-
-  try {
-    await run(
-      npmCommand,
-      ['run', 'build'],
-      'Building extension bundle with Generic Forum enabled for e2e',
-      {
-        env: {
-          VITE_ENABLE_GENERIC_FORUM: '1',
-          PAN_TRANSFER_ENABLE_GENERIC_FORUM: '1',
-        },
-      },
-    )
-  } catch (error) {
-    if (hadDist && fs.existsSync(distBackupDir)) {
-      fs.renameSync(distBackupDir, distDir)
-    } else {
-      ensureDirRemoved(distBackupDir)
-      ensureDirRemoved(distDir)
-    }
-    throw error
-  }
-
-  const restore = () => {
-    ensureDirRemoved(distDir)
-    if (hadDist) {
-      if (fs.existsSync(distBackupDir)) {
-        fs.renameSync(distBackupDir, distDir)
-      }
-    } else {
-      ensureDirRemoved(distBackupDir)
-    }
-  }
-
-  return restore
 }
 
 async function main() {
-  let restoreBundle = null
   try {
-    restoreBundle = await prepareE2eBundle()
-    await run(playwrightCommand, ['test'], 'Running Playwright smoke tests', {
-      env: {
-        VITE_ENABLE_GENERIC_FORUM: '1',
-        PAN_TRANSFER_ENABLE_GENERIC_FORUM: '1',
-      },
-    })
+    ensureDistBundle()
+    await run(playwrightCommand, ['test'], 'Running Playwright smoke tests')
   } finally {
-    if (typeof restoreBundle === 'function') {
-      restoreBundle()
-    }
     try {
       fs.rmSync(path.join(rootDir, 'test-results'), { recursive: true, force: true })
     } catch (error) {

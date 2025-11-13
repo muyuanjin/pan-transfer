@@ -13,7 +13,6 @@ export default [
   {
     ignores: [
       'dist/**',
-      'dist.e2e-backup/**',
       'node_modules/**',
       '*.cjs',
       'chaospace-extension/**',

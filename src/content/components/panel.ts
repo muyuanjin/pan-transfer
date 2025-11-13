@@ -35,7 +35,6 @@ export interface MountPanelShellOptions {
   panelDom: PanelDomRefs
   panelState: PanelRuntimeState
   pageTitle: string
-  originLabel: string
   theme: string
   handleDocumentPointerDown: (event: PointerEvent) => void
   constants: PanelShellConstants
@@ -109,7 +108,6 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     panelDom,
     panelState,
     pageTitle,
-    originLabel,
     theme,
     handleDocumentPointerDown,
     constants,
@@ -127,7 +125,6 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
 
   const vueApp = createApp(PanelRoot, {
     pageTitle,
-    originLabel,
     theme,
   })
   vueApp.use(pinia)
@@ -516,8 +513,6 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     disableElementDrag(headerPoster)
   }
   const showTitle = panel.querySelector<HTMLElement>('[data-role="show-title"]')
-  const showSubtitle = panel.querySelector<HTMLElement>('[data-role="show-subtitle"]')
-  const assistantBadge = panel.querySelector<HTMLElement>('[data-role="assistant-badge"]')
   const baseDirInput = panel.querySelector<HTMLInputElement>('[data-role="base-dir"]')
   const useTitleCheckbox = panel.querySelector<HTMLInputElement>('[data-role="use-title"]')
   const useSeasonCheckbox = panel.querySelector<HTMLInputElement>('[data-role="use-season"]')
@@ -553,20 +548,11 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
   const settingsSiteProviderList = panel.querySelector<HTMLElement>(
     '[data-role="settings-site-provider-list"]',
   )
-  const settingsExportConfig = panel.querySelector<HTMLButtonElement>(
-    '[data-role="settings-export-config"]',
-  )
   const settingsExportData = panel.querySelector<HTMLButtonElement>(
     '[data-role="settings-export-data"]',
   )
-  const settingsImportConfigTrigger = panel.querySelector<HTMLButtonElement>(
-    '[data-role="settings-import-config-trigger"]',
-  )
   const settingsImportDataTrigger = panel.querySelector<HTMLButtonElement>(
     '[data-role="settings-import-data-trigger"]',
-  )
-  const settingsImportConfigInput = panel.querySelector<HTMLInputElement>(
-    '[data-role="settings-import-config"]',
   )
   const settingsImportDataInput = panel.querySelector<HTMLInputElement>(
     '[data-role="settings-import-data"]',
@@ -600,8 +586,6 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     headerArt,
     headerPoster,
     showTitle,
-    showSubtitle,
-    assistantBadge,
     baseDirInput,
     useTitleCheckbox,
     useSeasonCheckbox,
@@ -625,11 +609,8 @@ export async function mountPanelShell(options: MountPanelShellOptions): Promise<
     settingsFilterEditor,
     settingsRenameEditor,
     settingsSiteProviderList,
-    settingsExportConfig,
     settingsExportData,
-    settingsImportConfigTrigger,
     settingsImportDataTrigger,
-    settingsImportConfigInput,
     settingsImportDataInput,
     settingsResetLayout,
     pinBtn,
