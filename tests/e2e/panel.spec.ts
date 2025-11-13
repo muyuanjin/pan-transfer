@@ -102,7 +102,7 @@ test.describe('Chaospace panel overlay', () => {
         'Legacy assistant badge should no longer render inside the header',
       ).toHaveCount(0)
 
-      const headerProviderPanel = page.locator('.chaospace-header-body .chaospace-provider-panel')
+      const headerProviderPanel = page.locator('.chaospace-header-body .chaospace-provider-status')
       await expect(
         headerProviderPanel,
         'Provider panel should render within the header beneath the title',
@@ -167,14 +167,16 @@ test.describe('Provider overrides', () => {
 
     try {
       await ensurePanelPinned(panelLocator)
-      const providerSelect = page.locator('.chaospace-provider-select select')
+      const providerSelect = page.locator('.chaospace-provider-select-field')
       await expect(
         providerSelect.locator('option[value="generic-forum"]'),
         'Generic Forum option must never be exposed in production builds',
       ).toHaveCount(0)
-      await expect(providerSelect).toHaveValue('')
-      await expect(page.locator('.chaospace-provider-mode')).toContainText('自动')
-      await expect(page.locator('.chaospace-provider-active')).toContainText('CHAOSPACE')
+      await expect(
+        providerSelect,
+        'Manual provider dropdown should stay hidden for single provider',
+      ).toHaveCount(0)
+      await expect(page.locator('.chaospace-provider-value')).toContainText('CHAOSPACE')
       await expect(panelLocator).toHaveAttribute('data-pan-provider', 'chaospace')
       await expectPanelAccentRgb(
         panelLocator,
