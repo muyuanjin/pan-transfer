@@ -5,6 +5,17 @@ All notable changes to Pan Transfer extension will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2025-11-14
+
+### Added
+
+- **备份导入范围选择器**: 通过新对话框将设置、历史、目录缓存、面板布局拆分为独立 scope, 支持仅导入可用数据并在缺失时禁用选项, 附带覆盖警告与详细反馈 ([1076c51](https://github.com/muyuanjin/pan-transfer/commit/1076c51))
+- **备份文件健壮性验证**: 抽离 `backup-validation.ts` 统一校验备份类型、版本与字段结构, 支持按 scope 过滤并在部分损坏时给出跳过提示, 避免错误数据写入 ([0841622](https://github.com/muyuanjin/pan-transfer/commit/0841622))
+
+### Changed
+
+- **Provider 标题排版**: Provider 名称根据标题宽度动态调整字体和字间距, 长短名称都能与标题对齐并保持可读性 ([74b5f9e](https://github.com/muyuanjin/pan-transfer/commit/74b5f9e))
+
 ## [0.2.0] - 2025-11-12
 
 ### Added
@@ -45,5 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Manifest V3 + Vite 7 + TypeScript 5.9 + Vue 3 技术栈
 - 完整的 ESLint、Prettier、TypeScript、Vitest、Playwright 测试覆盖
 
+[0.2.2]: https://github.com/muyuanjin/pan-transfer/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/muyuanjin/pan-transfer/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/muyuanjin/pan-transfer/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/muyuanjin/pan-transfer/releases/tag/v0.1.0

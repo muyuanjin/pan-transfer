@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Pan Transfer",
   "description": "网盘转存助手",
-  "version": "0.2.0",
+  "version": "0.2.2",
   "action": {
     "default_title": "网盘转存助手",
     "default_icon": {
