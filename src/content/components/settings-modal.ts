@@ -45,8 +45,13 @@ import type {
   ProviderPreferencesController,
   SiteProviderOption,
 } from '../controllers/provider-preferences'
-
-type ImportScopeKey = 'settings' | 'history' | 'cache' | 'panel'
+import {
+  resolveBackupDataRoot,
+  validateBackupPayload,
+  type BackupValidationIssue,
+  type ImportScopeAvailability,
+  type ImportScopeKey,
+} from './settings/backup-validation'
 
 interface ImportScopeSelection {
   settings: boolean
@@ -54,8 +59,6 @@ interface ImportScopeSelection {
   cache: boolean
   panel: boolean
 }
-
-type ImportScopeAvailability = Record<ImportScopeKey, boolean>
 
 const IMPORT_SCOPE_CONFIG: Array<{
   key: ImportScopeKey
@@ -69,6 +72,13 @@ const IMPORT_SCOPE_CONFIG: Array<{
 ]
 
 const IMPORT_SCOPE_KEYS: ImportScopeKey[] = IMPORT_SCOPE_CONFIG.map((item) => item.key)
+const IMPORT_SCOPE_LABEL_MAP: Record<ImportScopeKey, string> = IMPORT_SCOPE_CONFIG.reduce(
+  (acc, item) => {
+    acc[item.key] = item.label
+    return acc
+  },
+  {} as Record<ImportScopeKey, string>,
+)
 const IMPORT_SCOPE_UNAVAILABLE_HINT = '备份中未包含该数据'
 
 const settingsCssUrl = settingsCssHref
@@ -129,6 +139,11 @@ interface SettingsDomRefs extends PanelSettingsDomRefs {
 
 interface SettingsUpdatePayload extends Partial<SettingsSnapshot> {
   [key: string]: unknown
+}
+
+interface ImportExecutionResult {
+  importedKeys: ImportScopeKey[]
+  detailParts: string[]
 }
 
 const DEFAULT_IMPORT_SCOPE: ImportScopeSelection = {
@@ -229,27 +244,6 @@ function resetFileInput(input: HTMLInputElement | null): void {
   }
 }
 
-function resolveBackupDataRoot(payload: unknown): Record<string, unknown> {
-  if (!payload || typeof payload !== 'object') {
-    throw new Error('文件内容不合法')
-  }
-  const payloadRecord = payload as Record<string, unknown>
-  const source = payloadRecord['data']
-  const data =
-    source && typeof source === 'object' ? (source as Record<string, unknown>) : payloadRecord
-  return data
-}
-
-function getImportScopeAvailability(payload: unknown): ImportScopeAvailability {
-  const data = resolveBackupDataRoot(payload)
-  return {
-    settings: Object.prototype.hasOwnProperty.call(data, 'settings'),
-    history: Object.prototype.hasOwnProperty.call(data, 'history'),
-    cache: Object.prototype.hasOwnProperty.call(data, 'cache'),
-    panel: Object.prototype.hasOwnProperty.call(data, 'panel'),
-  }
-}
-
 function hasAvailableScope(availability: ImportScopeAvailability): boolean {
   return IMPORT_SCOPE_KEYS.some((key) => availability[key])
 }
@@ -275,6 +269,62 @@ function clampScopeToAvailability(
     }
   }
   return next
+}
+
+interface SkippedScopeDetail {
+  key: ImportScopeKey
+  issues: BackupValidationIssue[]
+}
+
+function buildScopeIssueMessages(
+  scopeIssues: Partial<Record<ImportScopeKey, BackupValidationIssue[]>>,
+): string[] {
+  return IMPORT_SCOPE_KEYS.reduce<string[]>((messages, key) => {
+    const issues = scopeIssues[key]
+    if (!issues || !issues.length) {
+      return messages
+    }
+    const label = IMPORT_SCOPE_LABEL_MAP[key] || key
+    const headline = issues[0]?.message || '数据结构不完整'
+    messages.push(`${label}：${headline}`)
+    return messages
+  }, [])
+}
+
+function buildMissingSectionMessage(keys: ImportScopeKey[]): string | null {
+  if (!keys.length) {
+    return null
+  }
+  const labels = keys.map((key) => IMPORT_SCOPE_LABEL_MAP[key] || key)
+  return `备份缺少：${labels.join('、')}`
+}
+
+function filterSelectionByScopeIssues(
+  selection: ImportScopeSelection,
+  scopeIssues: Partial<Record<ImportScopeKey, BackupValidationIssue[]>>,
+): { filtered: ImportScopeSelection; skipped: SkippedScopeDetail[] } {
+  const filtered: ImportScopeSelection = { ...selection }
+  const skipped: SkippedScopeDetail[] = []
+  IMPORT_SCOPE_KEYS.forEach((key) => {
+    if (selection[key] && scopeIssues[key]?.length) {
+      filtered[key] = false
+      skipped.push({ key, issues: scopeIssues[key] ?? [] })
+    }
+  })
+  return { filtered, skipped }
+}
+
+function formatSkippedScopesMessage(skipped: SkippedScopeDetail[]): string | null {
+  if (!skipped.length) {
+    return null
+  }
+  return skipped
+    .map((item) => {
+      const label = IMPORT_SCOPE_LABEL_MAP[item.key] || item.key
+      const issue = item.issues[0]
+      return issue ? `${label}：${issue.message}` : `${label}：结构损坏，已跳过`
+    })
+    .join('；')
 }
 
 function createImportScopeDialog(options: ImportScopeDialogOptions): ImportScopeDialog {
@@ -1064,7 +1114,10 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     return false
   }
 
-  async function importFullBackup(payload: unknown, scope: ImportScopeSelection): Promise<void> {
+  async function importFullBackup(
+    payload: unknown,
+    scope: ImportScopeSelection,
+  ): Promise<ImportExecutionResult> {
     if (!safeStorageSet || !safeStorageRemove) {
       throw new Error('当前环境不支持存储写入操作')
     }
@@ -1267,7 +1320,10 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     if (!detailParts.length) {
       detailParts.push('未检测到需要写入的内容')
     }
-    showToast('success', '数据已导入', detailParts.join('；'))
+    return {
+      importedKeys,
+      detailParts,
+    }
   }
 
   async function notifyHistoryStoreReload(): Promise<void> {
@@ -1491,18 +1547,31 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
           }
           try {
             const text = await readFileAsText(file)
-            const parsed: unknown = JSON.parse(text)
-            if (
-              parsed &&
-              typeof parsed === 'object' &&
-              'type' in parsed &&
-              (parsed as { type?: unknown }).type !== 'chaospace-transfer-backup'
-            ) {
-              throw new Error('请选择通过“导出数据”生成的 JSON 文件')
+            let parsed: unknown
+            try {
+              parsed = JSON.parse(text)
+            } catch {
+              throw new Error('文件不是有效的 JSON，请检查内容后重试')
             }
-            const availability = getImportScopeAvailability(parsed)
+            const validation = validateBackupPayload(parsed)
+            if (validation.fatalErrors.length) {
+              const fatalMessage = validation.fatalErrors.map((issue) => issue.message).join('；')
+              throw new Error(fatalMessage || '备份文件与当前版本不兼容')
+            }
+            const availability = validation.availability
             if (!hasAvailableScope(availability)) {
-              throw new Error('备份文件中不包含可导入的数据')
+              const missingMessage =
+                buildMissingSectionMessage(validation.missingSections) ||
+                '备份文件中不包含可导入的数据'
+              throw new Error(missingMessage)
+            }
+            const warningMessages = [...buildScopeIssueMessages(validation.scopeIssues)]
+            const missingMessage = buildMissingSectionMessage(validation.missingSections)
+            if (missingMessage) {
+              warningMessages.push(missingMessage)
+            }
+            if (warningMessages.length) {
+              showToast('warning', '部分内容无法导入', warningMessages.join('；'))
             }
             const defaults = clampScopeToAvailability(lastImportScopeSelection, availability)
             const selection = await importScopeDialog.prompt(availability, defaults)
@@ -1510,8 +1579,24 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
               showToast('info', '已取消导入', '未写入任何数据')
               return
             }
-            lastImportScopeSelection = selection
-            await importFullBackup(parsed, selection)
+            const { filtered, skipped } = filterSelectionByScopeIssues(
+              selection,
+              validation.scopeIssues,
+            )
+            if (!hasScopeSelection(filtered)) {
+              const skipMessage =
+                formatSkippedScopesMessage(skipped) ||
+                '所选内容均无法导入，请重新选择或使用新的备份文件'
+              throw new Error(skipMessage)
+            }
+            lastImportScopeSelection = filtered
+            const summary = await importFullBackup(parsed, filtered)
+            const detailParts = [...summary.detailParts]
+            const skippedMessage = formatSkippedScopesMessage(skipped)
+            if (skippedMessage) {
+              detailParts.push(skippedMessage)
+            }
+            showToast('success', '数据已导入', detailParts.join('；'))
           } catch (error) {
             chaosLogger.error('[Pan Transfer] Backup import failed', error)
             const message = error instanceof Error ? error.message : '无法导入数据备份'
