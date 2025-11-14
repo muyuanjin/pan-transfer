@@ -210,7 +210,7 @@
                     data-role="settings-site-provider-list"
                   ></div>
                   <p class="chaospace-settings-hint">
-                    可按需禁用暂不需要的站点 Provider，避免在不兼容页面上触发误报。
+                    可按需禁用暂不需要的站点解析器，避免在不兼容页面上触发误报。
                   </p>
                 </div>
               </section>

@@ -46,6 +46,31 @@ import type {
   SiteProviderOption,
 } from '../controllers/provider-preferences'
 
+type ImportScopeKey = 'settings' | 'history' | 'cache' | 'panel'
+
+interface ImportScopeSelection {
+  settings: boolean
+  history: boolean
+  cache: boolean
+  panel: boolean
+}
+
+type ImportScopeAvailability = Record<ImportScopeKey, boolean>
+
+const IMPORT_SCOPE_CONFIG: Array<{
+  key: ImportScopeKey
+  label: string
+  description: string
+}> = [
+  { key: 'settings', label: '插件设置', description: '基础配置、过滤规则、解析器偏好等' },
+  { key: 'history', label: '转存历史', description: '检测记录、分组状态与批量任务' },
+  { key: 'cache', label: '目录缓存', description: '收藏目录及转存目录缓存' },
+  { key: 'panel', label: '面板布局', description: '大小、位置、固定状态、贴边与主题' },
+]
+
+const IMPORT_SCOPE_KEYS: ImportScopeKey[] = IMPORT_SCOPE_CONFIG.map((item) => item.key)
+const IMPORT_SCOPE_UNAVAILABLE_HINT = '备份中未包含该数据'
+
 const settingsCssUrl = settingsCssHref
 let settingsCssPromise: Promise<void> | null = null
 
@@ -70,6 +95,20 @@ type SafeStorageSetFn = (
 ) => Promise<void> | void
 type SafeStorageRemoveFn = (keys: string[] | string, contextLabel?: string) => Promise<void> | void
 
+interface ImportScopeDialogOptions {
+  document: Document
+  mountTarget: HTMLElement
+}
+
+interface ImportScopeDialog {
+  prompt: (
+    availability: ImportScopeAvailability,
+    defaults: ImportScopeSelection,
+  ) => Promise<ImportScopeSelection | null>
+  destroy: () => void
+  readonly root: HTMLElement
+}
+
 interface SettingsSnapshot {
   baseDir: string
   useTitleSubdir: boolean
@@ -90,6 +129,13 @@ interface SettingsDomRefs extends PanelSettingsDomRefs {
 
 interface SettingsUpdatePayload extends Partial<SettingsSnapshot> {
   [key: string]: unknown
+}
+
+const DEFAULT_IMPORT_SCOPE: ImportScopeSelection = {
+  settings: true,
+  history: true,
+  cache: true,
+  panel: true,
 }
 
 export interface CreateSettingsModalOptions {
@@ -183,6 +229,306 @@ function resetFileInput(input: HTMLInputElement | null): void {
   }
 }
 
+function resolveBackupDataRoot(payload: unknown): Record<string, unknown> {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('文件内容不合法')
+  }
+  const payloadRecord = payload as Record<string, unknown>
+  const source = payloadRecord['data']
+  const data =
+    source && typeof source === 'object' ? (source as Record<string, unknown>) : payloadRecord
+  return data
+}
+
+function getImportScopeAvailability(payload: unknown): ImportScopeAvailability {
+  const data = resolveBackupDataRoot(payload)
+  return {
+    settings: Object.prototype.hasOwnProperty.call(data, 'settings'),
+    history: Object.prototype.hasOwnProperty.call(data, 'history'),
+    cache: Object.prototype.hasOwnProperty.call(data, 'cache'),
+    panel: Object.prototype.hasOwnProperty.call(data, 'panel'),
+  }
+}
+
+function hasAvailableScope(availability: ImportScopeAvailability): boolean {
+  return IMPORT_SCOPE_KEYS.some((key) => availability[key])
+}
+
+function hasScopeSelection(selection: ImportScopeSelection): boolean {
+  return IMPORT_SCOPE_KEYS.some((key) => selection[key])
+}
+
+function clampScopeToAvailability(
+  selection: ImportScopeSelection,
+  availability: ImportScopeAvailability,
+): ImportScopeSelection {
+  const next: ImportScopeSelection = {
+    settings: selection.settings && availability.settings,
+    history: selection.history && availability.history,
+    cache: selection.cache && availability.cache,
+    panel: selection.panel && availability.panel,
+  }
+  if (!hasScopeSelection(next)) {
+    const fallback = IMPORT_SCOPE_KEYS.find((key) => availability[key])
+    if (fallback) {
+      next[fallback] = true
+    }
+  }
+  return next
+}
+
+function createImportScopeDialog(options: ImportScopeDialogOptions): ImportScopeDialog {
+  const { document, mountTarget } = options
+  const overlay = document.createElement('div')
+  overlay.className = 'chaospace-import-scope-overlay'
+  overlay.hidden = true
+  overlay.setAttribute('role', 'dialog')
+  overlay.setAttribute('aria-modal', 'true')
+  overlay.setAttribute('aria-label', '选择要导入的数据范围')
+
+  const card = document.createElement('div')
+  card.className = 'chaospace-import-scope'
+  card.setAttribute('role', 'document')
+  overlay.appendChild(card)
+
+  const header = document.createElement('div')
+  header.className = 'chaospace-import-scope__header'
+  const title = document.createElement('div')
+  title.className = 'chaospace-import-scope__title'
+  title.textContent = '选择导入内容'
+  const hint = document.createElement('p')
+  hint.className = 'chaospace-import-scope__hint'
+  hint.textContent = '导入备份会覆盖所选数据，请再次确认目标范围。'
+  header.appendChild(title)
+  header.appendChild(hint)
+  card.appendChild(header)
+
+  const alert = document.createElement('div')
+  alert.className = 'chaospace-import-scope__alert'
+  alert.textContent = '⚠️ 为避免误覆盖，请仅勾选需要恢复的部分。'
+  card.appendChild(alert)
+
+  const optionsContainer = document.createElement('div')
+  optionsContainer.className = 'chaospace-import-scope__options'
+  card.appendChild(optionsContainer)
+
+  const optionNodes: Record<
+    ImportScopeKey,
+    {
+      root: HTMLElement
+      checkbox: HTMLInputElement
+      title: HTMLElement
+      description: HTMLElement
+      label: string
+      descriptionText: string
+    }
+  > = {} as Record<
+    ImportScopeKey,
+    {
+      root: HTMLElement
+      checkbox: HTMLInputElement
+      title: HTMLElement
+      description: HTMLElement
+      label: string
+      descriptionText: string
+    }
+  >
+
+  IMPORT_SCOPE_CONFIG.forEach((config) => {
+    const option = document.createElement('label')
+    option.className = 'chaospace-import-scope__option'
+    option.dataset['scope'] = config.key
+
+    const checkbox = document.createElement('input')
+    checkbox.type = 'checkbox'
+    checkbox.className = 'chaospace-import-scope__checkbox'
+    checkbox.addEventListener('change', () => {
+      updateConfirmState()
+    })
+
+    const body = document.createElement('div')
+    body.className = 'chaospace-import-scope__option-body'
+    const optionTitle = document.createElement('div')
+    optionTitle.className = 'chaospace-import-scope__option-title'
+    optionTitle.textContent = config.label
+    const description = document.createElement('p')
+    description.className = 'chaospace-import-scope__option-desc'
+    description.textContent = config.description
+
+    body.appendChild(optionTitle)
+    body.appendChild(description)
+
+    option.appendChild(checkbox)
+    option.appendChild(body)
+    optionsContainer.appendChild(option)
+
+    optionNodes[config.key] = {
+      root: option,
+      checkbox,
+      title: optionTitle,
+      description,
+      label: config.label,
+      descriptionText: config.description,
+    }
+  })
+
+  const footer = document.createElement('div')
+  footer.className = 'chaospace-import-scope__footer'
+  const cancelBtn = document.createElement('button')
+  cancelBtn.type = 'button'
+  cancelBtn.className = 'chaospace-import-scope__btn'
+  cancelBtn.textContent = '取消'
+  cancelBtn.addEventListener('click', () => {
+    closeDialog(null)
+  })
+
+  const confirmBtn = document.createElement('button')
+  confirmBtn.type = 'button'
+  confirmBtn.className = 'chaospace-import-scope__btn chaospace-import-scope__btn--primary'
+  confirmBtn.textContent = '确认写入'
+  confirmBtn.disabled = true
+  confirmBtn.addEventListener('click', () => {
+    if (confirmBtn.disabled) {
+      return
+    }
+    closeDialog(collectSelection())
+  })
+
+  footer.appendChild(cancelBtn)
+  footer.appendChild(confirmBtn)
+  card.appendChild(footer)
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) {
+      closeDialog(null)
+    }
+  })
+  card.addEventListener('click', (event) => {
+    event.stopPropagation()
+  })
+
+  let pendingPromise: Promise<ImportScopeSelection | null> | null = null
+  let resolver: ((value: ImportScopeSelection | null) => void) | null = null
+  let keydownDisposer: (() => void) | null = null
+
+  const bindKeydown = () => {
+    if (keydownDisposer) {
+      return
+    }
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        closeDialog(null)
+      }
+    }
+    document.addEventListener('keydown', handler, true)
+    keydownDisposer = () => {
+      document.removeEventListener('keydown', handler, true)
+      keydownDisposer = null
+    }
+  }
+
+  const focusFirstAvailable = () => {
+    const target = IMPORT_SCOPE_KEYS.map((key) => optionNodes[key].checkbox).find(
+      (input) => !input.disabled,
+    )
+    if (target) {
+      target.focus({ preventScroll: true })
+      return
+    }
+    confirmBtn.focus({ preventScroll: true })
+  }
+
+  const setAvailability = (availability: ImportScopeAvailability) => {
+    IMPORT_SCOPE_KEYS.forEach((key) => {
+      const node = optionNodes[key]
+      const enabled = availability[key]
+      node.checkbox.disabled = !enabled
+      node.root.classList.toggle('is-disabled', !enabled)
+      node.root.setAttribute('aria-disabled', enabled ? 'false' : 'true')
+      node.title.textContent = enabled ? node.label : `${node.label}（备份缺失）`
+      node.description.classList.toggle('is-muted', !enabled)
+      node.description.textContent = enabled ? node.descriptionText : IMPORT_SCOPE_UNAVAILABLE_HINT
+      if (!enabled) {
+        node.checkbox.checked = false
+      }
+    })
+  }
+
+  const applySelection = (selection: ImportScopeSelection) => {
+    IMPORT_SCOPE_KEYS.forEach((key) => {
+      const node = optionNodes[key]
+      node.checkbox.checked = !node.checkbox.disabled && selection[key]
+    })
+    updateConfirmState()
+  }
+
+  function collectSelection(): ImportScopeSelection {
+    const snapshot: ImportScopeSelection = {
+      settings: !optionNodes.settings.checkbox.disabled && optionNodes.settings.checkbox.checked,
+      history: !optionNodes.history.checkbox.disabled && optionNodes.history.checkbox.checked,
+      cache: !optionNodes.cache.checkbox.disabled && optionNodes.cache.checkbox.checked,
+      panel: !optionNodes.panel.checkbox.disabled && optionNodes.panel.checkbox.checked,
+    }
+    return snapshot
+  }
+
+  function updateConfirmState(): void {
+    const hasSelection = hasScopeSelection(collectSelection())
+    confirmBtn.disabled = !hasSelection
+  }
+
+  function closeDialog(result: ImportScopeSelection | null): void {
+    if (!pendingPromise) {
+      return
+    }
+    overlay.classList.remove('is-open')
+    overlay.setAttribute('aria-hidden', 'true')
+    overlay.hidden = true
+    keydownDisposer?.()
+    const resolve = resolver
+    pendingPromise = null
+    resolver = null
+    resolve?.(result)
+  }
+
+  function openDialog(
+    availability: ImportScopeAvailability,
+    defaults: ImportScopeSelection,
+  ): Promise<ImportScopeSelection | null> {
+    if (pendingPromise) {
+      return pendingPromise
+    }
+    if (!hasAvailableScope(availability)) {
+      return Promise.resolve(null)
+    }
+    setAvailability(availability)
+    applySelection(defaults)
+    overlay.hidden = false
+    overlay.setAttribute('aria-hidden', 'false')
+    requestAnimationFrame(() => {
+      overlay.classList.add('is-open')
+    })
+    bindKeydown()
+    focusFirstAvailable()
+    pendingPromise = new Promise<ImportScopeSelection | null>((resolve) => {
+      resolver = resolve
+    })
+    return pendingPromise
+  }
+
+  mountTarget.appendChild(overlay)
+
+  return {
+    prompt: openDialog,
+    destroy: () => {
+      closeDialog(null)
+      overlay.remove()
+    },
+    root: overlay,
+  }
+}
+
 export function normalizePanelSizeSnapshot(value: unknown): PanelSizeSnapshot | null {
   if (!value || typeof value !== 'object') {
     return null
@@ -207,6 +553,20 @@ export function normalizePanelPositionSnapshot(value: unknown): PanelPositionSna
     return null
   }
   return { left, top }
+}
+
+function resolvePanelTheme(
+  panelData: Record<string, unknown> | null | undefined,
+  fallbackSettings: Record<string, unknown> | null,
+): 'light' | 'dark' | null {
+  const pickTheme = (source?: Record<string, unknown> | null): 'light' | 'dark' | null => {
+    if (!source || typeof source !== 'object') {
+      return null
+    }
+    const themeValue = source['theme']
+    return themeValue === 'light' || themeValue === 'dark' ? themeValue : null
+  }
+  return pickTheme(panelData) ?? pickTheme(fallbackSettings)
 }
 
 interface ExtractFormOptions {
@@ -369,6 +729,11 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     filterEditor: null,
     renameEditor: null,
   }
+  const importScopeDialog = createImportScopeDialog({
+    document,
+    mountTarget: domRefs.overlay,
+  })
+  let lastImportScopeSelection: ImportScopeSelection = { ...DEFAULT_IMPORT_SCOPE }
 
   const siteProviderOptions: ReadonlyArray<SiteProviderOption> =
     providerPreferences.getSiteProviderOptions()
@@ -654,6 +1019,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
             size: stored[SIZE_KEY] || null,
             pinned: typeof stored[PIN_STATE_KEY] === 'boolean' ? stored[PIN_STATE_KEY] : null,
             edge: stored[EDGE_STATE_KEY] || null,
+            theme: state.theme === 'light' ? 'light' : 'dark',
           },
         },
       }
@@ -698,83 +1064,150 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     return false
   }
 
-  async function importFullBackup(payload: unknown): Promise<void> {
-    if (!payload || typeof payload !== 'object') {
-      throw new Error('文件内容不合法')
-    }
+  async function importFullBackup(payload: unknown, scope: ImportScopeSelection): Promise<void> {
     if (!safeStorageSet || !safeStorageRemove) {
       throw new Error('当前环境不支持存储写入操作')
     }
-    const payloadRecord = payload as Record<string, unknown>
-    const source = payloadRecord['data']
-    const data =
-      source && typeof source === 'object' ? (source as Record<string, unknown>) : payloadRecord
+    const selection = scope ?? DEFAULT_IMPORT_SCOPE
+    const data = resolveBackupDataRoot(payload)
     const entries: Record<string, unknown> = {}
     const removals: string[] = []
+    const hasSettingsPayload = Object.prototype.hasOwnProperty.call(data, 'settings')
+    const rawSettingsPayload = hasSettingsPayload ? data['settings'] : undefined
+    const normalizedSettingsPayload =
+      rawSettingsPayload && typeof rawSettingsPayload === 'object'
+        ? (rawSettingsPayload as Record<string, unknown>)
+        : null
 
-    if ('settings' in data) {
-      const settingsData = data['settings']
-      if (settingsData && typeof settingsData === 'object') {
-        entries[STORAGE_KEY] = settingsData
-      } else {
-        removals.push(STORAGE_KEY)
+    let nextSettingsPayload: Record<string, unknown> | null = null
+    let shouldRemoveSettings = false
+    let settingsMutated = false
+    let settingsScopeApplied = false
+    let historyMutated = false
+    let cacheMutated = false
+    let panelScopeApplied = false
+    let panelGeometryTouched = false
+    let panelThemeTouched = false
+    let importedPanelSize: PanelSizeSnapshot | null = null
+    let importedPanelPosition: PanelPositionSnapshot | null = null
+
+    const ensureSettingsPayload = async (): Promise<Record<string, unknown>> => {
+      if (nextSettingsPayload) {
+        return nextSettingsPayload
       }
+      const storedSnapshot = await readStorageSnapshot<Record<string, unknown>>(
+        [STORAGE_KEY],
+        'settings merge',
+      )
+      const currentSettings = storedSnapshot[STORAGE_KEY]
+      nextSettingsPayload =
+        currentSettings && typeof currentSettings === 'object'
+          ? { ...(currentSettings as Record<string, unknown>) }
+          : {}
+      return nextSettingsPayload
     }
-    if ('history' in data) {
+
+    if (selection.settings && hasSettingsPayload) {
+      if (normalizedSettingsPayload) {
+        nextSettingsPayload = normalizedSettingsPayload
+      } else {
+        shouldRemoveSettings = true
+      }
+      settingsMutated = true
+      settingsScopeApplied = true
+    }
+
+    if (selection.history && Object.prototype.hasOwnProperty.call(data, 'history')) {
       const historyData = data['history']
       if (historyData) {
         entries[HISTORY_KEY] = historyData
       } else {
         removals.push(HISTORY_KEY)
       }
+      historyMutated = true
     }
-    if ('cache' in data) {
+
+    if (selection.cache && Object.prototype.hasOwnProperty.call(data, 'cache')) {
       const cacheData = data['cache']
       if (cacheData) {
         entries[CACHE_KEY] = cacheData
       } else {
         removals.push(CACHE_KEY)
       }
+      cacheMutated = true
     }
-    const panelData =
-      data['panel'] && typeof data['panel'] === 'object'
-        ? (data['panel'] as Record<string, unknown>)
-        : {}
-    const normalizedPanelSize = normalizePanelSizeSnapshot(panelData['size'])
-    const normalizedPanelPosition = normalizePanelPositionSnapshot(panelData['position'])
-    const normalizedPanelPinned = normalizePinState(panelData['pinned'])
-    const normalizedPanelEdge = normalizeEdgeState(panelData['edge'])
-    if ('position' in panelData) {
-      if (panelData['position'] && normalizedPanelPosition) {
-        entries[POSITION_KEY] = normalizedPanelPosition
-      } else {
-        removals.push(POSITION_KEY)
+
+    if (selection.panel && Object.prototype.hasOwnProperty.call(data, 'panel')) {
+      const panelSource = data['panel']
+      const panelData =
+        panelSource && typeof panelSource === 'object'
+          ? (panelSource as Record<string, unknown>)
+          : {}
+      const normalizedPanelSize = normalizePanelSizeSnapshot(panelData['size'])
+      const normalizedPanelPosition = normalizePanelPositionSnapshot(panelData['position'])
+      const normalizedPanelPinned = normalizePinState(panelData['pinned'])
+      const normalizedPanelEdge = normalizeEdgeState(panelData['edge'])
+      const importedTheme = resolvePanelTheme(panelData, normalizedSettingsPayload)
+      const markPanelScope = () => {
+        panelScopeApplied = true
       }
-    }
-    if ('size' in panelData) {
-      if (panelData['size'] && normalizedPanelSize) {
-        entries[SIZE_KEY] = normalizedPanelSize
-      } else {
-        removals.push(SIZE_KEY)
-      }
-    }
-    if ('pinned' in panelData) {
-      if (typeof normalizedPanelPinned === 'boolean') {
-        entries[PIN_STATE_KEY] = normalizedPanelPinned
-      } else {
-        removals.push(PIN_STATE_KEY)
-      }
-    }
-    if ('edge' in panelData) {
-      if (normalizedPanelEdge) {
-        entries[EDGE_STATE_KEY] = {
-          hidden: normalizedPanelEdge.isHidden,
-          side: normalizedPanelEdge.side,
-          peek: normalizedPanelEdge.peek,
+      if ('position' in panelData) {
+        markPanelScope()
+        panelGeometryTouched = true
+        if (panelData['position'] && normalizedPanelPosition) {
+          entries[POSITION_KEY] = normalizedPanelPosition
+          importedPanelPosition = normalizedPanelPosition
+        } else {
+          removals.push(POSITION_KEY)
+          importedPanelPosition = null
         }
-      } else {
-        removals.push(EDGE_STATE_KEY)
       }
+      if ('size' in panelData) {
+        markPanelScope()
+        panelGeometryTouched = true
+        if (panelData['size'] && normalizedPanelSize) {
+          entries[SIZE_KEY] = normalizedPanelSize
+          importedPanelSize = normalizedPanelSize
+        } else {
+          removals.push(SIZE_KEY)
+          importedPanelSize = null
+        }
+      }
+      if ('pinned' in panelData) {
+        markPanelScope()
+        panelGeometryTouched = true
+        if (typeof normalizedPanelPinned === 'boolean') {
+          entries[PIN_STATE_KEY] = normalizedPanelPinned
+        } else {
+          removals.push(PIN_STATE_KEY)
+        }
+      }
+      if ('edge' in panelData) {
+        markPanelScope()
+        panelGeometryTouched = true
+        if (normalizedPanelEdge) {
+          entries[EDGE_STATE_KEY] = {
+            hidden: normalizedPanelEdge.isHidden,
+            side: normalizedPanelEdge.side,
+            peek: normalizedPanelEdge.peek,
+          }
+        } else {
+          removals.push(EDGE_STATE_KEY)
+        }
+      }
+      if (importedTheme && !selection.settings) {
+        markPanelScope()
+        panelThemeTouched = true
+        const settingsPayload = await ensureSettingsPayload()
+        settingsPayload['theme'] = importedTheme
+        settingsMutated = true
+      }
+    }
+
+    if (nextSettingsPayload) {
+      entries[STORAGE_KEY] = nextSettingsPayload
+    } else if (shouldRemoveSettings) {
+      removals.push(STORAGE_KEY)
     }
 
     if (Object.keys(entries).length) {
@@ -784,21 +1217,57 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
       await safeStorageRemove(removals, 'data import cleanup')
     }
 
-    if (loadSettings) {
-      await loadSettings()
+    if (settingsMutated) {
+      if (loadSettings) {
+        await loadSettings()
+      }
+      applySettingsUpdate(buildSettingsSnapshot(), { persist: false })
     }
-    applySettingsUpdate(buildSettingsSnapshot(), { persist: false })
-    await notifyHistoryStoreReload()
-    if (loadHistory) {
-      await loadHistory()
+    if (historyMutated) {
+      await notifyHistoryStoreReload()
+      if (loadHistory) {
+        await loadHistory()
+      }
+      state.historyDetailCache = new Map()
+      closeHistoryDetail?.({ hideDelay: 0 })
     }
-    state.historyDetailCache = new Map()
-    closeHistoryDetail?.({ hideDelay: 0 })
-    const geometrySynced = applyImportedPanelGeometry(normalizedPanelSize, normalizedPanelPosition)
-    const detail = geometrySynced
-      ? '备份内容已写入，面板布局、历史记录与缓存已更新'
-      : '备份内容已写入，历史记录与缓存已更新'
-    showToast('success', '数据已导入', detail)
+    const geometrySynced = panelGeometryTouched
+      ? applyImportedPanelGeometry(importedPanelSize, importedPanelPosition)
+      : false
+
+    const importedKeys: ImportScopeKey[] = []
+    if (settingsScopeApplied) {
+      importedKeys.push('settings')
+    }
+    if (historyMutated) {
+      importedKeys.push('history')
+    }
+    if (cacheMutated) {
+      importedKeys.push('cache')
+    }
+    if (panelScopeApplied || panelThemeTouched) {
+      importedKeys.push('panel')
+    }
+
+    const detailParts: string[] = []
+    if (importedKeys.length) {
+      const labels = IMPORT_SCOPE_CONFIG.filter((item) => importedKeys.includes(item.key)).map(
+        (item) => item.label,
+      )
+      detailParts.push(`导入范围：${labels.join('、')}`)
+    }
+    if (panelGeometryTouched) {
+      detailParts.push(
+        geometrySynced ? '面板布局已同步至最新备份' : '面板布局数据已写入，刷新后生效',
+      )
+    }
+    if (panelThemeTouched) {
+      detailParts.push('主题配色已更新')
+    }
+    if (!detailParts.length) {
+      detailParts.push('未检测到需要写入的内容')
+    }
+    showToast('success', '数据已导入', detailParts.join('；'))
   }
 
   async function notifyHistoryStoreReload(): Promise<void> {
@@ -928,7 +1397,9 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     listenersBound = true
 
     if (!stopOutsideClick) {
-      const ignoredElements = domRefs.toggleBtn ? [domRefs.toggleBtn] : []
+      const ignoredElements = [domRefs.toggleBtn ?? null, importScopeDialog.root ?? null].filter(
+        (element): element is HTMLElement => Boolean(element),
+      )
       stopOutsideClick = onClickOutside(
         () => domRefs.overlay?.querySelector<HTMLElement>('.chaospace-settings-dialog') ?? null,
         () => {
@@ -1029,7 +1500,18 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
             ) {
               throw new Error('请选择通过“导出数据”生成的 JSON 文件')
             }
-            await importFullBackup(parsed)
+            const availability = getImportScopeAvailability(parsed)
+            if (!hasAvailableScope(availability)) {
+              throw new Error('备份文件中不包含可导入的数据')
+            }
+            const defaults = clampScopeToAvailability(lastImportScopeSelection, availability)
+            const selection = await importScopeDialog.prompt(availability, defaults)
+            if (!selection) {
+              showToast('info', '已取消导入', '未写入任何数据')
+              return
+            }
+            lastImportScopeSelection = selection
+            await importFullBackup(parsed, selection)
           } catch (error) {
             chaosLogger.error('[Pan Transfer] Backup import failed', error)
             const message = error instanceof Error ? error.message : '无法导入数据备份'
@@ -1068,6 +1550,7 @@ export function createSettingsModal(options: CreateSettingsModalOptions): Settin
     destroy: () => {
       detachEventListeners()
       unbindSettingsKeydown()
+      importScopeDialog.destroy()
     },
   }
 }
