@@ -350,7 +350,39 @@ function extractSeasonPageContext(root: Document = document): SeasonPageContext 
   // NOTE: 对于季详情页标题,我们需要保留诸如 "：第5季" 这样的后缀,否则无法正确解析季序号。
   // 这里仅做基础的文本提取与 trim, 后续由 splitSeasonHeading / inferSeasonIndexFromLabel 负责解析。
   const headingText = stripHtmlTags(headingNode?.textContent || '').trim()
-  const { showTitle, seasonLabel } = splitSeasonHeading(headingText)
+  let { showTitle, seasonLabel } = splitSeasonHeading(headingText)
+
+  // Fallback: 某些页面的季信息可能出现在海报 alt 或 schema.org 元数据中，而不是 H1 文本里。
+  // 当 H1 未能解析出季标签时，尝试从这些位置再推断一次，以提升解析鲁棒性。
+  if (!seasonLabel) {
+    const posterImg = root.querySelector<HTMLImageElement>('.sheader .poster img')
+    const posterAlt = stripHtmlTags(posterImg?.alt || '').trim()
+    if (posterAlt) {
+      const altParts = splitSeasonHeading(posterAlt)
+      if (altParts.seasonLabel) {
+        if (!showTitle && altParts.showTitle) {
+          showTitle = altParts.showTitle
+        }
+        seasonLabel = altParts.seasonLabel
+      }
+    }
+  }
+  if (!seasonLabel) {
+    const nameMeta = root.querySelector<HTMLElement>('.starstruck-ptype [itemprop="name"]') || null
+    const metaContent =
+      (nameMeta && (nameMeta.getAttribute('content') || nameMeta.textContent)) || ''
+    const metaText = stripHtmlTags(metaContent).trim()
+    if (metaText) {
+      const metaParts = splitSeasonHeading(metaText)
+      if (metaParts.seasonLabel) {
+        if (!showTitle && metaParts.showTitle) {
+          showTitle = metaParts.showTitle
+        }
+        seasonLabel = metaParts.seasonLabel
+      }
+    }
+  }
+
   const normalizedShowTitle =
     normalizeShowTitleText(showTitle) || normalizeShowTitleText(headingText)
   const inferredIndex = inferSeasonIndexFromLabel(seasonLabel)

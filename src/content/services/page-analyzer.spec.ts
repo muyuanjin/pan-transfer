@@ -148,6 +148,30 @@ function stubFetch(resolvedHtml: Record<string, string> = {}): void {
   vi.stubGlobal('fetch', fetchMock)
 }
 
+async function analyzeSeasonPageWithHeadingOverride(
+  seasonFixture: string,
+  seasonUrl: string,
+  parentFixture: string,
+  parentUrl: string,
+  overrideHeading: (heading: HTMLElement) => void,
+) {
+  loadFixtureIntoDocument(seasonFixture, seasonUrl)
+  const parentHtml = readStrippedFixture(parentFixture)
+  FETCH_FIXTURE_HTML.set(parentUrl, parentHtml)
+  stubFetch()
+
+  const heading =
+    document.querySelector<HTMLElement>('.sheader .data h1') ||
+    document.querySelector<HTMLElement>('.sheader h1') ||
+    document.querySelector<HTMLElement>('h1')
+  if (!heading) {
+    throw new Error('Season heading not found in Chaospace season fixture')
+  }
+
+  overrideHeading(heading)
+  return analyzePage()
+}
+
 describe('page-analyzer 使用 chaospace 真实页面', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
@@ -243,24 +267,110 @@ describe('page-analyzer 使用 chaospace 真实页面', () => {
 
   it('季页面标题中的「第5季」不会被清洗掉,能正确解析季序号', async () => {
     const seasonUrl = 'https://www.chaospace.cc/seasons/428609.html'
-    loadFixtureIntoDocument('chaospace-season-428609.html', seasonUrl)
     const parentUrl = 'https://www.chaospace.cc/tvshows/428607.html'
-    const parentHtml = readStrippedFixture('chaospace-tvshow-428607.html')
-    FETCH_FIXTURE_HTML.set(parentUrl, parentHtml)
-    stubFetch()
-
-    const heading = document.querySelector<HTMLElement>('.sheader .data h1')
-    if (heading && heading.textContent) {
-      heading.textContent = heading.textContent.replace('第1季', '第5季')
-    }
-
-    const result = await analyzePage()
+    const result = await analyzeSeasonPageWithHeadingOverride(
+      'chaospace-season-428609.html',
+      seasonUrl,
+      'chaospace-tvshow-428607.html',
+      parentUrl,
+      (heading) => {
+        if (heading.textContent) {
+          heading.textContent = heading.textContent.replace('第1季', '第5季')
+        }
+      },
+    )
 
     expect(result.items.length).toBeGreaterThan(0)
     expect(result.items.every((item) => item.seasonLabel === '第5季')).toBe(true)
     expect(result.seasonEntries).toHaveLength(1)
     expect(result.seasonEntries[0]?.label).toBe('第5季')
     expect(result.seasonEntries[0]?.seasonIndex).toBe(4)
+  })
+
+  it('季页面标题为「剧名 第二季」时也能正确解析季序号', async () => {
+    const seasonUrl = 'https://www.chaospace.cc/seasons/428609.html'
+    const parentUrl = 'https://www.chaospace.cc/tvshows/428607.html'
+    const result = await analyzeSeasonPageWithHeadingOverride(
+      'chaospace-season-428609.html',
+      seasonUrl,
+      'chaospace-tvshow-428607.html',
+      parentUrl,
+      (heading) => {
+        if (heading.textContent) {
+          heading.textContent = heading.textContent.replace('第1季', '第二季')
+        }
+      },
+    )
+
+    expect(result.items.length).toBeGreaterThan(0)
+    expect(result.items.every((item) => item.seasonLabel === '第2季')).toBe(true)
+    expect(result.seasonEntries).toHaveLength(1)
+    expect(result.seasonEntries[0]?.label).toBe('第2季')
+    expect(result.seasonEntries[0]?.seasonIndex).toBe(1)
+  })
+
+  it('季页面标题中使用 ASCII 冒号和状态后缀时也能正确解析季序号', async () => {
+    const seasonUrl = 'https://www.chaospace.cc/seasons/428609.html'
+    const parentUrl = 'https://www.chaospace.cc/tvshows/428607.html'
+    const result = await analyzeSeasonPageWithHeadingOverride(
+      'chaospace-season-428609.html',
+      seasonUrl,
+      'chaospace-tvshow-428607.html',
+      parentUrl,
+      (heading) => {
+        if (!heading.textContent) return
+        heading.textContent = heading.textContent.replace(
+          '：第1季',
+          ': 第3季 完结 2025-10-07更新至E05N/A',
+        )
+      },
+    )
+
+    expect(result.items.length).toBeGreaterThan(0)
+    expect(result.items.every((item) => item.seasonLabel === '第3季')).toBe(true)
+    expect(result.seasonEntries).toHaveLength(1)
+    expect(result.seasonEntries[0]?.label).toBe('第3季')
+    expect(result.seasonEntries[0]?.seasonIndex).toBe(2)
+  })
+
+  it('季页面标题为「剧名 - Season 2」形式时也能正确解析季序号', async () => {
+    const seasonUrl = 'https://www.chaospace.cc/seasons/429054.html'
+    const parentUrl = 'https://www.chaospace.cc/tvshows/429052.html'
+    const result = await analyzeSeasonPageWithHeadingOverride(
+      'chaospace-season-429054.html',
+      seasonUrl,
+      'chaospace-tvshow-429052.html',
+      parentUrl,
+      (heading) => {
+        heading.textContent = '转生恶女的黑历史 - Season 2'
+      },
+    )
+
+    expect(result.items.length).toBeGreaterThan(0)
+    expect(result.items.every((item) => item.seasonLabel === 'Season 2')).toBe(true)
+    expect(result.seasonEntries).toHaveLength(1)
+    expect(result.seasonEntries[0]?.label).toBe('Season 2')
+    expect(result.seasonEntries[0]?.seasonIndex).toBe(1)
+  })
+
+  it('季页面标题为「剧名 S2 ...」形式时也能正确解析季序号', async () => {
+    const seasonUrl = 'https://www.chaospace.cc/seasons/429054.html'
+    const parentUrl = 'https://www.chaospace.cc/tvshows/429052.html'
+    const result = await analyzeSeasonPageWithHeadingOverride(
+      'chaospace-season-429054.html',
+      seasonUrl,
+      'chaospace-tvshow-429052.html',
+      parentUrl,
+      (heading) => {
+        heading.textContent = '转生恶女的黑历史 S2 2025-10-09 连载中'
+      },
+    )
+
+    expect(result.items.length).toBeGreaterThan(0)
+    expect(result.items.every((item) => item.seasonLabel === 'S2')).toBe(true)
+    expect(result.seasonEntries).toHaveLength(1)
+    expect(result.seasonEntries[0]?.label).toBe('S2')
+    expect(result.seasonEntries[0]?.seasonIndex).toBe(1)
   })
 
   it('fetchSeasonDetail 应从季页面提取全部网盘资源及完成度信息', async () => {
