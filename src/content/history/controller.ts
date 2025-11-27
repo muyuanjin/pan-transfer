@@ -195,7 +195,8 @@ export function createHistoryController(deps: HistoryControllerDeps) {
     if (matched.seasonDirectory && typeof matched.seasonDirectory === 'object') {
       const seasonMap = normalizeSeasonDirectoryMap(matched.seasonDirectory)
       if (Object.keys(seasonMap).length) {
-        state.seasonDirMap = { ...state.seasonDirMap, ...seasonMap }
+        // 保留当前解析得到的季目录,仅用历史记录补充缺失的条目,避免旧版本错误覆盖最新结果
+        state.seasonDirMap = { ...seasonMap, ...state.seasonDirMap }
         dedupeSeasonDirMap()
         updateSeasonExampleDir()
         renderSeasonHint()

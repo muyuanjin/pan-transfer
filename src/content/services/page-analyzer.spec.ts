@@ -241,6 +241,28 @@ describe('page-analyzer 使用 chaospace 真实页面', () => {
     expect(result.seasonCompletion['428609']?.label).toBeDefined()
   })
 
+  it('季页面标题中的「第5季」不会被清洗掉,能正确解析季序号', async () => {
+    const seasonUrl = 'https://www.chaospace.cc/seasons/428609.html'
+    loadFixtureIntoDocument('chaospace-season-428609.html', seasonUrl)
+    const parentUrl = 'https://www.chaospace.cc/tvshows/428607.html'
+    const parentHtml = readStrippedFixture('chaospace-tvshow-428607.html')
+    FETCH_FIXTURE_HTML.set(parentUrl, parentHtml)
+    stubFetch()
+
+    const heading = document.querySelector<HTMLElement>('.sheader .data h1')
+    if (heading && heading.textContent) {
+      heading.textContent = heading.textContent.replace('第1季', '第5季')
+    }
+
+    const result = await analyzePage()
+
+    expect(result.items.length).toBeGreaterThan(0)
+    expect(result.items.every((item) => item.seasonLabel === '第5季')).toBe(true)
+    expect(result.seasonEntries).toHaveLength(1)
+    expect(result.seasonEntries[0]?.label).toBe('第5季')
+    expect(result.seasonEntries[0]?.seasonIndex).toBe(4)
+  })
+
   it('fetchSeasonDetail 应从季页面提取全部网盘资源及完成度信息', async () => {
     const seasonUrl = 'https://www.chaospace.cc/seasons/428609.html'
     const html = stripScripts(readFixture('chaospace-season-428609.html'))

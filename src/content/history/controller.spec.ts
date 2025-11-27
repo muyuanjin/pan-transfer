@@ -117,6 +117,59 @@ describe('history controller', () => {
     expect(seasonPreference.applyHistorySelection).toHaveBeenCalledWith(true)
   })
 
+  it('keeps parsed season directory when history has conflicting seasonDirectory', () => {
+    const renderResourceList = vi.fn()
+    const renderPathPreview = vi.fn()
+    const renderSeasonHint = vi.fn()
+    const seasonPreference = createSeasonPreferenceStub(renderSeasonHint, renderPathPreview)
+
+    const history = createHistoryController({
+      getFloatingPanel: () => document.createElement('div'),
+      panelState: createPanelRuntimeState(),
+      renderResourceList,
+      renderPathPreview,
+      renderSeasonHint,
+      seasonPreference,
+      panelDom: panelHistoryDom,
+    })
+
+    const targetUrl = 'https://www.chaospace.cc/tvshows/123.html'
+    state.pageUrl = targetUrl
+    state.baseDir = '/视频/影视'
+    state.pageTitle = '怪奇物语'
+    state.useTitleSubdir = true
+    state.useSeasonSubdir = true
+
+    const seasonId = 's5'
+    state.items = [
+      {
+        id: 'ep-1',
+        title: 'Episode 1',
+        order: 0,
+        seasonId,
+        seasonIndex: 4,
+        seasonLabel: '第5季',
+      } as ResourceItem,
+    ]
+    state.seasonDirMap = { [seasonId]: '第5季' }
+
+    state.historyRecords = [
+      buildHistoryRecord({
+        pageUrl: targetUrl,
+        seasonDirectory: {
+          [seasonId]: '第1季',
+        },
+      }),
+    ]
+
+    history.applyHistoryToCurrentPage()
+
+    expect(state.seasonDirMap[seasonId]).toBe('第5季')
+    const resolved = (state.seasonResolvedPaths || []).find((entry) => entry.id === seasonId)
+    expect(resolved?.label).toBe('第5季')
+    expect(resolved?.path).toBe('/视频/影视/怪奇物语/第5季')
+  })
+
   it('auto-selects only newly detected items when history has updates', () => {
     const renderResourceList = vi.fn()
     const renderPathPreview = vi.fn()

@@ -346,7 +346,10 @@ function extractSeasonPageContext(root: Document = document): SeasonPageContext 
     root.querySelector<HTMLElement>('.sheader .data h1') ||
     root.querySelector<HTMLElement>('.sheader h1') ||
     root.querySelector<HTMLElement>('h1')
-  const headingText = extractCleanTitle(headingNode?.textContent || '')
+
+  // NOTE: 对于季详情页标题,我们需要保留诸如 "：第5季" 这样的后缀,否则无法正确解析季序号。
+  // 这里仅做基础的文本提取与 trim, 后续由 splitSeasonHeading / inferSeasonIndexFromLabel 负责解析。
+  const headingText = stripHtmlTags(headingNode?.textContent || '').trim()
   const { showTitle, seasonLabel } = splitSeasonHeading(headingText)
   const normalizedShowTitle =
     normalizeShowTitleText(showTitle) || normalizeShowTitleText(headingText)
