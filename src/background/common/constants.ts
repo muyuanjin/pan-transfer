@@ -29,7 +29,8 @@ export const MAX_TRANSFER_ATTEMPTS = 3
 export const TRANSFER_RETRYABLE_ERRNOS = new Set<number>([4])
 export const DIRECTORY_LIST_PAGE_SIZE = 200
 export const LOGIN_REQUIRED_ERRNOS = new Set<number>([-4, -6, 9019, 20010])
-export const LOGIN_REDIRECT_COOLDOWN = 60 * 1000
+// 缩短登录重定向冷却时间，避免用户在未登录时感觉“有时不会跳转”
+export const LOGIN_REDIRECT_COOLDOWN = 10 * 1000
 
 export const STORAGE_KEYS = {
   settings: 'chaospace-transfer-settings',

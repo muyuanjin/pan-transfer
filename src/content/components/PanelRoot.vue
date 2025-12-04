@@ -53,6 +53,7 @@
         <div class="chaospace-history-overlay-header">
           <div class="chaospace-history-overlay-title">🔖 转存历史</div>
           <button
+            v-if="hasPageResources"
             type="button"
             class="chaospace-history-toggle"
             data-role="history-toggle"
@@ -410,6 +411,7 @@ import HistorySearchBar from './history/HistorySearchBar.vue'
 import HistoryToolbar from './history/HistoryToolbar.vue'
 import PresetList from './PresetList.vue'
 import ProviderStatusBar from './ProviderStatusBar.vue'
+import { useContentStore } from '../state'
 
 type PanelTheme = 'light' | 'dark'
 
@@ -426,10 +428,16 @@ const props = withDefaults(
 
 const safeTitle = computed(() => props.pageTitle?.trim() || '等待选择剧集')
 
+const store = useContentStore()
+const hasPageResources = computed(
+  () => store.items.length > 0 || store.deferredSeasonInfos.length > 0,
+)
+
 const panelClasses = computed(() => ({
   'chaospace-float-panel': true,
   'chaospace-theme': true,
   'theme-light': props.theme === 'light',
+  'is-history-only': !hasPageResources.value,
 }))
 
 const MIN_POSTER_HEIGHT = 110

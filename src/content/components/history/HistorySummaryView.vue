@@ -12,6 +12,7 @@
     <div class="chaospace-history-summary-topline">
       <span class="chaospace-history-summary-label">🔖 转存历史</span>
       <button
+        v-if="!isHistoryOnly"
         type="button"
         class="chaospace-history-toggle"
         data-role="history-toggle"
@@ -37,6 +38,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useHistoryListActions } from '../../runtime/ui/history-context'
+import { useContentStore } from '../../state'
 
 const props = defineProps<{
   summary: {
@@ -51,7 +53,15 @@ const emptyMessage = computed<string>(() => props.emptyMessage || '暂无其他�
 
 const { toggleHistoryExpanded } = useHistoryListActions()
 
+const store = useContentStore()
+const isHistoryOnly = computed(
+  () => store.items.length === 0 && store.deferredSeasonInfos.length === 0,
+)
+
 function handleSummaryActivate(): void {
+  if (isHistoryOnly.value) {
+    return
+  }
   toggleHistoryExpanded()
 }
 </script>

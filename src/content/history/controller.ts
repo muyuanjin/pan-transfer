@@ -258,6 +258,24 @@ export function createHistoryController(deps: HistoryControllerDeps) {
     if (!floatingPanel) {
       return
     }
+
+    const isHistoryOnly =
+      Array.isArray(state.items) &&
+      state.items.length === 0 &&
+      Array.isArray(state.deferredSeasonInfos) &&
+      state.deferredSeasonInfos.length === 0
+
+    // 在“历史-only”模式下（当前页面没有可转存资源），始终展开历史面板，
+    // 即便当前没有任何历史记录，也要展示空态提示。
+    if (isHistoryOnly) {
+      state.historyExpanded = true
+      floatingPanel.classList.add('is-history-expanded')
+      if (historyDom.historyOverlay) {
+        historyDom.historyOverlay.setAttribute('aria-hidden', 'false')
+      }
+      return
+    }
+
     if (!state.historyGroups.length && state.historyExpanded) {
       state.historyExpanded = false
     }
@@ -937,6 +955,15 @@ export function createHistoryController(deps: HistoryControllerDeps) {
   }
 
   function toggleHistoryExpanded(): void {
+    const isHistoryOnly =
+      Array.isArray(state.items) &&
+      state.items.length === 0 &&
+      Array.isArray(state.deferredSeasonInfos) &&
+      state.deferredSeasonInfos.length === 0
+    if (isHistoryOnly) {
+      // 历史-only 模式下固定展开历史面板，不响应收起操作。
+      return
+    }
     setHistoryExpanded(!state.historyExpanded)
   }
 

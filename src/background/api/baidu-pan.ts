@@ -222,20 +222,59 @@ export async function ensureBdstoken(force = false): Promise<string> {
   if (!force && cachedBdstoken && now - cachedBdstokenAt < TOKEN_TTL) {
     return cachedBdstoken
   }
+  // 先通过 Cookie 粗略检查一次，避免频繁触发网络请求
   await ensurePanSessionAvailable('ensure-bdstoken')
-  const response = await fetch('https://pan.baidu.com/disk/home', {
-    credentials: 'include',
-    headers: withPanHeaders(),
-  })
+
+  let response: Response
+  try {
+    response = await fetch('https://pan.baidu.com/disk/home', {
+      credentials: 'include',
+      headers: withPanHeaders(),
+    })
+  } catch (error) {
+    const err = error as Error
+    // 这里会捕获包括 CORS 在内的所有网络异常。
+    // 在登录态失效但 BDUSS 仍然存在的情况下，Baidu 会 302 跳转到 passport，
+    // 对扩展而言表现为预检 / CORS 失败，因此统一视为“需要重新登录”。
+    chaosLogger.warn('[Pan Transfer] Failed to load pan home for bdstoken', {
+      message: err?.message,
+    })
+    redirectToBaiduLogin('ensure-bdstoken-fetch-error')
+    throw createLoginRequiredError()
+  }
+
   if (!response.ok) {
+    chaosLogger.warn('[Pan Transfer] Unexpected status when loading pan home for bdstoken', {
+      status: response.status,
+      redirected: response.redirected,
+      url: response.url,
+    })
+    // 若被重定向到 passport 或返回 401/403，也认为登录态失效，主动引导用户去登录。
+    if (
+      response.status === 401 ||
+      response.status === 403 ||
+      (response.redirected && /passport\.baidu\.com/i.test(response.url))
+    ) {
+      redirectToBaiduLogin('ensure-bdstoken-non-ok')
+      throw createLoginRequiredError()
+    }
     throw new Error(`获取网盘页面失败：${response.status}`)
   }
+
   const html = await response.text()
   const match = html.match(/"bdstoken"\s*:\s*"([^"]+)"/)
   const token = match?.[1]
   if (!token) {
-    throw new Error('未获取到 bdstoken，请确认已登录百度网盘')
+    // 页面加载成功但未解析到 bdstoken，通常意味着跳到了登录页或页面结构变更。
+    chaosLogger.warn('[Pan Transfer] Failed to extract bdstoken from pan home HTML', {
+      length: html.length,
+      redirected: response.redirected,
+      url: response.url,
+    })
+    redirectToBaiduLogin('ensure-bdstoken-missing-token')
+    throw createLoginRequiredError()
   }
+
   cachedBdstoken = token
   cachedBdstokenAt = now
   return token

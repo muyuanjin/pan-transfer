@@ -5,7 +5,6 @@ import {
   extractPosterDetails,
   extractSeasonPageCompletion,
   fetchHtmlDocument,
-  isSupportedDetailPage,
   suggestDirectoryFromClassification,
 } from '@/providers/sites/chaospace/page-analyzer'
 import { state, panelDom, detailDom } from '../state'
@@ -860,9 +859,6 @@ export function createRuntimeApp() {
 
   const init = (): void => {
     if (initialized) {
-      return
-    }
-    if (!isSupportedDetailPage()) {
       return
     }
     initialized = true

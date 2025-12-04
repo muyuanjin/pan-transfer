@@ -292,7 +292,8 @@
   gap: 12px;
 }
 
-.chaospace-float-panel.is-history-expanded .chaospace-float-main {
+.chaospace-float-panel.is-history-expanded .chaospace-float-main,
+.chaospace-float-panel.is-history-only .chaospace-float-main {
   opacity: 0;
   transform: translateY(16px);
   pointer-events: none;
@@ -300,7 +301,8 @@
   overflow: hidden;
 }
 
-.chaospace-float-panel.is-history-expanded .chaospace-float-body {
+.chaospace-float-panel.is-history-expanded .chaospace-float-body,
+.chaospace-float-panel.is-history-only .chaospace-float-body {
   gap: 6px;
   padding-bottom: 14px;
 }

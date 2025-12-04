@@ -249,7 +249,17 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
       }
       const hasItems = Array.isArray(data.items) && data.items.length > 0
       const deferredSeasons = hydrator.normalizeDeferredSeasons(data.deferredSeasons)
-      if (!hasItems && deferredSeasons.length === 0) {
+      const hasPageResources = hasItems || deferredSeasons.length > 0
+
+      // 对于剧集 / 电影详情页，如果还没有解析到任何资源（包括未来要加载的多季资源），
+      // 保持原有行为：先不创建面板，等待 DOM 进一步渲染后由观察器重试。
+      // 对于 CHAOSPACE 的其他页面（分类、搜索、首页等），允许在没有资源的情况下
+      // 创建“历史 / 设置优先”的面板，方便用户查看历史记录或调整设置。
+      const isDetailLikePage =
+        data.classification === 'movie' ||
+        data.classification === 'tvshow' ||
+        data.classification === 'anime'
+      if (isDetailLikePage && !hasPageResources) {
         return false
       }
 

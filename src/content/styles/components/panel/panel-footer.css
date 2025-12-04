@@ -250,3 +250,8 @@
   width: 100%;
   min-width: 0;
 }
+
+/* 在非剧集页面仅展示历史 / 设置，不显示底部转存按钮 */
+.chaospace-float-panel.is-history-only .chaospace-transfer-card {
+  display: none;
+}

@@ -318,7 +318,8 @@
   display: none;
 }
 
-.chaospace-float-panel.is-history-expanded .chaospace-history-overlay {
+.chaospace-float-panel.is-history-expanded .chaospace-history-overlay,
+.chaospace-float-panel.is-history-only .chaospace-history-overlay {
   max-height: calc(100% - 44px);
   opacity: 1;
   transform: translateY(0);

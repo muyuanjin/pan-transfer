@@ -32,7 +32,8 @@
     "*://*.chaospace.cc/*",
     "*://chaospace.xyz/*",
     "*://*.chaospace.xyz/*",
-    "https://pan.baidu.com/*"
+    "https://pan.baidu.com/*",
+    "https://passport.baidu.com/*"
   ],
   "background": {
     "service_worker": "background/index.js",
