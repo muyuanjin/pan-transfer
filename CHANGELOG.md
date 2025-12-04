@@ -5,6 +5,18 @@ All notable changes to Pan Transfer extension will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2025-12-05
+
+### Fixed
+
+- **Pan 登录过期 CORS 引导**: 强化 `ensureBdstoken` 登录态检测逻辑，当 BDUSS 失效或被 302 跳转到 `passport.baidu.com` 导致 CORS/预检失败时，统一记录日志、抛出登录必需错误并主动引导打开百度网盘登录页，避免用户只看到模糊的网络错误 ([e35971f](https://github.com/muyuanjin/pan-transfer/commit/e35971f)).
+- **Chaospace 季度解析鲁棒性**: 改进 Chaospace 页面季列表与番剧判定逻辑，在标题噪音、多种日期/评分后缀和部分页面结构变动下仍能稳定识别季信息，减少错误分类或漏抓资源的情况 ([53ba595](https://github.com/muyuanjin/pan-transfer/commit/53ba595)).
+- **Chaospace 历史季信息保持**: 当页面重新解析或切换 Provider 时保留历史中已解析的季元数据，避免被旧版本错误覆盖最新结果，保证季目录和完成度展示一致 ([e066df2](https://github.com/muyuanjin/pan-transfer/commit/e066df2)).
+
+### Changed
+
+- **非详情页面板模式**: 允许在 Chaospace 分类、搜索等非详情页面挂载“历史 / 设置优先”的面板，在当前页面没有可转存资源时自动进入历史-only 模式（始终展开历史视图、隐藏转存按钮），方便用户快速查看近期记录和调整设置 ([e35971f](https://github.com/muyuanjin/pan-transfer/commit/e35971f)).
+
 ## [0.2.2] - 2025-11-14
 
 ### Added
@@ -56,6 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Manifest V3 + Vite 7 + TypeScript 5.9 + Vue 3 技术栈
 - 完整的 ESLint、Prettier、TypeScript、Vitest、Playwright 测试覆盖
 
+[0.2.3]: https://github.com/muyuanjin/pan-transfer/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/muyuanjin/pan-transfer/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/muyuanjin/pan-transfer/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/muyuanjin/pan-transfer/compare/v0.1.0...v0.2.0
