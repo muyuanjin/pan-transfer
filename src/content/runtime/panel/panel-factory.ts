@@ -170,7 +170,7 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
   }
 
   const bindPanelInteractions = (shell: PanelShellInstance): void => {
-    const { syncPanelLayout, applyPanelPosition, getPanelBounds, scheduleEdgeHide } = shell
+    const { syncPanelLayout, scheduleEdgeHide } = shell
 
     disposeBinders()
 
@@ -187,10 +187,6 @@ export function createPanelFactory(deps: PanelFactoryDeps): PanelFactory {
     const allBinders = [...staticBinders, ...shellBinders]
 
     binderDisposers = allBinders.map((binder) => binder.bind())
-
-    const bounds = getPanelBounds()
-    panelState.lastKnownSize = { width: bounds.maxWidth, height: bounds.maxHeight }
-    panelState.lastKnownPosition = applyPanelPosition(undefined, undefined)
 
     syncPanelLayout()
 
